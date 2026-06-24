@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Season 3 POS System</title>
+    <link rel="stylesheet" href="pos.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+
+<body>
+    <div class="app-container">
+
+        <main class="dashboard">
+
+            <header class="top-bar">
+                <div class="logo-box">
+                    <img src="../assets/logo.jpg" alt="Season 3 Logo" style="width: 100%; height: 100%; border-radius: 10%; object-fit: cover;">
+                </div>
+                <div class="date-display" id="currentDate">Loading date...</div>
+
+                <div class="search-container">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="searchInput" placeholder="Search menu items...">
+                </div>
+
+                <div class="nav-controls">
+                    <!-- <button class="icon-nav menu-trigger"><i class="fa-solid fa-bars"></i></button> -->
+                    <button class="icon-nav notification-trigger"><i class="fa-solid fa-bell"></i></button>
+                    <div class="user-badge">
+                        <img src="https://ui-avatars.com/api/?name=Pranselen&background=6b4f3b&color=fff" alt="User">
+                        <div class="user-meta">
+                            <span class="username">Pranselen</span>
+                            <span class="role">Cashier</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <section class="category-tabs" id="categoryTabsContainer">
+            </section>
+
+            <section class="menu-grid" id="menuGrid"></section>
+        </main>
+
+        <aside class="receipt-panel">
+            <div class="receipt-top">
+                <div class="receipt-title">
+                    <h2>Current Order</h2>
+                    <span class="order-id" id="currentOrderId">generating...</span>
+                </div>
+            </div>
+
+            <nav class="order-mode-switcher">
+                <button class="mode-btn active" data-mode="Dine In">Dine In</button>
+                <button class="mode-btn" data-mode="To Go">To Go</button>
+                <button class="mode-btn" data-mode="Online Order">Online Order</button>
+            </nav>
+
+            <div class="form-row">
+                <div class="input-field">
+                    <label>Customer's name</label>
+                    <input type="text" id="customerNameInput" value="Name">
+                </div>
+                <div class="input-field">
+                    <label>Table No.</label>
+                    <input type="text" id="tableNoInput" value="00">
+                </div>
+            </div>
+
+            <div class="receipt-top">
+                <div class="receipt-title">
+                    <h2>Order Summary</h2>
+                </div>
+                <button class="cancel-order-btn" id="cancelOrderBtn" type="button">Cancel</button>
+            </div>
+
+            <div class="cart-items" id="cartContainer"></div>
+
+            <div class="checkout-area">
+                <div class="total-summary">
+                    <span>Total Order</span>
+                    <span class="total-price" id="totalPrice">₱0.00</span>
+                </div>
+
+                <div class="payment-options">
+                    <label class="radio-container">
+                        Cash
+                        <input type="radio" checked="checked" name="payment" value="cash">
+                        <span class="checkmark"></span>
+                    </label>
+                    <label class="radio-container">
+                        G-Cash
+                        <input type="radio" name="payment" value="gcash">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
+
+                <div class="slide-button-container">
+                    <div class="slide-track" id="swipeTrack">
+                        <div class="slider-thumb" id="swipeThumb">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </div>
+                        <span class="btn-text" id="swipeText">Swipe to Place Order ₱0.00</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+    <script src="pos.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,756 @@
+:root {
+    /* Color Variables: Think of these as reusable paint buckets */
+    --primary-bg: #e5c8b2;
+    --card-bg: #fdf3eb;
+    --accent-brown: #a67c52;
+    --dark-brown: #6b4f3b;
+    --white: #ffffff;
+    --text-dark: #3a3a3a;
+    --text-muted: #8a8a8a;
+    --transition: 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/*Global Page Resets (Screen Setup)*/
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background-color: var(--primary-bg);
+    color: var(--text-dark);
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+/* Main window container holding the whole system together */
+.app-container {
+    width: 98vw;
+    height: 96vh;
+    display: grid; /* This puts .dashboard and .receipt-panel side-by-side */
+    grid-template-columns: 1fr 380px; 
+    gap: 20px;
+    overflow: hidden; /* Keeps everything inside the window */
+}
+
+/* ==========================================
+ * 2. Main Dashboard Layout (Left Side)
+ * ========================================== */
+.dashboard {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+    padding: 10px;
+}
+
+/* Top bar holding logo, date, search input, and profile */
+.top-bar {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.logo-box {
+    background: var(--white);
+    width: 60px;
+    height: 60px;
+    border-radius: 10%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: 900;
+    font-size: 1.8rem;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+.date-display {
+    background: var(--white);
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+/* Search bar design */
+.search-container {
+    flex-grow: 1;
+    position: relative;
+}
+
+.search-container i {
+    position: absolute;
+    left: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+}
+
+.search-container input {
+    width: 100%;
+    border: none;
+    padding: 14px 14px 14px 50px;
+    border-radius: 30px;
+    background: #f0d5c0;
+    font-size: 1rem;
+    outline: none;
+}
+
+/* Navigation buttons & Cashier identification badge */
+.nav-controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.icon-nav {
+    width: 48px;
+    height: 48px;
+    border: none;
+    border-radius: 14px;
+    background: var(--white);
+    cursor: pointer;
+    font-size: 1.2rem;
+    color: var(--text-dark);
+    transition: var(--transition);
+}
+
+.menu-trigger { background: #d7b49a; }
+
+.user-badge {
+    background: var(--accent-brown);
+    padding: 6px 15px 6px 6px;
+    border-radius: 40px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--white);
+}
+
+.user-badge img {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+}
+
+.user-meta {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+}
+
+.username { font-weight: bold; font-size: 0.85rem; }
+.role { font-size: 0.7rem; opacity: 0.8; }
+
+/*3. Menu Category Selection Tabs*/
+.category-tabs {
+    display: flex;
+    gap: 15px;
+}
+
+.tab-item {
+    flex: 1;
+    background: var(--white);
+    padding: 25px;
+    border-radius: 30px;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.tab-item.active {
+    background: var(--accent-brown);
+    color: var(--white);
+}
+
+.tab-item h3 { font-size: 1.1rem; margin-bottom: 5px; }
+.tab-item p { font-size: 0.85rem; opacity: 0.7; }
+
+/* 4. Food Items Grid Area */
+.menu-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    /* 58vh shows ~2.5 rows — bottom row intentionally half-visible to hint scroll */
+    max-height: 58vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 6px;
+    /* Slight bottom padding reveals the top of the next row */
+    padding-bottom: 20px;
+    align-content: start;
+}
+
+/* Scrollbar styling so it doesn't eat space */
+.menu-grid::-webkit-scrollbar { width: 4px; }
+.menu-grid::-webkit-scrollbar-track { background: transparent; }
+.menu-grid::-webkit-scrollbar-thumb { background: var(--accent-brown); border-radius: 4px; }
+
+.food-card {
+    background: #f5dcc8;
+    border-radius: 18px;
+    padding: 9px;
+    cursor: pointer;
+    transition: var(--transition);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    /* NO fixed height — let content decide */
+}
+
+.food-card:hover { transform: translateY(-4px); }
+
+.food-card img {
+    width: 100%;
+    /* Fixed pixel height — stays consistent regardless of card width */
+    height: clamp(90px, 12vw, 150px);
+    object-fit: contain;
+    border-radius: 12px;
+    background: #ecdcc8;
+    flex-shrink: 0;
+    display: block;
+}
+
+.food-info {
+    padding: 8px 4px 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.food-info h4 {
+    font-size: clamp(0.72rem, 1.1vw, 0.9rem);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin: 0;
+    color: var(--text-dark);
+}
+
+.price-box {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.price-box span { font-weight: 700; font-size: clamp(0.72rem, 1vw, 0.88rem); }
+
+.add-circle {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--accent-brown);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: var(--accent-brown);
+    flex-shrink: 0;
+    background: white;
+    font-size: 0.8rem;
+}
+
+/*5. Checkout Receipt Panel (Right Side Sidebar)*/
+.receipt-panel {
+    background: var(--white);
+    border-radius: 40px;
+    padding: 30px;
+    /* ADD THESE LINES */
+    display: flex;
+    flex-direction: column;
+    height: 100%;           /* Lock to the container height */
+    overflow: hidden; /* Makes it visible against the background */ 
+}
+
+.receipt-top {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.circular-back-btn {
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent-brown);
+    color: var(--white);
+    transform: rotate(180deg);
+    cursor: pointer;
+}
+
+.receipt-title h2 { font-size: 1.2rem; }
+.order-id { font-size: 0.8rem; color: var(--text-muted); }
+
+/* Service Mode Switchers (Dine In, To Go, Online) */
+.order-mode-switcher {
+    display: flex;
+    background: var(--card-bg);
+    padding: 6px;
+    border-radius: 40px;
+    margin-bottom: 25px;
+}
+
+.mode-btn {
+    flex: 1;
+    border: none;
+    background: none;
+    padding: 12px;
+    border-radius: 40px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.mode-btn.active {
+    background: var(--accent-brown);
+    color: var(--white);
+    box-shadow: 0 4px 10px rgba(166, 124, 82, 0.3);
+}
+
+/* Customer Details Form Row */
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 80px;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.input-field label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+}
+
+.input-field input {
+    width: 100%;
+    padding: 12px 15px;
+    border: 1.5px solid #f0f0f0;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    outline-color: var(--accent-brown);
+}
+
+/*6. Interactive Shopping Cart Rows*/
+.cart-items {
+    margin-top: 20px;
+    /* ADD THESE LINES */
+    flex-grow: 1;           /* Take up the middle space */
+    overflow-y: auto;       /* Scroll orders if they are too many */
+    margin-bottom: 20px; /* Added: space for the scrollbar */
+}
+
+.cart-item-img {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    object-fit: cover;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.cart-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 15px;
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateX(10px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.cart-row img {
+    width: 50px;
+    height: 50px;
+    border-radius: 15px;
+    object-fit: cover;
+}
+
+.cart-row-details { flex-grow: 1; }
+.cart-row-details h5 { font-size: 0.9rem; }
+.cart-row-details p { font-size: 0.8rem; font-weight: 700; color: var(--accent-brown); }
+
+.qty-pill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #f0f0f0;
+    padding: 5px 10px;
+    border-radius: 20px;
+}
+
+/* Cancel order button styling */
+.cancel-order-btn {
+    background: #ffeded;
+    color: #ff4d4d;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 10px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-left: auto;
+    transition: 0.2s;
+}
+
+.cancel-order-btn:hover {
+    background: #ff4d4d;
+    color: white;
+}
+
+.remove-item-btn {
+    color: #ff4d4d;
+    cursor: pointer;
+    margin-left: 10px;
+    font-size: 0.9rem;
+    transition: transform 0.2s;
+}
+
+.remove-item-btn:hover {
+    transform: scale(1.2);
+}
+
+.cart-item-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    padding: 5px 0;
+    border-bottom: 1px solid #f0f0f0;
+    animation: fadeInUp 0.3s ease;
+}
+
+/* Rounded Pill Wrapper for Quantity Add/Subtract Buttons */
+.qty-control-pill {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background: #fdf3eb;
+    border: 1px solid var(--accent-brown);
+    padding: 4px 8px;
+    border-radius: 20px;
+}
+
+.qty-btn {
+    width: 24px;
+    height: 24px;
+    background: var(--accent-brown);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+}
+
+.qty-pill button {
+    border: none;
+    background: none;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.qty-number {
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+payment-details-section h3 {
+    font-size: 1rem;
+    margin-bottom: 15px;
+}
+
+.payment-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    font-weight: bold;
+}
+
+/* Custom Radio Choice Selectors (Cash or G-Cash) */
+.payment-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 25px;
+}
+
+.radio-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    font-size: 0.95rem;
+    position: relative;
+}
+
+.radio-container input {
+    position: absolute;
+    opacity: 0;
+}
+
+.checkmark {
+    height: 18px;
+    width: 18px;
+    border: 2px solid var(--accent-brown);
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.radio-container input:checked ~ .checkmark {
+    background-color: var(--accent-brown);
+    box-shadow: inset 0 0 0 3px white;
+}
+
+/*7. "Swipe to Confirm" Slide Button Animation*/
+.checkout-area {
+    margin-top: auto;   /* Added: pushes this area to the bottom */
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+    background: var(--white);   
+}
+
+.total-summary {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    font-weight: bold;
+}
+
+.slide-button-container {
+    position: relative;
+}
+
+.slide-track {
+    width: 100%;
+    height: 60px;
+    background: var(--accent-brown);
+    border-radius: 50px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    overflow: hidden;
+}
+
+.slider-thumb {
+    position: absolute;
+    left: 5px;
+    width: 50px;
+    height: 50px;
+    background: var(--white);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: var(--accent-brown);
+    cursor: grab;
+    z-index: 10;
+    transition: transform 0.1s ease-out;
+}
+
+.slider-thumb:active {
+    cursor: grabbing;
+}
+
+.btn-text {
+    color: var(--white);
+    font-weight: bold;
+    pointer-events: none;
+}
+
+.slide-confirm-btn.processing .slider-thumb {
+    transform: translateX(315px);
+}
+
+.slide-confirm-btn.processing .btn-text {
+    opacity: 0;
+}
+
+/* Floating animation overlay when you tap a food card */
+.flying-item {
+    position: fixed;
+    z-index: 9999;
+    width: 70px;
+    height: 70px;
+    border-radius: 15px;
+    object-fit: cover;
+    pointer-events: none;
+    transition: all 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+}
+
+@keyframes receiptPop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+    100% { transform: scale(1); }
+}
+
+.receipt-animate {
+    animation: receiptPop 0.3s ease-out;
+}
+
+/* Sold Out Operational Component Overlays */
+.menu-card {
+    position: relative;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Gray out the card background slightly */
+.sold-out-card {
+    opacity: 0.75;
+    cursor: not-allowed !important;
+    filter: grayscale(40%);
+}
+
+.sold-out-card:hover {
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* Absolute blocking layer on top of the menu card image */
+.sold-out-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 20px; /* Matches your menu-card curve radius */
+    z-index: 5;
+}
+
+.sold-out-overlay span {
+    background: #d32f2f;
+    color: white;
+    font-weight: 800;
+    font-size: 1.1rem;
+    padding: 8px 18px;
+    border-radius: 30px;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    border: 2px solid white;
+}
+
+/* Optional helper badges for Admin inventory table tags */
+.status-tag {
+    padding: 4px 12px;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+.tag-available { background: #e8f5e9; color: #2e7d32; }
+.tag-soldout { background: #ffebee; color: #c62828; }
+
+
+/* ==========================================================================
+   RESPONSIVE — Tablet & Small Screen Breakpoints
+   ========================================================================== */
+
+/* ── Large tablet / small laptop  (≤ 1280px) ── */
+@media (max-width: 1280px) {
+    .app-container { grid-template-columns: 1fr 320px; gap: 14px; }
+    .menu-grid { grid-template-columns: repeat(4, 1fr); }
+    .receipt-panel { padding: 20px; }
+}
+
+/* ── Standard tablet landscape  (≤ 1024px) ── */
+@media (max-width: 1024px) {
+    .app-container {
+        grid-template-columns: 1fr 260px;
+        gap: 10px;
+        width: 100vw;
+        height: 100vh;
+    }
+
+    /* Top bar */
+    .top-bar { gap: 8px; }
+    .logo-box { width: 46px; height: 46px; font-size: 1.3rem; }
+    .date-display { padding: 8px 12px; font-size: 0.78rem; }
+    .search-container input { padding: 9px 9px 9px 38px; font-size: 0.85rem; }
+    .icon-nav { width: 38px; height: 38px; font-size: 0.95rem; }
+    .username { font-size: 0.76rem; }
+    .role { font-size: 0.64rem; }
+    .user-badge { padding: 4px 10px 4px 4px; gap: 7px; }
+    .user-badge img { width: 28px; height: 28px; }
+
+    /* Category tabs */
+    .tab-item { padding: 12px 10px; border-radius: 18px; }
+    .tab-item h3 { font-size: 0.85rem; }
+    .tab-item p  { font-size: 0.72rem; }
+
+    /* Menu grid — 3 columns */
+    .menu-grid { grid-template-columns: repeat(3, 1fr); gap: 9px; }
+
+    /* Smaller image height on narrower columns */
+    .food-card { border-radius: 14px; padding: 7px; }
+    .food-card img { height: clamp(75px, 10vw, 115px); border-radius: 9px; }
+
+    /* Receipt panel */
+    .receipt-panel { padding: 14px; border-radius: 24px; }
+    .receipt-title h2 { font-size: 0.95rem; }
+    .order-id { font-size: 0.72rem; }
+    .mode-btn { padding: 8px 5px; font-size: 0.74rem; }
+    .input-field label { font-size: 0.68rem; }
+    .input-field input { padding: 8px 9px; font-size: 0.8rem; }
+    .cart-row-details h5 { font-size: 0.8rem; }
+    .cart-row-details p  { font-size: 0.73rem; }
+    .qty-btn { width: 20px; height: 20px; font-size: 11px; }
+    .qty-number { font-size: 0.8rem; }
+    .total-summary { font-size: 0.86rem; }
+    .total-price   { font-size: 0.93rem; }
+    .payment-options { gap: 7px; margin-bottom: 14px; }
+    .radio-container { font-size: 0.82rem; }
+    .slide-track { height: 50px; }
+    .slider-thumb { width: 40px; height: 40px; }
+    .btn-text { font-size: 0.78rem; }
+}
+
+/* ── Small tablet / portrait  (≤ 768px) ── */
+@media (max-width: 768px) {
+    body { overflow: auto; align-items: flex-start; }
+
+    .app-container {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto;
+        height: auto;
+        min-height: 100vh;
+        width: 100vw;
+        gap: 10px;
+        padding: 8px;
+    }
+
+    .menu-grid {
+        grid-template-columns: repeat(2, 1fr);
+        max-height: 55vh;
+    }
+
+    .food-card img { height: clamp(80px, 18vw, 130px); }
+
+    .receipt-panel {
+        border-radius: 18px;
+        max-height: 55vh;
+        overflow-y: auto;
+    }
+
+    .date-display { display: none; }
+
+    .category-tabs { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
+    .tab-item { flex: 0 0 auto; min-width: 100px; padding: 10px 12px; }
+}
+
+
+
+

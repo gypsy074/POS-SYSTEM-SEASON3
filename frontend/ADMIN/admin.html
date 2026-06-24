@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Season 3</title>
+    <link rel="stylesheet" href="admin.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+
+<body>
+    <div class="admin-container">
+
+        <aside class="sidebar">
+            <div class="brand">
+                <img src="../assets/logo.jpg" alt="Season 3 POS System Logo" class="admin-logo">
+            </div>
+            <nav class="nav-links">
+                <button class="nav-btn active" data-target="dashboard-view">Dashboard</button>
+                <button class="nav-btn" data-target="sales-view">Sales Analytics</button>
+                <button class="nav-btn" data-target="users-view">Add Users</button>
+                <button class="nav-btn" data-target="menu-view">Add Menu</button>
+                <button class="nav-btn" data-target="inventory-view">Inventory</button>
+            </nav>
+            <button class="logout-btn" type="button" id="logoutBtn">Log out</button>
+        </aside>
+
+        <main class="main-body">
+
+            <header class="admin-header">
+                <div class="date-chip" id="adminDate">Sunday, Jun 21</div>
+
+                <div class="admin-search-wrapper">
+                    <div class="admin-search">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Search menu items, orders, or users..." id="globalSearch">
+                    </div>
+                </div>
+
+                <div class="header-right-group">
+                    <div class="header-icons">
+                        <button class="icon-circle white-btn" type="button" id="refreshAdminBtn"
+                            title="Refresh current view"><i class="fas fa-file-alt"></i></button>
+                        <button class="icon-circle white-btn" type="button" id="notificationsBtn"
+                            title="Notifications"><i class="fas fa-bell"></i></button>
+                    </div>
+
+                    <div class="admin-profile-badge">
+                        <div class="profile-avatar">MI</div>
+                        <div class="profile-info">
+                            <strong class="profile-name">Miggie</strong>
+                            <span class="profile-role">Admin</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div id="dashboard-view" class="admin-panel">
+                <div class="dashboard-grid">
+                    <section class="stats-row">
+                        <div class="stat-card revenue-main">
+                            <div class="stat-label">
+                                <i class="fas fa-database"></i>
+                                <span>Total<br>Revenue</span>
+                            </div>
+                            <h2 id="totalRevenue">₱0.00</h2>
+                        </div>
+
+                        <div class="stat-card performance-wide">
+                            <div class="performance-labels">
+                                <div class="label-group"><i class="fas fa-server"></i><span>Performance</span></div>
+                                <div class="label-group"><i class="fas fa-clipboard-list"></i><span>Todays Sales</span>
+                                </div>
+                                <div class="label-group"><i class="fas fa-exclamation-circle"></i><span>Wrong
+                                        Orders</span></div>
+                            </div>
+                            <div class="performance-values">
+                                <div class="val-item">
+                                    <div class="main-val">Good</div>
+                                </div>
+                                <div class="val-item">
+                                    <div class="sub-val" id="todaySalesCount">0 Orders</div>
+                                </div>
+                                <div class="val-item">
+                                    <div class="sub-val">0 Orders</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card updates-panel">
+                            <h3>Updates</h3>
+                            <div class="update-list">
+                                <div class="update-item">
+                                    <div class="update-avatar">RH</div>
+                                    <div class="update-text">
+                                        <strong>Rhea Lachica (Admin)</strong>
+                                        <span>updated menu for drinks</span>
+                                    </div>
+                                </div>
+                                <div class="update-item">
+                                    <div class="update-avatar">FR</div>
+                                    <div class="update-text">
+                                        <strong>Franz Celine (Cashier)</strong>
+                                        <span>placed order for customer #10214</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="transactions-section">
+                        <div class="section-header"><i class="fas fa-clipboard-check"></i> Recent Transactions</div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Customer Name</th>
+                                        <th>Date</th>
+                                        <th>Receipt Number</th>
+                                        <th>Items</th>
+                                        <th>Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="transactionBody"></tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <div id="sales-view" class="admin-panel hidden">
+                <div class="analytics-grid">
+                    <div class="charts-column" style="display: flex; flex-direction: column; gap: 20px;">
+                        <div class="analytics-card sales-graph-card">
+                            <div class="card-header"
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                <h3><i class="fas fa-chart-line"></i> Sales Analytics</h3>
+                                <div class="filter-tabs">
+                                    <button class="tab active">Day</button>
+                                    <button class="tab">Week</button>
+                                    <button class="tab">Month</button>
+                                    <button class="tab">All</button>
+                                </div>
+                            </div>
+                            <div style="height: 250px;">
+                                <canvas id="salesLineChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="analytics-card radar-card">
+                            <div class="card-header"
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                <h3><i class="fas fa-layer-group"></i> Items Performance</h3>
+                                <div class="category-pills">
+                                    <span class="pill active">Cs & Fs</span>
+                                    <span class="pill">RMs & Ps</span>
+                                    <span class="pill">Snacks</span>
+                                </div>
+                            </div>
+                            <div style="height: 250px; display: flex; justify-content: center;">
+                                <canvas id="itemsRadarChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="analytics-card calendar-card">
+                        <div class="calendar-header"
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <button type="button" id="prevMonthBtn"
+                                style="background:none; border:none; cursor:pointer; color:inherit;"><i
+                                    class="fas fa-chevron-left"></i></button>
+                            <div class="calendar-title" style="display: flex; align-items: center; gap: 8px;">
+                                <span id="monthDisplay"
+                                    style="font-weight: bold; color: var(--dark-brown);">October</span>
+                                <select id="yearSelect" class="year-dropdown"></select>
+                            </div>
+                            <button type="button" id="nextMonthBtn"
+                                style="background:none; border:none; cursor:pointer; color:inherit;"><i
+                                    class="fas fa-chevron-right"></i></button>
+                        </div>
+                        <div class="calendar-days-header"
+                            style="display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 0.7rem; margin-bottom: 10px; color: #888; font-weight: bold;">
+                            <span>SUN</span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span>
+                        </div>
+                        <div class="calendar-grid" id="calendarGrid"
+                            style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; text-align: center;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="users-view" class="admin-panel hidden">
+                <div class="panel-header-title" style="margin-left:20px;">
+                    <h2><i class="fas fa-user-plus"></i> Manage Crew Accounts</h2>
+                </div>
+                <div class="content-wrapper">
+                    <div class="management-grid">
+                        <section class="form-panel card">
+                            <div class="input-group">
+                                <label>Username</label>
+                                <input type="text" id="usernameInput">
+                            </div>
+                            <div class="input-group">
+                                <label>Password</label>
+                                <input type="password" id="passwordInput">
+                            </div>
+                            <div class="input-group">
+                                <label>Role</label>
+                                <select id="roleSelect">
+                                    <option value="" disabled selected>Select Role</option>
+                                    <option value="Admin">Admin</option>
+                                    <option value="Cashier">Cashier</option>
+                                </select>
+                            </div>
+                            <div class="action-buttons">
+                                <button class="btn-main" type="button" id="addUserBtn">Add</button>
+                                <button class="btn-main" type="button" id="updateUserBtn">Update</button>
+                                <button class="btn-main" type="button" id="removeUserBtn">Remove</button>
+                                <button class="btn-main" type="button" id="clearUserBtn">Clear</button>
+                            </div>
+                        </section>
+                        <section class="table-panel card">
+                            <div class="table-scroll">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Username</th>
+                                            <th>Password</th>
+                                            <th>Role</th>
+                                            <th>Status</th>
+                                            <th>Date</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="userTableBody"></tbody>
+                                </table>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+
+            <div id="menu-view" class="admin-panel hidden">
+                <section class="transactions-section" style="margin-bottom: 25px;">
+                    <div class="section-header"><i class="fas fa-utensils"></i> Current Live Menu Items</div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Product Name</th>
+                                    <th>Category</th>
+                                    <th>Price</th>
+                                    <th>Status</th>
+                                    <th>Date Added</th>
+                                </tr>
+                            </thead>
+                            <tbody id="menuItemsTableBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="menu-form-section">
+                    <div class="menu-form-grid">
+                        <div class="form-inputs">
+                            <div class="input-group">
+                                <label>Product Name:</label>
+                                <input type="text" id="productNameInput" placeholder="Enter name...">
+                            </div>
+                            <div class="input-group">
+                                <label>Price:</label>
+                                <input type="number" id="priceInput" step="0.01" placeholder="0.00">
+                            </div>
+                            <div class="input-group" style="grid-column: span 2;">
+                                <label>Category:</label>
+                                <select id="categorySelect">
+                                    <option value="Coffee">Coffee</option>
+                                    <option value="Frappe">Frappe</option>
+                                    <option value="Rice Meals">Rice Meals</option>
+                                    <option value="Pasta">Pasta</option>
+                                    <option value="Snacks">Snacks</option>
+                                </select>
+                            </div>
+                            <div class="input-group" style="grid-column: span 2;">
+                                <label>Status Availability:</label>
+                                <select id="statusSelect">
+                                    <option value="Available">Available</option>
+                                    <option value="Out of Stock">Out of Stock</option>
+                                </select>
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="action-btn action-btn-primary"
+                                    data-menu-action="add">Add</button>
+                                <button type="button" class="action-btn action-btn-secondary"
+                                    data-menu-action="update">Update</button>
+                                <button type="button" class="action-btn action-btn-danger"
+                                    data-menu-action="delete">Remove</button>
+                                <button type="button" class="action-btn action-btn-neutral"
+                                    data-menu-action="clear">Clear</button>
+                            </div>
+
+                        </div>
+
+                        <div class="form-image-uploader">
+                            <input type="file" id="menuImageInput" accept="image/*" style="display: none;">
+                            <div id="imagePreviewBox">
+                                <i id="previewIcon" class="fas fa-image"></i>
+                                <p id="previewText">No Image Uploaded</p>
+                            </div>
+                            <button type="button" id="importBtn" class="import-btn">Import</button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div id="inventory-view" class="admin-panel hidden">
+                <div class="panel-header-title" style="margin-left:20px;">
+                    <h2><i class="fas fa-boxes"></i> Stock & Supply Inventory</h2>
+                </div>
+                <div class="content-wrapper inventory-management">
+                    <section class="inventory-table-card card">
+                        <div class="table-scroll">
+                            <table class="design-table">
+                                <thead>
+                                    <tr>
+                                        <th>Product Name</th>
+                                        <th>Category</th>
+                                        <th>Price</th>
+                                        <th>Stock</th>
+                                        <th>Status</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inventoryTableBody"></tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <section class="inventory-form-card card">
+                        <div class="inventory-form-grid">
+                            <div class="form-row-group">
+                                <div class="inline-input">
+                                    <label>Product Name:</label>
+                                    <input type="text" id="invProdName">
+                                </div>
+                                <div class="inline-input">
+                                    <label>Category:</label>
+                                    <select id="invCategory">
+                                        <option value="Coffee Beans">Coffee</option>
+                                        <option value="Syrups & Flavorings">Syrups & Flavorings</option>
+                                        <option value="Sauces">Sauces</option>
+                                        <option value="Paper goods & Disposables">Paper goods & Disposables</option>
+                                        <option value="Cleaning & Maintenance">Cleaning & Maintenance</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row-group">
+                                <div class="inline-input">
+                                    <label>Price:</label>
+                                    <input type="number" step="0.01" id="invPrice">
+                                </div>
+                                <div class="inline-input">
+                                    <label>Stock:</label>
+                                    <input type="number" id="invStock">
+                                </div>
+                            </div>
+                            <div class="form-row-group">
+                                <div class="inline-input">
+                                    <label>Status:</label>
+                                    <select id="invStatus">
+                                        <option value="Available">Available</option>
+                                        <option value="Sold Out">Sold Out</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="inventory-actions">
+                            <button type="button" class="btn-pill" id="addInvBtn">Add</button>
+                            <button type="button" class="btn-pill" id="updateInvBtn">Update</button>
+                            <button type="button" class="btn-pill" id="removeInvBtn">Remove</button>
+                            <button type="button" class="btn-pill" id="clearInvBtn">Clear</button>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+        </main>
+    </div>
+    <!-- Utilities -->
+    <script src="js/api.js"></script>
+    <script src="js/imageCompressor.js"></script>
+
+    <!-- Reusable Components -->
+    <script src="js/sidebar.js"></script>
+    <script src="js/header.js"></script>
+
+    <!-- Feature Modules -->
+    <script src="js/dashboard.js"></script>
+    <script src="js/menu.js"></script>
+    <script src="js/users.js"></script>
+    <script src="js/inventory.js"></script>
+
+    <!-- Main Entry Point (runs last) -->
+    <script src="admin.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,147 @@
+/* ==========================================================================
+   1. System Color Variable Architecture & Global Resets
+   ========================================================================== */
+:root {
+    --bg-dark: #1a1a1a;
+    --card-white: #ffffff;
+    --accent-brown: #a67c52;
+    --border-beige: #d7b59a;
+    --text-muted: #888888;
+    --text-dark: #3a3a3a;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background-color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+/* ==========================================================================
+   2. Card Component Geometry
+   ========================================================================== */
+.login-page-container {
+    background: white;
+    width: 100vw;
+    min-height: 55vh;
+    display: flex;
+    max-width: 680px;
+    border-radius: 24px;
+    padding: 40px 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    justify-content: center;
+    position: relative;
+}
+
+/* Dynamic Date Tag Floating At Top Center */
+.date-badge {
+    border: 1px solid var(--border-beige);
+    border-radius: 8px;
+    padding: 6px 16px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-dark);
+    margin-bottom: 25px;
+    background-color: var(--card-white);
+}
+
+.logo-container {
+    width: 100%;
+    max-width: 160px;
+    margin-bottom: 30px;
+    display: flex;
+    justify-content: center;
+}
+
+.brand-logo {
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+}
+
+/* ==========================================================================
+   3. Input Form Fields Layout Config
+   ========================================================================== */
+.login-form {
+    width: 100%;
+    max-width: 320px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+}
+
+.input-group {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.input-group label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    padding-left: 12px;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 12px 20px;
+    border: 1px solid var(--border-beige);
+    border-radius: 30px;
+    outline: none;
+    font-size: 0.95rem;
+    color: var(--text-dark);
+    background-color: var(--card-white);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input-group input:focus {
+    border-color: var(--accent-brown);
+    box-shadow: 0 0 6px rgba(166, 124, 82, 0.2);
+}
+
+/* Styled Action Logon Submit Trigger Button */
+.login-submit-btn {
+    width: auto;
+    min-width: 120px;
+    background-color: var(--accent-brown);
+    color: var(--card-white);
+    border: none;
+    padding: 10px 30px;
+    border-radius: 20px;
+    font-size: 0.95rem;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: transform 0.1s ease, background-color 0.2s ease;
+    box-shadow: 0 4px 10px rgba(166, 124, 82, 0.2);
+}
+
+.login-submit-btn:hover {
+    background-color: #916943;
+}
+
+.login-submit-btn:active {
+    transform: scale(0.97);
+}
+
+/* Responsive Media Viewport Breaks */
+@media (max-width: 480px) {
+    .login-page-container {
+        padding: 30px 20px;
+    }
+}

@@ -1,0 +1,46 @@
+# Node dependencies
+node_modules/
+**/node_modules/
+
+# Logs
+logs/
+*.log
+
+# Runtime files
+*.pid
+*.seed
+
+# Build / coverage
+dist/
+build/
+coverage/
+.nyc_output/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE / editor
+.vscode/
+.idea/
+*.suo
+*.user
+*.userprefs
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Misc
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env
+.env.*
+
+# Ignore credentials that are explicitly placed in specific files
+# (uncomment if you want these ignored):
+# backend/atlas-credentials.env
