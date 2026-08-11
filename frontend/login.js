@@ -3,7 +3,14 @@
    Handles: date display, form submission, API auth, role-based redirect
    ========================================================================== */
 
-const API_BASE = "http://localhost:3000";
+function getApiBaseUrl() {
+    if (window.location.protocol === "file:") {
+        return "http://localhost:3000";
+    }
+    return window.location.origin;
+}
+
+const API_BASE = getApiBaseUrl();
 
 // ── Date Badge ─────────────────────────────────────────────────────────────
 function initDateBadge() {
@@ -70,11 +77,22 @@ async function handleLogin(e) {
             return;
         }
 
+        // ── Store session user + token for profile widgets & API calls ──
+        localStorage.setItem("posUser", JSON.stringify({
+            username: data.username,
+            role: data.role
+        }));
+        if (data.token) {
+            localStorage.setItem("posToken", data.token);
+        }
+
         // ── Route by role ──────────────────────────────────────────────
+        // Relative paths so redirects also work when the frontend is opened
+        // directly via file:// (not just when served by the backend).
         if (data.role === "Admin") {
-            window.location.href = `${API_BASE}/ADMIN/admin.html`;
+            window.location.href = "ADMIN/admin.html";
         } else if (data.role === "Cashier") {
-            window.location.href = `${API_BASE}/CASHIER/pos.html`;
+            window.location.href = "CASHIER/pos.html";
         } else {
             showError("Unknown user role. Contact an administrator.");
         }
