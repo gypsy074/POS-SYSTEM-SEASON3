@@ -107,6 +107,67 @@ body {
     align-items: center;
 }
 
+.profile-wrap {
+    position: relative;
+}
+
+.profile-chevron {
+    font-size: 0.65rem;
+    opacity: 0.85;
+    transition: transform 0.2s ease;
+}
+.profile-wrap.open .profile-chevron { transform: rotate(180deg); }
+
+.profile-dropdown {
+    position: absolute;
+    top: calc(100% + 12px);
+    right: 0;
+    width: 230px;
+    background: white;
+    border: 1px solid var(--accent-brown);
+    border-radius: 16px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.18);
+    padding: 8px;
+    display: none;
+    z-index: 999;
+}
+.profile-dropdown.show { display: block; animation: dropdownIn 0.24s ease-out; transform-origin: top right; }
+
+@keyframes dropdownIn {
+    from { opacity: 0; transform: translateY(-10px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.profile-dropdown-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px 14px;
+    border-bottom: 1px solid #f0e6dc;
+    margin-bottom: 8px;
+    color: var(--dark-brown);
+}
+.profile-dropdown-header strong { display: block; font-size: 0.95rem; color: #111; }
+.profile-dropdown-header span { font-size: 0.78rem; color: var(--accent-brown); }
+
+.profile-dropdown-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: none;
+    background: none;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #c0392b;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+}
+.profile-dropdown-item:hover { background: #fdf0ee; }
+
 .icon-nav {
     width: 48px;
     height: 48px;
@@ -118,8 +179,350 @@ body {
     color: var(--text-dark);
     transition: var(--transition);
 }
+.icon-nav:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 14px rgba(107, 79, 59, 0.2);
+}
+.icon-nav:active {
+    transform: scale(0.9);
+}
 
 .menu-trigger { background: #d7b49a; }
+
+/* Sound toggle — dimmed while muted */
+.sound-toggle-btn.muted {
+    background: #f0e6dd;
+    color: var(--text-muted);
+}
+
+/* ── Cashier order history slide-out panel ─────────────────── */
+.history-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(61, 37, 20, 0.35);
+    backdrop-filter: blur(2px);
+    z-index: 5000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+.history-backdrop.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.history-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: min(400px, 100vw);
+    background: var(--card-bg);
+    border-left: 1px solid var(--accent-brown);
+    box-shadow: -16px 0 40px rgba(61, 37, 20, 0.28);
+    z-index: 6000;
+    transform: translateX(100%);
+    transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.history-panel.open {
+    transform: translateX(0);
+}
+
+.history-panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 22px 12px;
+}
+.history-panel-head h3 {
+    color: var(--dark-brown);
+    font-size: 1.05rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+}
+
+.history-close-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    background: white;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.95rem;
+    transition: transform 0.15s ease, background 0.2s ease, color 0.2s ease;
+}
+.history-close-btn:hover {
+    background: #ffeded;
+    color: #c0392b;
+    transform: rotate(90deg);
+}
+.history-close-btn:active {
+    transform: rotate(90deg) scale(0.85);
+}
+
+.history-stats {
+    display: flex;
+    gap: 10px;
+    padding: 0 22px 14px;
+}
+.history-stat {
+    flex: 1;
+    background: white;
+    border: 1px solid #eeddcc;
+    border-radius: 14px;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.history-stat span {
+    font-size: 0.66rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+}
+.history-stat strong {
+    font-size: 1.15rem;
+    color: var(--dark-brown);
+}
+.history-stat small {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+}
+
+.history-search-wrap {
+    position: relative;
+    padding: 0 22px 12px;
+}
+.history-search-wrap i {
+    position: absolute;
+    left: 34px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+.history-search-wrap input {
+    width: 100%;
+    padding: 11px 14px 11px 36px;
+    border: 1.5px solid #f0f0f0;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    background: white;
+    outline-color: var(--accent-brown);
+}
+
+.history-order-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 22px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.history-order-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    background: white;
+    border: 1px solid #eeddcc;
+    border-radius: 14px;
+    padding: 12px 14px;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.history-order-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 14px rgba(107, 79, 59, 0.16);
+}
+.history-order-item:active {
+    transform: scale(0.97);
+}
+
+.history-order-main,
+.history-order-side {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.history-order-main strong {
+    color: var(--dark-brown);
+    font-size: 0.9rem;
+}
+.history-order-main span {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+.history-order-side {
+    align-items: flex-end;
+}
+.history-order-side strong {
+    color: var(--dark-brown);
+    font-size: 0.9rem;
+}
+.history-order-side span {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+.history-empty {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    padding: 30px 10px;
+}
+
+.history-detail {
+    position: absolute;
+    inset: 0;
+    background: var(--card-bg);
+    padding: 20px 22px;
+    overflow-y: auto;
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+}
+.history-detail.show {
+    display: flex;
+    animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.history-detail-head {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.history-detail-head strong {
+    font-size: 1.05rem;
+    color: var(--dark-brown);
+    letter-spacing: 1px;
+}
+.history-detail-head span {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.history-items {
+    background: white;
+    border: 1px solid #eeddcc;
+    border-radius: 14px;
+    padding: 4px 16px;
+}
+
+/* ── Live notification bell (low stock / new items) ───────── */
+.notification-wrap {
+    position: relative;
+}
+
+.notification-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 10px;
+    background: #e74c3c;
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 700;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--primary-bg);
+    box-shadow: 0 2px 8px rgba(231, 76, 60, 0.5);
+    z-index: 5;
+}
+
+@keyframes badgePop {
+    0%   { transform: scale(0.3); }
+    60%  { transform: scale(1.35); }
+    100% { transform: scale(1); }
+}
+
+.badge-pop {
+    animation: badgePop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes bellShake {
+    0%, 100% { transform: rotate(0); }
+    20%      { transform: rotate(18deg); }
+    40%      { transform: rotate(-14deg); }
+    60%      { transform: rotate(8deg); }
+    80%      { transform: rotate(-4deg); }
+}
+
+.bell-shake {
+    animation: bellShake 0.6s ease-in-out;
+}
+
+.notification-dropdown {
+    position: absolute;
+    top: calc(100% + 12px);
+    right: 0;
+    width: 320px;
+    max-height: 380px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid var(--accent-brown);
+    border-radius: 16px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.18);
+    padding: 8px;
+    display: none;
+    z-index: 100;
+}
+
+.notification-dropdown.show {
+    display: block;
+    animation: dropdownIn 0.24s ease-out;
+    transform-origin: top right;
+}
+
+.notification-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 8px;
+    border-radius: 10px;
+    transition: background 0.15s ease;
+}
+
+.notification-item:hover {
+    background: #faf3ec;
+}
+
+.notification-item > i {
+    margin-top: 4px;
+    color: var(--accent-brown);
+}
+
+.notification-item > div {
+    display: flex;
+    flex-direction: column;
+}
+
+.notification-item strong {
+    font-size: 0.85rem;
+    color: #111;
+}
+
+.notification-item span {
+    font-size: 0.75rem;
+    color: #777;
+}
+
+.notification-item-warning > i { color: #e67e22; }
+.notification-item-danger > i { color: #e74c3c; }
+.notification-item-success > i { color: #2e7d32; }
 
 .user-badge {
     background: var(--accent-brown);
@@ -129,12 +532,27 @@ body {
     align-items: center;
     gap: 10px;
     color: var(--white);
+    cursor: pointer;
 }
 
 .user-badge img {
     width: 36px;
     height: 36px;
     border-radius: 50%;
+}
+
+.user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--dark-brown);
+    border: 2px solid white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.8rem;
+    color: var(--white);
 }
 
 .user-meta {
@@ -404,6 +822,146 @@ body {
     color: white;
 }
 
+/* Waste logging */
+.waste-log-btn {
+    background: #eef7f0;
+    color: #2e7d32;
+    margin-left: 8px;
+}
+
+.waste-log-btn:hover {
+    background: #2e7d32;
+    color: white;
+}
+
+.waste-log-form {
+    background: #fff;
+    border: 1px solid var(--accent-brown);
+    border-radius: 12px;
+    padding: 14px;
+    margin: 10px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+}
+
+.waste-log-form h4 {
+    margin: 0;
+    color: var(--dark-brown);
+    font-size: 0.95rem;
+}
+
+.waste-log-form input,
+.waste-log-form select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 9px 11px;
+    border: 1px solid #ddd;
+    border-radius: 9px;
+    font-size: 0.85rem;
+    background: #fdfaf7;
+}
+
+/* Waste product search combobox */
+.waste-product-search {
+    position: relative;
+}
+
+.waste-product-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 180px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid var(--accent-brown);
+    border-radius: 10px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+    z-index: 50;
+    display: none;
+}
+
+.waste-product-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 12px;
+    border: none;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.85rem;
+}
+.waste-product-option:hover,
+.waste-product-option.selected {
+    background: #f3e4d5;
+}
+.waste-product-option .wpo-name {
+    color: var(--dark-brown);
+    font-weight: 600;
+}
+.waste-product-option .wpo-meta {
+    color: var(--text-muted);
+    font-size: 0.72rem;
+}
+.waste-product-empty {
+    color: var(--text-muted);
+    justify-content: center;
+}
+
+.waste-row {
+    display: flex;
+    gap: 9px;
+}
+
+.waste-row input {
+    flex: 1;
+    min-width: 0;
+}
+
+.waste-actions {
+    display: flex;
+    gap: 9px;
+}
+
+.waste-save-btn {
+    flex: 1;
+    background: var(--accent-brown);
+    color: white;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 9px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.waste-save-btn:hover { background: var(--dark-brown); }
+
+.waste-cancel-btn {
+    flex: 1;
+    background: #f1d8c4;
+    color: var(--dark-brown);
+    border: none;
+    padding: 10px 14px;
+    border-radius: 9px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.waste-cancel-btn:hover { background: #e5c1a4; }
+
+.wrong-order-btn.flagged:hover {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
 .remove-item-btn {
     color: #ff4d4d;
     cursor: pointer;
@@ -555,11 +1113,18 @@ payment-details-section h3 {
     color: var(--accent-brown);
     cursor: grab;
     z-index: 10;
-    transition: transform 0.1s ease-out;
+    transition: transform 0.15s ease-out;
 }
 
 .slider-thumb:active {
     cursor: grabbing;
+}
+
+.slider-thumb.dragging {
+    transition: none;
+    cursor: grabbing;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    animation: none;
 }
 
 .btn-text {
@@ -568,11 +1133,55 @@ payment-details-section h3 {
     pointer-events: none;
 }
 
-.slide-confirm-btn.processing .slider-thumb {
-    transform: translateX(315px);
+/* ── Slide button animations ─────────────────────────────── */
+@keyframes thumbGlow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.55); }
+    50%      { box-shadow: 0 0 0 11px rgba(255, 255, 255, 0); }
 }
 
-.slide-confirm-btn.processing .btn-text {
+@keyframes nudgeRight {
+    0%, 100% { transform: translateX(0); }
+    50%      { transform: translateX(5px); }
+}
+
+@keyframes trackGlowPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(122, 82, 48, 0.28); }
+    50%      { box-shadow: 0 0 24px 5px rgba(122, 82, 48, 0.42); }
+}
+
+@keyframes processingPop {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(46, 125, 50, 0.5); }
+    50%      { box-shadow: 0 0 0 12px rgba(46, 125, 50, 0); }
+}
+
+/* Cart has items → gently breathe to invite the swipe */
+.slide-track.ready:not(.processing) {
+    animation: trackGlowPulse 2s ease-in-out infinite;
+}
+.slide-track.ready:not(.processing) .slider-thumb {
+    animation: thumbGlow 2s ease-in-out infinite;
+}
+.slide-track.ready:not(.processing) .slider-thumb i {
+    animation: nudgeRight 1.2s ease-in-out infinite;
+}
+
+.slide-track.processing .slider-thumb {
+    background: #2e7d32;
+    color: white;
+    cursor: wait;
+    animation: processingPop 0.7s ease-in-out infinite;
+}
+
+.slide-track.processing .slider-thumb i {
+    animation: none;
+}
+
+/* Swap chevron → check while the order is being placed */
+.slide-track.processing .slider-thumb i::before {
+    content: "\f00c";
+}
+
+.slide-track.processing .btn-text {
     opacity: 0;
 }
 
@@ -644,6 +1253,18 @@ payment-details-section h3 {
     border: 2px solid white;
 }
 
+/* Low-stock pill — sits in the card flow below the price, never covers it */
+.low-stock-badge {
+    align-self: flex-start;
+    background: #fff3e0;
+    color: #e67e22;
+    font-weight: 700;
+    font-size: 0.68rem;
+    padding: 3px 10px;
+    border-radius: 20px;
+    width: fit-content;
+}
+
 /* Optional helper badges for Admin inventory table tags */
 .status-tag {
     padding: 4px 12px;
@@ -654,6 +1275,436 @@ payment-details-section h3 {
 .tag-available { background: #e8f5e9; color: #2e7d32; }
 .tag-soldout { background: #ffebee; color: #c62828; }
 
+/* ==========================================================================
+   ORDER CONFIRMATION MODAL — matches the cashier theme
+   ========================================================================== */
+
+.pos-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(61, 37, 20, 0.45);
+    backdrop-filter: blur(3px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+
+.pos-modal-overlay.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.pos-modal {
+    background: var(--white);
+    border: 1px solid #e8d5c4;
+    border-radius: 24px;
+    width: min(420px, 92vw);
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 24px 60px rgba(61, 37, 20, 0.35);
+    transform: translateY(18px) scale(0.94);
+    opacity: 0;
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease;
+}
+
+.pos-modal-overlay.show .pos-modal {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+}
+
+.pos-modal-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 22px 24px 12px;
+}
+
+.pos-modal-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: var(--accent-brown);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05rem;
+    flex-shrink: 0;
+}
+
+.pos-modal-icon.success { background: #2e7d32; }
+.pos-modal-icon.danger { background: #c0392b; }
+
+.pos-modal-header h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    color: var(--dark-brown);
+}
+
+.pos-modal-body {
+    padding: 8px 24px 16px;
+}
+
+.pos-modal-item-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px dashed #e5d3c2;
+    font-size: 0.88rem;
+    color: var(--text-dark);
+}
+
+.pos-modal-item-row:last-child { border-bottom: none; }
+.pos-modal-item-row strong { color: var(--dark-brown); }
+
+.pos-modal-summary {
+    background: #fdf6ef;
+    border-radius: 14px;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 12px;
+}
+
+.pos-modal-summary .row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.pos-modal-summary .row strong { color: var(--dark-brown); }
+
+.pos-modal-total {
+    border-top: 2px dashed #d9c3ae;
+    margin-top: 8px;
+    padding-top: 8px;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--dark-brown);
+    display: flex;
+    justify-content: space-between;
+}
+
+.pos-modal-actions {
+    display: flex;
+    gap: 10px;
+    padding: 0 24px 22px;
+}
+
+.pos-modal-btn {
+    flex: 1;
+    border: none;
+    border-radius: 14px;
+    padding: 13px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.2s ease;
+}
+
+.pos-modal-btn:active { transform: scale(0.97); }
+
+.pos-modal-btn-primary {
+    background: var(--accent-brown);
+    color: white;
+    box-shadow: 0 6px 16px rgba(122, 82, 48, 0.3);
+}
+.pos-modal-btn-primary:hover { background: var(--dark-brown); }
+
+.pos-modal-btn-secondary {
+    background: #f3e4d5;
+    color: var(--dark-brown);
+}
+.pos-modal-btn-secondary:hover { background: #e9d3bd; }
+
+/* Success state */
+.pos-modal-success-icon {
+    width: 74px;
+    height: 74px;
+    border-radius: 50%;
+    background: #e8f5e9;
+    color: #2e7d32;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    margin: 6px auto 14px;
+    animation: successPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes successPop {
+    0%   { transform: scale(0); }
+    60%  { transform: scale(1.15); }
+    100% { transform: scale(1); }
+}
+
+.pos-modal-receipt-card {
+    background: #fdf6ef;
+    border: 1px dashed #d9c3ae;
+    border-radius: 16px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pos-modal-receipt-card .row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.pos-modal-receipt-card .row strong { color: var(--dark-brown); }
+
+.pos-modal-receipt-card .receipt-id {
+    text-align: center;
+    font-weight: 800;
+    color: var(--dark-brown);
+    font-size: 1rem;
+    letter-spacing: 2px;
+}
+
+.pos-modal-error-text {
+    margin: 0;
+    color: #c0392b;
+    text-align: center;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    white-space: pre-line;
+}
+
+/* ==========================================================================
+   DYNAMIC BUTTON ANIMATIONS — cashier theme
+   ========================================================================== */
+
+@keyframes popIn {
+    0%   { transform: scale(0.82); }
+    60%  { transform: scale(1.09); }
+    100% { transform: scale(1); }
+}
+
+/* Category tabs — springy when they become active */
+.tab-item { transition: var(--transition); }
+.tab-item:hover { transform: translateY(-3px); box-shadow: 0 8px 18px rgba(107, 79, 59, 0.18); }
+.tab-item:active { transform: scale(0.95); }
+.tab-item.active { animation: popIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+/* Add-to-cart circle — fills brown and spins open on hover, springs on click */
+.add-circle {
+    cursor: pointer;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease, color 0.2s ease;
+}
+.add-circle:hover:not(:disabled) {
+    transform: scale(1.18) rotate(90deg);
+    background: var(--accent-brown);
+    color: white;
+    box-shadow: 0 4px 12px rgba(166, 124, 82, 0.45);
+}
+.add-circle:active:not(:disabled) {
+    transform: scale(0.8);
+}
+.add-circle:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Service mode switcher — pops when selected */
+.mode-btn:hover:not(.active) { background: rgba(166, 124, 82, 0.14); }
+.mode-btn:active { transform: scale(0.93); }
+.mode-btn.active { animation: popIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+/* Back button — keeps its 180° flip while animating */
+.circular-back-btn {
+    transition: var(--transition);
+}
+.circular-back-btn:hover {
+    transform: rotate(180deg) scale(1.12);
+    box-shadow: 0 6px 14px rgba(107, 79, 59, 0.3);
+}
+.circular-back-btn:active {
+    transform: rotate(180deg) scale(0.88);
+}
+
+/* Cancel / Waste buttons — lift on hover, punch on click */
+.cancel-order-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(255, 77, 77, 0.35); }
+.cancel-order-btn:active { transform: scale(0.9); }
+.waste-log-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(46, 125, 50, 0.35); }
+.waste-log-btn:active { transform: scale(0.9); }
+
+/* Waste form buttons */
+.waste-save-btn { transition: var(--transition); }
+.waste-save-btn:hover { transform: translateY(-2px); }
+.waste-save-btn:active { transform: scale(0.92); }
+.waste-cancel-btn { transition: var(--transition); }
+.waste-cancel-btn:hover { transform: translateY(-2px); }
+.waste-cancel-btn:active { transform: scale(0.92); }
+
+/* Cart quantity + / − buttons */
+.qty-btn { transition: transform 0.15s ease, background 0.2s ease; }
+.qty-btn:hover { transform: scale(1.2); }
+.qty-btn:active { transform: scale(0.8); }
+
+/* Remove item in cart */
+.remove-item-btn { transition: var(--transition); }
+.remove-item-btn:hover { transform: translateY(-2px); }
+.remove-item-btn:active { transform: scale(0.9); }
+
+/* Profile dropdown items */
+.profile-dropdown-item:active { transform: scale(0.97); }
+
+/* ── Cash change calculator ─────────────────────────────────── */
+.change-calculator {
+    background: var(--card-bg);
+    border: 1px solid #e8d5c4;
+    border-radius: 16px;
+    padding: 14px;
+    margin-top: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.change-calculator.hidden { display: none; }
+
+.change-row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+}
+.change-input-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.change-input-wrap label {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+.change-input-wrap input {
+    width: 100%;
+    padding: 11px 13px;
+    border: 1.5px solid #f0f0f0;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--dark-brown);
+    background: white;
+    outline-color: var(--accent-brown);
+}
+
+.change-display {
+    flex: 1;
+    background: white;
+    border: 1.5px solid #f0f0f0;
+    border-radius: 12px;
+    padding: 9px 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.change-display span {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+.change-display strong {
+    font-size: 1.15rem;
+    color: #2e7d32;
+    transition: color 0.2s ease;
+}
+.change-display strong.insufficient { color: #c0392b; }
+
+.quick-tender-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.tender-chip {
+    border: 1px solid var(--accent-brown);
+    background: white;
+    color: var(--dark-brown);
+    border-radius: 20px;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: transform 0.15s ease, background 0.2s ease, color 0.2s ease;
+}
+.tender-chip:hover {
+    background: var(--accent-brown);
+    color: white;
+    transform: translateY(-2px);
+}
+.tender-chip:active { transform: scale(0.9); }
+
+.calc-toggle {
+    align-self: flex-start;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 4px 2px;
+    transition: color 0.2s ease;
+}
+.calc-toggle:hover { color: var(--dark-brown); }
+.calc-toggle i { margin-right: 6px; }
+
+.calc-keypad {
+    display: none;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+}
+.calc-key {
+    border: 1px solid #eeddcc;
+    background: white;
+    border-radius: 10px;
+    padding: 10px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--dark-brown);
+    cursor: pointer;
+    font-family: inherit;
+    transition: transform 0.12s ease, background 0.15s ease;
+}
+.calc-key:hover { background: #f3e4d5; }
+.calc-key:active { transform: scale(0.88); }
+.calc-key.key-clear { color: #c0392b; }
+.calc-key.key-back { color: #e67e22; }
+.calc-key.key-equal { background: var(--accent-brown); color: white; }
+
+.change-breakdown {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.breakdown-chip {
+    background: #e8f5e9;
+    color: #2e7d32;
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 12px;
+    padding: 4px 9px;
+}
+
+/* Swipe track — red pulse while the cash given is short */
+@keyframes trackInsufficientPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(192, 57, 43, 0.35); }
+    50%      { box-shadow: 0 0 22px 4px rgba(192, 57, 43, 0.5); }
+}
+.slide-track.insufficient-cash {
+    animation: trackInsufficientPulse 1.2s ease-in-out infinite;
+}
 
 /* ==========================================================================
    RESPONSIVE — Tablet & Small Screen Breakpoints
@@ -749,6 +1800,58 @@ payment-details-section h3 {
 
     .category-tabs { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
     .tab-item { flex: 0 0 auto; min-width: 100px; padding: 10px 12px; }
+}
+
+/* ==========================================================================
+   PHONE BLOCK — the cashier is designed for tablets & desktops only
+   ========================================================================== */
+
+.device-block {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: var(--primary-bg);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.device-block-card {
+    background: var(--card-bg);
+    border: 1px solid var(--accent-brown);
+    border-radius: 24px;
+    padding: 44px 34px;
+    text-align: center;
+    max-width: 420px;
+    box-shadow: 0 20px 50px rgba(61, 37, 20, 0.25);
+}
+
+.device-block-card i {
+    font-size: 3rem;
+    color: var(--accent-brown);
+    margin-bottom: 18px;
+}
+
+.device-block-card h2 {
+    color: var(--dark-brown);
+    margin: 0 0 10px;
+    font-size: 1.3rem;
+}
+
+.device-block-card p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    margin: 0;
+}
+
+@media (max-width: 640px) {
+    .device-block { display: flex; }
+    .app-container,
+    .history-panel,
+    .history-backdrop,
+    .pos-modal-overlay { display: none; }
 }
 
 

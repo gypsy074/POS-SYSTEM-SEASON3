@@ -10,6 +10,15 @@
 </head>
 
 <body>
+    <!-- Phone not supported — the cashier is built for tablets and desktops -->
+    <div class="device-block" id="deviceBlock">
+        <div class="device-block-card">
+            <i class="fa-solid fa-laptop"></i>
+            <h2>Screen too small</h2>
+            <p>This cashier screen is designed for tablets and desktops.<br>Please open it on a tablet or desktop device.</p>
+        </div>
+    </div>
+
     <div class="app-container">
 
         <main class="dashboard">
@@ -27,12 +36,36 @@
 
                 <div class="nav-controls">
                     <!-- <button class="icon-nav menu-trigger"><i class="fa-solid fa-bars"></i></button> -->
-                    <button class="icon-nav notification-trigger"><i class="fa-solid fa-bell"></i></button>
-                    <div class="user-badge">
-                        <img src="https://ui-avatars.com/api/?name=Pranselen&background=6b4f3b&color=fff" alt="User">
-                        <div class="user-meta">
-                            <span class="username">Pranselen</span>
-                            <span class="role">Cashier</span>
+                    <button class="icon-nav" id="soundToggleBtn" title="Mute sounds"><i class="fa-solid fa-volume-high"></i></button>
+                    <button class="icon-nav" id="historyTrigger" title="My order history"><i class="fa-solid fa-clock-rotate-left"></i></button>
+                    <div class="notification-wrap">
+                        <button class="icon-nav notification-trigger" id="notificationTrigger">
+                            <i class="fa-solid fa-bell"></i>
+                            <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
+                        </button>
+                        <div class="notification-dropdown" id="notificationDropdown"></div>
+                    </div>
+                    <div class="profile-wrap" id="cashierProfileWrap">
+                        <div class="user-badge" id="cashierProfile">
+                            <div class="user-avatar">PR</div>
+                            <div class="user-meta">
+                                <span class="username" id="cashierName">Pranselen</span>
+                                <span class="role" id="cashierRole">Cashier</span>
+                            </div>
+                            <i class="fa-solid fa-chevron-down profile-chevron"></i>
+                        </div>
+
+                        <div class="profile-dropdown" id="cashierDropdown">
+                            <div class="profile-dropdown-header">
+                                <div class="user-avatar" id="cashierDropdownAvatar">PR</div>
+                                <div>
+                                    <strong id="cashierDropdownName">Pranselen</strong>
+                                    <span id="cashierDropdownRole">Cashier</span>
+                                </div>
+                            </div>
+                            <button type="button" class="profile-dropdown-item" id="cashierLogoutBtn">
+                                <i class="fa-solid fa-sign-out-alt"></i> Log out
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -61,11 +94,11 @@
             <div class="form-row">
                 <div class="input-field">
                     <label>Customer's name</label>
-                    <input type="text" id="customerNameInput" value="Name">
+                    <input type="text" id="customerNameInput" placeholder="Name">
                 </div>
                 <div class="input-field">
                     <label>Table No.</label>
-                    <input type="text" id="tableNoInput" value="00">
+                    <input type="text" id="tableNoInput" placeholder="00">
                 </div>
             </div>
 
@@ -74,6 +107,30 @@
                     <h2>Order Summary</h2>
                 </div>
                 <button class="cancel-order-btn" id="cancelOrderBtn" type="button">Cancel</button>
+                <button class="cancel-order-btn waste-log-btn" id="logWasteBtn" type="button"><i class="fa-solid fa-recycle"></i> Waste</button>
+            </div>
+
+            <div class="waste-log-form" id="wasteLogForm" style="display:none;">
+                <h4><i class="fa-solid fa-recycle"></i> Log Food Waste</h4>
+                <div class="waste-product-search">
+                    <input type="text" id="wasteProductName" placeholder="Search product name..." autocomplete="off">
+                    <div class="waste-product-dropdown" id="wasteProductDropdown" style="display:none;"></div>
+                </div>
+                <select id="wasteReason">
+                    <option value="Wrong Order">Wrong Order</option>
+                    <option value="Overcooked">Overcooked</option>
+                    <option value="Damaged">Damaged / Spilled</option>
+                    <option value="Unsold">Unsold / Expired</option>
+                    <option value="Other">Other</option>
+                </select>
+                <div class="waste-row">
+                    <input type="number" id="wasteQty" placeholder="Qty" min="0" step="0.01">
+                    <input type="number" id="wastePrice" placeholder="Unit price" min="0" step="0.01">
+                </div>
+                <div class="waste-actions">
+                    <button type="button" class="waste-save-btn" id="wasteSaveBtn">Save Waste</button>
+                    <button type="button" class="waste-cancel-btn" id="wasteCancelBtn">Cancel</button>
+                </div>
             </div>
 
             <div class="cart-items" id="cartContainer"></div>
@@ -97,6 +154,53 @@
                     </label>
                 </div>
 
+                <!-- Cash change calculator (cash payments only) -->
+                <div class="change-calculator hidden" id="changeCalculator">
+                    <div class="change-row">
+                        <div class="change-input-wrap">
+                            <label>Amount received</label>
+                            <input type="number" id="amountTenderedInput" placeholder="0.00" min="0" step="0.01">
+                        </div>
+                        <div class="change-display">
+                            <span>Change</span>
+                            <strong id="changeAmount">₱0.00</strong>
+                        </div>
+                    </div>
+
+                    <div class="quick-tender-chips">
+                        <button type="button" class="tender-chip" data-amount="exact">Exact</button>
+                        <button type="button" class="tender-chip" data-amount="20">₱20</button>
+                        <button type="button" class="tender-chip" data-amount="50">₱50</button>
+                        <button type="button" class="tender-chip" data-amount="100">₱100</button>
+                        <button type="button" class="tender-chip" data-amount="200">₱200</button>
+                        <button type="button" class="tender-chip" data-amount="500">₱500</button>
+                        <button type="button" class="tender-chip" data-amount="1000">₱1000</button>
+                    </div>
+
+                    <button type="button" class="calc-toggle" id="calcToggleBtn">
+                        <i class="fa-solid fa-calculator"></i> Calculator
+                    </button>
+
+                    <div class="calc-keypad" id="calcKeypad">
+                        <button type="button" class="calc-key" data-calc-key="7">7</button>
+                        <button type="button" class="calc-key" data-calc-key="8">8</button>
+                        <button type="button" class="calc-key" data-calc-key="9">9</button>
+                        <button type="button" class="calc-key key-back" data-calc-key="backspace"><i class="fa-solid fa-delete-left"></i></button>
+                        <button type="button" class="calc-key" data-calc-key="4">4</button>
+                        <button type="button" class="calc-key" data-calc-key="5">5</button>
+                        <button type="button" class="calc-key" data-calc-key="6">6</button>
+                        <button type="button" class="calc-key key-clear" data-calc-key="clear">C</button>
+                        <button type="button" class="calc-key" data-calc-key="1">1</button>
+                        <button type="button" class="calc-key" data-calc-key="2">2</button>
+                        <button type="button" class="calc-key" data-calc-key="3">3</button>
+                        <button type="button" class="calc-key" data-calc-key=".">.</button>
+                        <button type="button" class="calc-key" data-calc-key="0">0</button>
+                        <button type="button" class="calc-key key-equal" data-calc-key="00">00</button>
+                    </div>
+
+                    <div class="change-breakdown" id="changeBreakdown"></div>
+                </div>
+
                 <div class="slide-button-container">
                     <div class="slide-track" id="swipeTrack">
                         <div class="slider-thumb" id="swipeThumb">
@@ -108,6 +212,49 @@
             </div>
         </aside>
     </div>
+
+    <!-- Order confirmation modal (blends with the cashier theme) -->
+    <div class="pos-modal-overlay" id="posModalOverlay">
+        <div class="pos-modal" id="posModal">
+            <div class="pos-modal-header">
+                <div class="pos-modal-icon" id="posModalIcon"><i class="fa-solid fa-receipt"></i></div>
+                <h3 id="posModalTitle">Review your order</h3>
+            </div>
+            <div class="pos-modal-body" id="posModalBody"></div>
+            <div class="pos-modal-actions" id="posModalActions"></div>
+        </div>
+    </div>
+
+    <!-- Cashier order history slide-out panel -->
+    <div class="history-backdrop" id="historyBackdrop"></div>
+    <aside class="history-panel" id="historyPanel">
+        <div class="history-panel-head">
+            <h3><i class="fa-solid fa-clock-rotate-left"></i> My Orders</h3>
+            <button type="button" class="history-close-btn" id="historyCloseBtn" title="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="history-stats">
+            <div class="history-stat">
+                <span>Today</span>
+                <strong id="historyTodayCount">0</strong>
+                <small>orders placed</small>
+            </div>
+            <div class="history-stat">
+                <span>Today's sales</span>
+                <strong id="historyTodayRevenue">₱0.00</strong>
+                <small>my revenue</small>
+            </div>
+        </div>
+
+        <div class="history-search-wrap">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="historySearchInput" placeholder="Search receipt or customer...">
+        </div>
+
+        <div class="history-order-list" id="historyOrderList"></div>
+        <div class="history-detail" id="historyDetail"></div>
+    </aside>
+
     <script src="pos.js"></script>
 </body>
 
