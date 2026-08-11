@@ -103,11 +103,15 @@ function selectMenuRow(product) {
     const priceInput       = document.getElementById("priceInput");
     const categorySelect   = document.getElementById("categorySelect");
     const statusSelect     = document.getElementById("statusSelect");
+    const stockInput       = document.getElementById("stockInput");
+    const lowStockInput    = document.getElementById("lowStockInput");
 
     if (productNameInput) productNameInput.value = product.name || "";
     if (priceInput)       priceInput.value       = product.price ?? "";
     if (categorySelect)   categorySelect.value   = product.category || "Coffee";
     if (statusSelect)     statusSelect.value     = product.status   || "Available";
+    if (stockInput)       stockInput.value       = product.stock ?? "";
+    if (lowStockInput)    lowStockInput.value    = product.lowStockThreshold ?? "";
 
     renderImagePreview(selectedImageData);
     updateMenuButtonStates(true); // ← grey out Add, enable Update/Remove
@@ -151,12 +155,16 @@ function clearMenuForm() {
     const priceInput       = document.getElementById("priceInput");
     const categorySelect   = document.getElementById("categorySelect");
     const statusSelect     = document.getElementById("statusSelect");
+    const stockInput       = document.getElementById("stockInput");
+    const lowStockInput    = document.getElementById("lowStockInput");
     const fileInput        = document.getElementById("menuImageInput");
 
     if (productNameInput) productNameInput.value = "";
     if (priceInput)       priceInput.value       = "";
     if (categorySelect)   categorySelect.value   = "Coffee";
     if (statusSelect)     statusSelect.value     = "Available";
+    if (stockInput)       stockInput.value       = "";
+    if (lowStockInput)    lowStockInput.value    = "";
     if (fileInput)        fileInput.value        = "";
 
     renderImagePreview("");
@@ -172,11 +180,15 @@ function getMenuPayload() {
     const priceInput     = document.getElementById("priceInput");
     const categorySelect = document.getElementById("categorySelect");
     const statusSelect   = document.getElementById("statusSelect");
+    const stockInput     = document.getElementById("stockInput");
+    const lowStockInput  = document.getElementById("lowStockInput");
 
     const name     = nameInput      ? nameInput.value.trim()  : "";
     const price    = priceInput     ? Number(priceInput.value) : NaN;
     const category = categorySelect ? categorySelect.value     : "";
     const status   = statusSelect   ? statusSelect.value       : "Available";
+    const stock    = stockInput     ? Number(stockInput.value) : NaN;
+    const lowStockThreshold = lowStockInput ? Number(lowStockInput.value) : NaN;
 
     if (!name || !Number.isFinite(price) || price < 0) {
         alert("Please complete the product name and a valid price before saving.");
@@ -188,6 +200,8 @@ function getMenuPayload() {
         price,
         category,
         status,
+        stock: Number.isFinite(stock) ? Math.max(0, stock) : 999,
+        lowStockThreshold: Number.isFinite(lowStockThreshold) ? Math.max(0, lowStockThreshold) : 10,
         image: selectedImageData ||
             (selectedProductId
                 ? (allProducts.find(p => p._id === selectedProductId)?.image || "")
@@ -314,6 +328,9 @@ function renderMenuTable(products) {
             <td>${escapeHtml(product.name)}</td>
             <td>${escapeHtml(product.category)}</td>
             <td>₱${Number(product.price).toFixed(2)}</td>
+            <td class="${Number(product.stock ?? 0) <= Number(product.lowStockThreshold ?? 10) ? "low-stock-cell" : ""}">
+                ${Number(product.stock ?? 0)}
+            </td>
             <td>${escapeHtml(product.status)}</td>
             <td>${escapeHtml(product.date)}</td>
         </tr>

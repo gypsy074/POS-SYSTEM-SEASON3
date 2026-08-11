@@ -24,14 +24,71 @@ let allProducts  = [];
 let allUsers     = [];
 let allInventory = [];
 let latestOrders = [];
+let latestWaste  = [];
 
 let salesLineChart = null;
 let itemsRadarChart = null;
 let activePanelId  = "dashboard-view";
 
+// ── Profile Badge ──────────────────────────────────────────────────────────
+
+function setupProfileBadge() {
+    const user = JSON.parse(localStorage.getItem("posUser") || "null");
+    const name = (user && user.username) || "Admin";
+    const role = (user && user.role) || "Admin";
+
+    const initials = name
+        .split(/\s+/)
+        .map(part => part.charAt(0).toUpperCase())
+        .join("")
+        .slice(0, 2) || "AD";
+
+    document.getElementById("profileName").textContent = name;
+    document.getElementById("profileRole").textContent = role;
+    document.getElementById("profileAvatar").textContent = initials;
+    document.getElementById("profileDropdownName").textContent = name;
+    document.getElementById("profileDropdownRole").textContent = role;
+    document.getElementById("profileDropdownAvatar").textContent = initials;
+
+    const toggleBtn = document.getElementById("adminProfileBtn");
+    const dropdown = document.getElementById("profileDropdown");
+    if (!toggleBtn || !dropdown) return;
+
+    toggleBtn.addEventListener("click", event => {
+        event.stopPropagation();
+        dropdown.classList.toggle("show");
+    });
+
+    document.addEventListener("click", event => {
+        if (dropdown.classList.contains("show") && !dropdown.contains(event.target)) {
+            dropdown.classList.remove("show");
+        }
+    });
+
+    document.getElementById("profileLogoutBtn").addEventListener("click", () => {
+        localStorage.removeItem("posToken");
+        localStorage.removeItem("posUser");
+        window.location.href = "../login.html";
+    });
+}
+
+// Page guard: opening the admin panel without a valid session → back to login.
+async function guardAdminPage() {
+    try {
+        const response = await apiFetch("/api/auth/me");
+        if (!response.ok) {
+            window.location.href = "../login.html";
+        }
+    } catch (err) {
+        window.location.href = "../login.html";
+    }
+}
+
 // ── Application Bootstrap ──────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", () => {
+    guardAdminPage();
+
     // Components
     setupSidebarNavigation();
     setupHeaderActions();
@@ -50,7 +107,19 @@ document.addEventListener("DOMContentLoaded", () => {
     setupInventoryTableSelection();
     setupInventoryActionButtons();
 
-    // Initial data load
-    loadLiveDashboardData();
-    loadLiveMenuData();
+    // Sales analytics module
+    setupSalesFilterTabs();
+    setupCalendarControls();
+
+    // Initial data load — wait for both before rendering charts so the
+    // line/radar charts never render with half-loaded state.
+    const dashboardLoad = loadLiveDashboardData();
+    const menuLoad = loadLiveMenuData();
+    Promise.allSettled([dashboardLoad, menuLoad]).then(() => {
+        renderSalesCharts(latestOrders, allProducts);
+    });
+
+    // Profile + waste modules
+    setupProfileBadge();
+    loadWasteData();
 });

@@ -60,7 +60,7 @@ function clearUserForm() {
 
 // ── Payload Builder ────────────────────────────────────────────────────────
 
-function getUserPayload() {
+function getUserPayload(requirePassword) {
     const usernameInput = document.getElementById("usernameInput");
     const passwordInput = document.getElementById("passwordInput");
     const roleSelect    = document.getElementById("roleSelect");
@@ -69,24 +69,32 @@ function getUserPayload() {
     const password = passwordInput ? passwordInput.value        : "";
     const role     = roleSelect    ? roleSelect.value           : "Admin";
 
-    if (!username || !password || !role) {
-        alert("Please complete username, password, and role before saving.");
+    if (!username || !role) {
+        alert("Please complete username and role before saving.");
         return null;
     }
 
-    return {
+    if (requirePassword && !password) {
+        alert("Please enter a password before saving.");
+        return null;
+    }
+
+    const payload = {
         username,
-        password,
         role,
         status: "Active",
         date: new Date().toLocaleDateString()
     };
+
+    if (password) payload.password = password;
+
+    return payload;
 }
 
 // ── CRUD Operations ────────────────────────────────────────────────────────
 
 async function addUser() {
-    const payload = getUserPayload();
+    const payload = getUserPayload(true);
     if (!payload) return;
 
     try {
@@ -117,7 +125,7 @@ async function updateUser() {
         return;
     }
 
-    const payload = getUserPayload();
+    const payload = getUserPayload(false);
     if (!payload) return;
 
     try {
@@ -193,7 +201,6 @@ function renderUserTable(users) {
         <tr data-user-id="${user._id}">
             <td>${escapeHtml(user._id)}</td>
             <td>${escapeHtml(user.username)}</td>
-            <td>${escapeHtml(user.password)}</td>
             <td>${escapeHtml(user.role)}</td>
             <td>${escapeHtml(user.status)}</td>
             <td>${escapeHtml(user.date)}</td>

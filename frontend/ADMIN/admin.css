@@ -21,6 +21,10 @@ body {
 .admin-container {
     display: grid;
     grid-template-columns: 240px 1fr;
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+        "sidebar header"
+        "sidebar content";
     height: 100vh;
 }
 
@@ -37,6 +41,7 @@ body {
    2. Sidebar Component Styling
    ========================================================================== */
 .sidebar {
+    grid-area: sidebar;
     background: var(--sidebar-white);
     margin: 20px;
     border-radius: 35px;
@@ -104,6 +109,7 @@ body {
    3. Header Navigation Elements
    ========================================================================== */
 .main-body {
+    grid-area: content;
     padding-right: 20px;
     display: flex;
     flex-direction: column;
@@ -111,6 +117,7 @@ body {
 }
 
 .admin-header {
+    grid-area: header;
     display: flex;
     align-items: center;
     padding: 20px 0 20px 20px;
@@ -161,6 +168,7 @@ body {
     display: flex;
     align-items: center;
     gap: 15px;
+    position: relative;
 }
 
 .header-icons {
@@ -181,6 +189,80 @@ body {
     box-shadow: 0 4px 10px rgba(0,0,0,0.08);
     color: var(--dark-brown);
     font-size: 1.1rem;
+    position: relative;
+}
+
+.notification-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: 9px;
+    background: #e74c3c;
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 700;
+    align-items: center;
+    justify-content: center;
+}
+
+.notification-dropdown {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: 330px;
+    max-height: 380px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid var(--header-brown);
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+    padding: 8px;
+    display: none;
+    z-index: 100;
+}
+
+.notification-dropdown.show {
+    display: block;
+}
+
+.notification-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 8px;
+    border-radius: 10px;
+    transition: background 0.15s ease;
+}
+
+.notification-item:hover {
+    background: #faf3ec;
+}
+
+.notification-item > i {
+    margin-top: 4px;
+    color: var(--accent-brown);
+}
+
+.notification-item > div {
+    display: flex;
+    flex-direction: column;
+}
+
+.notification-item strong {
+    font-size: 0.85rem;
+    color: #111;
+}
+
+.notification-item span {
+    font-size: 0.75rem;
+    color: #777;
+}
+
+.notification-item-danger > i {
+    color: #e74c3c;
 }
 
 .admin-profile-badge {
@@ -213,6 +295,69 @@ body {
 
 .profile-name { font-size: 0.95rem; color: #111; }
 .profile-role { font-size: 0.8rem; color: #444; }
+
+.profile-chevron {
+    font-size: 0.7rem;
+    color: var(--dark-brown);
+    margin-left: 2px;
+    transition: transform 0.2s ease;
+}
+.admin-profile-badge:hover { cursor: pointer; opacity: 0.95; }
+.admin-profile-badge.open .profile-chevron { transform: rotate(180deg); }
+
+.profile-dropdown {
+    position: absolute;
+    top: calc(100% + 12px);
+    right: 0;
+    width: 230px;
+    background: white;
+    border: 1px solid var(--header-brown);
+    border-radius: 16px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.18);
+    padding: 8px;
+    display: none;
+    z-index: 999;
+}
+.profile-dropdown.show { display: block; animation: dropdownIn 0.24s ease-out; transform-origin: top right; }
+
+@keyframes dropdownIn {
+    from { opacity: 0; transform: translateY(-10px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.profile-dropdown-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px 14px;
+    border-bottom: 1px solid #f0e6dc;
+    margin-bottom: 8px;
+}
+.profile-dropdown-header strong { display: block; font-size: 0.95rem; color: #111; }
+.profile-dropdown-header span { font-size: 0.78rem; color: var(--accent-brown); }
+
+.profile-dropdown-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: none;
+    background: none;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #c0392b;
+    cursor: pointer;
+    text-align: left;
+}
+.profile-dropdown-item:hover { background: #fdf0ee; }
+
+.waste-total {
+    margin-left: auto;
+    font-weight: 700;
+    color: #e74c3c;
+}
 
 /* ==========================================================================
    4. Live Dashboard Analytics & Table Layouts
@@ -262,14 +407,15 @@ body {
 .performance-wide {
     display: flex;
     flex-direction: row;
-    padding: 25px 35px;
+    padding: 28px 38px;
 }
 
 .performance-labels {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    min-width: 160px;
+    min-width: 180px;
+    gap: 8px;
 }
 
 .label-group {
@@ -277,13 +423,14 @@ body {
     align-items: center;
     gap: 12px;
     font-weight: 700;
-    font-size: 0.9rem;
+    font-size: 1.05rem;
+    white-space: nowrap;
 }
 
 .label-group i {
     color: var(--dark-brown);
-    font-size: 1.1rem;
-    width: 25px;
+    font-size: 1.25rem;
+    width: 26px;
     text-align: center;
 }
 
@@ -293,10 +440,11 @@ body {
     flex-direction: column;
     justify-content: space-between;
     align-items: center;
+    gap: 8px;
 }
 
 .main-val { font-size: 2.8rem; font-weight: 600; color: #2e7d32; }
-.sub-val { font-size: 0.95rem; color: #8e6a46; font-weight: 600; }
+.sub-val { font-size: 1.15rem; color: #8e6a46; font-weight: 600; white-space: nowrap; }
 
 /* Updates Ledger Panel */
 .updates-panel h3 {
@@ -332,6 +480,16 @@ body {
     font-weight: bold;
     font-size: 0.85rem;
     flex-shrink: 0;
+}
+
+.update-avatar-danger {
+    background: #fdecea;
+    color: #e74c3c;
+}
+
+.low-stock-cell {
+    color: #e67e22;
+    font-weight: 700;
 }
 
 .update-text { display: flex; flex-direction: column; }
@@ -560,12 +718,50 @@ tr:hover td {
 @media (max-width: 1100px) {
     .admin-container {
         grid-template-columns: 1fr;
+        grid-template-rows: auto auto 1fr;
+        grid-template-areas:
+            "header"
+            "sidebar"
+            "content";
         height: auto;
     }
 
     .sidebar {
         margin: 12px;
         width: auto;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 18px;
+        border-radius: 24px;
+    }
+
+    .admin-logo {
+        width: 52px;
+        max-width: none;
+        margin: 0;
+    }
+
+    .nav-links {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        width: auto;
+    }
+
+    .nav-btn {
+        width: auto;
+        padding: 10px 16px;
+    }
+
+    .logout-btn {
+        width: auto;
+        margin-top: 0;
+        padding: 10px 18px;
+        border-radius: 20px;
     }
 
     .main-body {
@@ -588,6 +784,11 @@ tr:hover td {
         flex-direction: column;
         gap: 16px;
     }
+
+    /* Sales analytics — charts stacked, calendar full width */
+    .analytics-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 720px) {
@@ -596,13 +797,67 @@ tr:hover td {
         padding-left: 0;
     }
 
+    .date-chip {
+        display: none;
+    }
+
+    .admin-search-wrapper {
+        order: 3;
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .admin-search {
+        max-width: none;
+    }
+
     .header-right-group {
         width: 100%;
         justify-content: space-between;
     }
 
+    /* Sidebar nav wraps into tidy rows on phones — all buttons always visible */
+    .sidebar {
+        flex-wrap: wrap;
+        justify-content: center;
+        overflow: visible;
+    }
+
+    .admin-logo { flex-shrink: 0; }
+
+    .nav-links {
+        flex-wrap: wrap;
+        justify-content: center;
+        overflow: visible;
+        width: 100%;
+    }
+    .nav-btn {
+        flex: 1 1 45%;
+        min-width: 130px;
+        text-align: center;
+    }
+    .logout-btn {
+        flex-shrink: 0;
+        margin-top: 4px;
+    }
+
+    /* Tables keep a readable width and scroll inside their cards */
+    .table-container table,
+    .table-scroll .design-table {
+        min-width: 720px;
+    }
+
     .form-inputs {
         grid-template-columns: 1fr;
+    }
+
+    /* Users view — form and table stack full width so nothing gets clipped */
+    .management-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .content-wrapper {
+        padding: 14px 10px 0;
     }
 
     .form-actions {
@@ -612,6 +867,124 @@ tr:hover td {
 
     .form-actions .action-btn {
         flex: 1 1 140px;
+    }
+
+    .inventory-actions {
+        flex-wrap: wrap;
+    }
+
+    .inventory-actions .btn-pill {
+        flex: 1 1 45%;
+    }
+
+    .menu-form-grid {
+        gap: 18px;
+        padding: 18px;
+    }
+
+    .analytics-grid {
+        margin-left: 0;
+    }
+
+    .analytics-card,
+    .calendar-card {
+        padding: 18px;
+    }
+}
+
+/* ── Small phones (≤ 480px) ── */
+@media (max-width: 480px) {
+    .main-body {
+        padding: 0 6px 12px;
+    }
+
+    .admin-header {
+        padding-left: 6px;
+        gap: 12px;
+    }
+
+    .admin-search input {
+        padding: 12px 16px 12px 42px;
+    }
+
+    .icon-circle {
+        width: 38px;
+        height: 38px;
+        font-size: 0.95rem;
+    }
+
+    .stat-card {
+        padding: 16px;
+        border-radius: 18px;
+    }
+
+    .revenue-main h2 {
+        font-size: 1.6rem;
+    }
+
+    .performance-wide {
+        padding: 18px;
+    }
+
+    .performance-labels {
+        min-width: 140px;
+    }
+
+    .label-group {
+        font-size: 0.95rem;
+        gap: 9px;
+    }
+
+    .sub-val {
+        font-size: 1rem;
+    }
+
+    .main-val {
+        font-size: 2.2rem;
+    }
+
+    .notification-dropdown {
+        width: 92vw;
+        right: -140px;
+    }
+
+    .analytics-card,
+    .calendar-card {
+        padding: 14px;
+        border-radius: 18px;
+    }
+
+    /* Compact headers + full-width action buttons on small phones */
+    .panel-header-title h2 {
+        font-size: 1.1rem;
+    }
+
+    .card,
+    .inventory-form-card {
+        padding: 16px;
+    }
+
+    .action-buttons {
+        grid-template-columns: 1fr;
+    }
+
+    .action-buttons .btn-main,
+    .form-actions .action-btn,
+    .inventory-actions .btn-pill {
+        flex: 1 1 100%;
+    }
+
+    .admin-profile-badge {
+        padding: 4px 10px 4px 4px;
+        gap: 8px;
+    }
+
+    .profile-name {
+        font-size: 0.85rem;
+    }
+
+    .profile-role {
+        font-size: 0.72rem;
     }
 }
 
@@ -704,6 +1077,24 @@ tr:hover td {
 
 .calendar-day:hover {
     background: #f1d8c4;
+}
+
+.calendar-day.has-orders {
+    background: #f1d8c4;
+    font-weight: 700;
+}
+
+.calendar-day small {
+    display: block;
+    font-size: 0.55rem;
+    line-height: 1;
+    margin-top: 2px;
+    color: var(--accent-brown);
+    font-weight: 700;
+}
+
+.calendar-day.today small {
+    color: #fff;
 }
 
 .calendar-day.today {
@@ -874,4 +1265,111 @@ tr:hover td {
 .btn-pill:hover {
     background: var(--accent-brown);
     color: #fff;
+}
+
+/* ==========================================================================
+   DYNAMIC BUTTON ANIMATIONS — admin theme
+   ========================================================================== */
+
+@keyframes popIn {
+    0%   { transform: scale(0.82); }
+    60%  { transform: scale(1.09); }
+    100% { transform: scale(1); }
+}
+
+/* Sidebar navigation buttons */
+.nav-btn {
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, background 0.25s ease;
+}
+.nav-btn:hover {
+    transform: translateX(5px) scale(1.02);
+    border-color: var(--accent-brown);
+    box-shadow: 0 6px 14px rgba(166, 124, 82, 0.28);
+}
+.nav-btn:active {
+    transform: scale(0.94);
+}
+.nav-btn.active {
+    animation: popIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Logout button */
+.logout-btn {
+    transition: all 0.25s ease;
+}
+.logout-btn:hover {
+    transform: translateY(-2px);
+    background: #ffeded;
+    border-color: #ff9d9d;
+    color: #c0392b;
+    box-shadow: 0 8px 18px rgba(192, 57, 43, 0.22);
+}
+.logout-btn:active {
+    transform: scale(0.92);
+}
+
+/* Header icon circles (refresh, bell) */
+.icon-circle {
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+}
+.icon-circle:hover {
+    transform: translateY(-3px) rotate(-6deg);
+    box-shadow: 0 8px 16px rgba(107, 79, 59, 0.25);
+}
+.icon-circle:active {
+    transform: scale(0.85);
+}
+
+/* Form action buttons — lift on hover, punch on click */
+.action-btn,
+.btn-main,
+.btn-pill,
+.import-btn {
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease, color 0.2s ease;
+}
+.action-btn:hover,
+.btn-main:hover,
+.btn-pill:hover,
+.import-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 14px rgba(107, 79, 59, 0.22);
+}
+.action-btn:active,
+.btn-main:active,
+.btn-pill:active,
+.import-btn:active {
+    transform: scale(0.92);
+}
+
+/* Sales filter tabs & category pills — pop when selected */
+.tab,
+.pill {
+    transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease;
+}
+.tab:hover,
+.pill:hover { transform: translateY(-1px); }
+.tab:active,
+.pill:active { transform: scale(0.92); }
+.tab.active,
+.pill.active {
+    animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Calendar month arrows */
+#prevMonthBtn,
+#nextMonthBtn {
+    transition: transform 0.15s ease;
+}
+#prevMonthBtn:hover,
+#nextMonthBtn:hover { transform: scale(1.35); }
+#prevMonthBtn:active,
+#nextMonthBtn:active { transform: scale(0.8); }
+
+/* Profile dropdown items */
+.profile-dropdown-item:active { transform: scale(0.97); }
+
+/* Notification dropdown — fade/slide in like the profile dropdown */
+.notification-dropdown.show {
+    animation: dropdownIn 0.24s ease-out;
+    transform-origin: top right;
 }

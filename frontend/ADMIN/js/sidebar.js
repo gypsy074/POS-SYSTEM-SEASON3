@@ -24,6 +24,7 @@ function setupSidebarNavigation() {
             if (activePanelId === "menu-view")      loadLiveMenuData();
             if (activePanelId === "users-view")     loadLiveUserData();
             if (activePanelId === "inventory-view") loadLiveInventoryData();
+            if (activePanelId === "waste-view") loadWasteData();
         });
     });
 }

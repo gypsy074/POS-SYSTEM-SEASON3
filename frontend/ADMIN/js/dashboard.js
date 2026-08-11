@@ -3,6 +3,9 @@
    Handles: order data fetch, transaction table render, sales charts.
    ========================================================================== */
 
+let activeSalesRange = "day";
+let calendarViewDate = new Date();
+
 async function loadLiveDashboardData() {
     try {
         const response = await apiFetch("/api/orders");
@@ -21,11 +24,221 @@ async function loadLiveDashboardData() {
 
         const revenueAccumulator = orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
         totalRevenueEl.innerText = `₱${revenueAccumulator.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
-        todaySalesCountEl.innerText = `${orders.length} Orders`;
+
+        const today = new Date();
+        const todayOrders = orders.filter(order => {
+            const orderDate = new Date(order.date);
+            return orderDate.getFullYear() === today.getFullYear() &&
+                orderDate.getMonth() === today.getMonth() &&
+                orderDate.getDate() === today.getDate();
+        });
+        todaySalesCountEl.innerText = `${todayOrders.length} Orders`;
+
+        const performanceEl = document.getElementById("performanceValue");
+        if (performanceEl) {
+            const revenue = revenueAccumulator;
+            const wasteCost = (latestWaste || []).reduce((sum, w) => sum + Number(w.totalCost || 0), 0);
+            let performance = "No Data";
+            if (revenue > 0) {
+                const wasteRatio = wasteCost / revenue;
+                if (wasteRatio === 0) performance = "Excellent";
+                else if (wasteRatio < 0.05) performance = "Good";
+                else if (wasteRatio < 0.15) performance = "Fair";
+                else performance = "Poor";
+            }
+            performanceEl.innerText = performance;
+        }
+
+        renderUpdates();
+        renderNotifications();
 
         renderSalesCharts(orders, allProducts);
+        renderCalendar();
     } catch (err) {
         console.error("❌ Dashboard sync pipeline broken:", err);
+    }
+}
+
+// ── Updates Panel & Notification Feed ──────────────────────────────────────
+
+function buildUpdates() {
+    const updates = [];
+
+    (allProducts || [])
+        .filter(product => Number(product.stock ?? 0) <= Number(product.lowStockThreshold ?? 10))
+        .slice(0, 3)
+        .forEach(product => {
+            updates.push({
+                icon: "fa-box-open",
+                flagged: true,
+                title: `${product.status === "Out of Stock" ? "OUT OF STOCK" : "Low stock"} — ${product.name}`,
+                sub: `${Number(product.stock ?? 0)} left · threshold ${Number(product.lowStockThreshold ?? 10)}`
+            });
+        });
+
+    (latestWaste || []).slice(0, 3).forEach(waste => {
+        updates.push({
+            icon: "fa-recycle",
+            flagged: true,
+            title: `Waste logged — ${waste.productName}`,
+            sub: `${waste.cashier || "—"} · ${waste.reason || "Other"} · Qty ${waste.quantity} · ₱${Number(waste.totalCost || 0).toFixed(2)} · ${new Date(waste.date).toLocaleString()}`
+        });
+    });
+
+    (latestOrders || []).slice(0, 4).forEach(order => {
+        updates.push({
+            icon: "fa-clipboard-check",
+            flagged: false,
+            title: `${order.customer} placed an order`,
+            sub: `${order.cashier || "—"} · ${order.receiptId} · ₱${Number(order.total || 0).toFixed(2)}`
+        });
+    });
+
+    if (!updates.length) {
+        updates.push({
+            icon: "fa-circle-check",
+            flagged: false,
+            title: "No recent updates yet",
+            sub: "Orders, waste events, and stock alerts will appear here"
+        });
+    }
+
+    return updates.slice(0, 6);
+}
+
+function renderUpdates() {
+    const updateList = document.getElementById("updateList");
+    if (!updateList) return;
+
+    updateList.innerHTML = buildUpdates().map(update => `
+        <div class="update-item">
+            <div class="update-avatar${update.flagged ? " update-avatar-danger" : ""}">
+                <i class="fas ${update.icon}"></i>
+            </div>
+            <div class="update-text">
+                <strong>${escapeHtml(update.title)}</strong>
+                <span>${escapeHtml(update.sub)}</span>
+            </div>
+        </div>
+    `).join("");
+}
+
+function renderNotifications() {
+    const panel = document.getElementById("notificationDropdown");
+    if (!panel) return;
+
+    panel.innerHTML = buildUpdates().map(update => `
+        <div class="notification-item${update.flagged ? " notification-item-danger" : ""}">
+            <i class="fas ${update.icon}"></i>
+            <div>
+                <strong>${escapeHtml(update.title)}</strong>
+                <span>${escapeHtml(update.sub)}</span>
+            </div>
+        </div>
+    `).join("");
+
+    const badge = document.getElementById("notificationBadge");
+    if (badge) {
+        const lowStockCount = (allProducts || []).filter(product =>
+            Number(product.stock ?? 0) <= Number(product.lowStockThreshold ?? 10)
+        ).length;
+        if (lowStockCount > 0) {
+            badge.textContent = lowStockCount;
+            badge.style.display = "flex";
+        } else {
+            badge.style.display = "none";
+        }
+    }
+}
+
+// ── Waste Food Panel (view + remove) ───────────────────────────────────────
+
+async function loadWasteData() {
+    try {
+        const response = await apiFetch("/api/waste");
+        if (!response.ok) throw new Error("Failed to fetch waste");
+
+        const waste = await response.json();
+        latestWaste = Array.isArray(waste) ? waste : [];
+
+        renderWasteTable();
+        updateWasteStat();
+        renderUpdates();
+        renderNotifications();
+    } catch (err) {
+        console.error("❌ Waste load error:", err);
+    }
+}
+
+function updateWasteStat() {
+    const countEl = document.getElementById("wasteCount");
+    if (countEl) {
+        const today = new Date();
+        const todayWaste = (latestWaste || []).filter(entry => {
+            const entryDate = new Date(entry.date);
+            return entryDate.getFullYear() === today.getFullYear() &&
+                entryDate.getMonth() === today.getMonth() &&
+                entryDate.getDate() === today.getDate();
+        });
+        countEl.innerText = `${todayWaste.length} Items Today`;
+    }
+}
+
+function renderWasteTable() {
+    const tbody = document.getElementById("wasteTableBody");
+    if (!tbody) return;
+
+    const waste = latestWaste || [];
+
+    const totalEl = document.getElementById("wasteTotalCost");
+    if (totalEl) {
+        const total = waste.reduce((sum, entry) => sum + Number(entry.totalCost || 0), 0);
+        totalEl.innerText = `Total Waste: ₱${total.toFixed(2)}`;
+    }
+
+    if (!waste.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" style="text-align:center; color:#888; padding:22px;">
+                    No food waste logged. Everything looks great!
+                </td>
+            </tr>`;
+        return;
+    }
+
+    tbody.innerHTML = waste.map(entry => `
+        <tr data-waste-id="${entry._id}">
+            <td>${escapeHtml(entry.productName)}</td>
+            <td>${escapeHtml(entry.cashier || "—")}</td>
+            <td>${entry.quantity}</td>
+            <td>₱${Number(entry.price || 0).toFixed(2)}</td>
+            <td>₱${Number(entry.totalCost || 0).toFixed(2)}</td>
+            <td>${escapeHtml(entry.reason || "Other")}</td>
+            <td>${new Date(entry.date).toLocaleString()}</td>
+            <td>
+                <button type="button" class="btn-pill resolve-btn" data-waste-id="${entry._id}">Remove</button>
+            </td>
+        </tr>
+    `).join("");
+
+    tbody.querySelectorAll(".resolve-btn").forEach(button => {
+        button.addEventListener("click", async () => {
+            const entryId = button.dataset.wasteId;
+            if (!confirm("Remove this waste entry from the record?")) return;
+            await removeWasteEntry(entryId);
+        });
+    });
+}
+
+async function removeWasteEntry(entryId) {
+    try {
+        const response = await apiFetch(`/api/waste/${entryId}`, { method: "DELETE" });
+        if (!response.ok) throw new Error("Failed to delete waste entry");
+
+        await Promise.all([loadWasteData(), loadLiveDashboardData()]);
+    } catch (err) {
+        console.error("❌ Waste removal error:", err);
+        alert("Failed to remove the waste entry.");
     }
 }
 
@@ -36,6 +249,7 @@ function renderTransactionTable(orders) {
     tbody.innerHTML = orders.map(order => `
         <tr>
             <td>${escapeHtml(order.customer)}</td>
+            <td>${escapeHtml(order.cashier || "—")}</td>
             <td>${new Date(order.date).toLocaleString()}</td>
             <td>${escapeHtml(order.receiptId)}</td>
             <td>${escapeHtml((order.items || []).map(item => item.name).join(", "))}</td>
@@ -44,7 +258,7 @@ function renderTransactionTable(orders) {
     `).join("");
 }
 
-function renderSalesCharts(orders, products) {
+function renderSalesCharts(orders, products, range = activeSalesRange) {
     if (!window.Chart) return;
 
     const salesCanvas = document.getElementById("salesLineChart");
@@ -58,7 +272,9 @@ function renderSalesCharts(orders, products) {
         return acc;
     }, {});
 
-    const lineLabels = Object.keys(dailyTotals).slice(-7);
+    const allDays = Object.keys(dailyTotals);
+    const rangeLimit = { day: 7, week: 28, month: 90, all: Infinity }[range] || 7;
+    const lineLabels = allDays.slice(-rangeLimit);
     const lineData   = lineLabels.map(label => dailyTotals[label]);
 
     if (salesLineChart) salesLineChart.destroy();
@@ -82,12 +298,26 @@ function renderSalesCharts(orders, products) {
         }
     });
 
-    // --- Radar chart: items by category ---
-    const categoryCounts = products.reduce((acc, product) => {
-        const category = product.category || "Unknown";
-        acc[category] = (acc[category] || 0) + 1;
+    // --- Radar chart: items sold by category (from real orders) ---
+    const categoryByProduct = (products || []).reduce((map, product) => {
+        map[product.name] = product.category || "Unknown";
+        return map;
+    }, {});
+
+    const categoryCounts = (orders || []).reduce((acc, order) => {
+        (order.items || []).forEach(item => {
+            const category = categoryByProduct[item.name] || item.category || "Unknown";
+            acc[category] = (acc[category] || 0) + Number(item.quantity || 0);
+        });
         return acc;
     }, {});
+
+    if (Object.keys(categoryCounts).length === 0) {
+        (products || []).forEach(product => {
+            const category = product.category || "Unknown";
+            categoryCounts[category] = (categoryCounts[category] || 0);
+        });
+    }
 
     const radarLabels = Object.keys(categoryCounts);
     const radarData   = radarLabels.map(label => categoryCounts[label]);
@@ -111,4 +341,99 @@ function renderSalesCharts(orders, products) {
             scales: { r: { beginAtZero: true } }
         }
     });
+}
+
+// ── Sales Range Filter Tabs (Day / Week / Month / All) ─────────────────────
+
+function setupSalesFilterTabs() {
+    const tabs = document.querySelectorAll(".filter-tabs .tab");
+    if (!tabs.length) return;
+
+    tabs.forEach(tab => {
+        tab.addEventListener("click", () => {
+            tabs.forEach(t => t.classList.remove("active"));
+            tab.classList.add("active");
+            activeSalesRange = tab.textContent.trim().toLowerCase();
+            renderSalesCharts(latestOrders, allProducts);
+        });
+    });
+}
+
+// ── Sales Calendar (month navigation + days with orders) ───────────────────
+
+function setupCalendarControls() {
+    const prevBtn    = document.getElementById("prevMonthBtn");
+    const nextBtn    = document.getElementById("nextMonthBtn");
+    const yearSelect = document.getElementById("yearSelect");
+
+    if (!prevBtn || !nextBtn || !yearSelect) return;
+
+    const currentYear = new Date().getFullYear();
+    for (let year = currentYear - 3; year <= currentYear + 1; year++) {
+        const option = document.createElement("option");
+        option.value = year;
+        option.textContent = year;
+        if (year === currentYear) option.selected = true;
+        yearSelect.appendChild(option);
+    }
+
+    prevBtn.addEventListener("click", () => {
+        calendarViewDate.setMonth(calendarViewDate.getMonth() - 1);
+        renderCalendar();
+    });
+
+    nextBtn.addEventListener("click", () => {
+        calendarViewDate.setMonth(calendarViewDate.getMonth() + 1);
+        renderCalendar();
+    });
+
+    yearSelect.addEventListener("change", () => {
+        calendarViewDate.setFullYear(Number(yearSelect.value));
+        renderCalendar();
+    });
+
+    renderCalendar();
+}
+
+function renderCalendar() {
+    const monthDisplay = document.getElementById("monthDisplay");
+    const yearSelect   = document.getElementById("yearSelect");
+    const calendarGrid = document.getElementById("calendarGrid");
+    if (!monthDisplay || !yearSelect || !calendarGrid) return;
+
+    const year  = calendarViewDate.getFullYear();
+    const month = calendarViewDate.getMonth();
+    const today = new Date();
+
+    monthDisplay.textContent = calendarViewDate.toLocaleDateString("en-US", { month: "long" });
+    yearSelect.value = year;
+
+    const firstDay     = new Date(year, month, 1).getDay();
+    const daysInMonth  = new Date(year, month + 1, 0).getDate();
+
+    const ordersByDay = (latestOrders || []).reduce((acc, order) => {
+        const date = new Date(order.date);
+        if (date.getFullYear() === year && date.getMonth() === month) {
+            const day = date.getDate();
+            acc[day] = (acc[day] || 0) + 1;
+        }
+        return acc;
+    }, {});
+
+    let html = "";
+    for (let i = 0; i < firstDay; i++) html += `<span></span>`;
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const count = ordersByDay[day] || 0;
+        const isToday = day === today.getDate()
+            && month === today.getMonth()
+            && year === today.getFullYear();
+        html += `
+            <div class="calendar-day${count ? " has-orders" : ""}${isToday ? " today" : ""}"
+                 title="${count ? `${count} order(s)` : ""}">
+                ${day}${count ? `<small>${count}</small>` : ""}
+            </div>`;
+    }
+
+    calendarGrid.innerHTML = html;
 }
