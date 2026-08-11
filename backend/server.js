@@ -2,12 +2,27 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 
+// JWT signing secret — set JWT_SECRET in .env for production use.
+const JWT_SECRET = process.env.JWT_SECRET || 'season3-pos-dev-secret';
+if (!process.env.JWT_SECRET) {
+    console.warn('⚠️  JWT_SECRET not set in .env — using a development secret. Set it before going live.');
+}
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
+
 // Middleware Engine Configuration
-app.use(cors());
+const corsOrigin = process.env.CORS_ORIGIN === '*'
+    ? true
+    : process.env.CORS_ORIGIN
+        ? process.env.CORS_ORIGIN.split(',').map(s => s.trim())
+        : true;
+
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, '..', 'frontend')));
@@ -47,15 +62,17 @@ mongoose.connect(mongoUri, {
 
 // --- Order System Schema Configuration ---
 const orderItemSchema = new mongoose.Schema({
-    name: { type: String, required: true },
+    name: { type: String, required: true, trim: true },
     quantity: { type: Number, required: true, min: 1, default: 1 },
     price: { type: Number, required: true, min: 0, default: 0 }
 }, { _id: false });
 
 const orderSchema = new mongoose.Schema({
-    customer: { type: String, default: "Walk-in Customer" },
+    customer: { type: String, default: "Walk-in Customer", trim: true },
+    cashier: { type: String, default: "Pranselen", trim: true },
     tableNo: { type: String, default: "" },
     mode: { type: String, enum: ["Dine In", "To Go", "Online Order"], default: "Dine In" },
+    paymentMethod: { type: String, enum: ["Cash", "G-Cash"], default: "Cash" },
     date: { type: Date, default: Date.now },
     receiptId: { type: String, default: () => String(Date.now()).slice(-8) },
     items: { type: [orderItemSchema], default: [] },
@@ -65,18 +82,20 @@ const Order = mongoose.model('Order', orderSchema);
 
 // --- Menu Management Schema Configuration ---
 const productSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    category: { type: String, required: true },
-    price: { type: Number, required: true },
+    name: { type: String, required: true, trim: true },
+    category: { type: String, required: true, trim: true },
+    price: { type: Number, required: true, min: 0 },
     status: { type: String, default: "Available" },
     image: { type: String, default: "" },
+    stock: { type: Number, default: 999, min: 0 },
+    lowStockThreshold: { type: Number, default: 10, min: 0 },
     date: { type: String, default: () => new Date().toLocaleDateString() }
 });
 const Product = mongoose.model('Product', productSchema);
 
 // --- Crew User Account Schema Configuration ---
 const userSchema = new mongoose.Schema({
-    username: { type: String, required: true, unique: true },
+    username: { type: String, required: true, unique: true, trim: true, lowercase: true },
     password: { type: String, required: true },
     role: { type: String, enum: ['Admin', 'Cashier'], default: 'Admin' },
     status: { type: String, default: 'Active' },
@@ -86,8 +105,8 @@ const User = mongoose.model('User', userSchema);
 
 // --- Stock Supply Inventory Schema Configuration ---
 const inventorySchema = new mongoose.Schema({
-    productName: { type: String, required: true },
-    category: { type: String, required: true },
+    productName: { type: String, required: true, trim: true },
+    category: { type: String, required: true, trim: true },
     price: { type: Number, required: true, min: 0 },
     stock: { type: Number, required: true, min: 0 },
     status: { type: String, default: 'Available' },
@@ -95,31 +114,161 @@ const inventorySchema = new mongoose.Schema({
 });
 const InventoryItem = mongoose.model('InventoryItem', inventorySchema);
 
+// --- Food Waste Schema Configuration ---
+const wasteSchema = new mongoose.Schema({
+    productName: { type: String, required: true, trim: true },
+    category: { type: String, default: "Uncategorized", trim: true },
+    cashier: { type: String, default: "Pranselen", trim: true },
+    quantity: { type: Number, required: true, min: 0.001 },
+    price: { type: Number, default: 0, min: 0 },
+    totalCost: { type: Number, default: 0, min: 0 },
+    reason: { type: String, default: "Other", trim: true },
+    note: { type: String, default: "", trim: true },
+    date: { type: Date, default: Date.now }
+});
+const WasteItem = mongoose.model('WasteItem', wasteSchema);
+
 /* ==========================================================================
    2. UTILITY INTERCEPTORS & VALIDATION ENGINES
    ========================================================================== */
+
 function isValidObjectId(id) {
     return mongoose.Types.ObjectId.isValid(id);
+}
+
+function isBcryptHash(value) {
+    return typeof value === 'string' && /^\$2[abxy]\$/.test(value);
+}
+
+function normalizePaymentMethod(value) {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (normalized === 'gcash' || normalized === 'g-cash') return 'G-Cash';
+    if (normalized === 'cash') return 'Cash';
+    return 'Cash';
+}
+
+function normalizeWastePayload(input) {
+    const quantity = Math.max(0.001, Number(input.quantity) || 0);
+    const price    = Math.max(0, Number(input.price) || 0);
+    return {
+        productName: String(input.productName || "").trim() || "Unknown Item",
+        category: String(input.category || "Uncategorized").trim() || "Uncategorized",
+        cashier: String(input.cashier || "Pranselen").trim() || "Pranselen",
+        quantity,
+        price,
+        totalCost: Number((quantity * price).toFixed(2)),
+        reason: String(input.reason || "Other").trim() || "Other",
+        note: String(input.note || "").trim().slice(0, 300),
+        date: input.date ? new Date(input.date) : new Date()
+    };
 }
 
 function normalizeOrderPayload(input) {
     const items = Array.isArray(input.items)
         ? input.items.map(item => ({
             name: String(item.name || "Item").trim(),
-            quantity: Number(item.quantity) || 1,
-            price: Number(item.price) || 0
+            quantity: Math.max(1, Number(item.quantity) || 1),
+            price: Math.max(0, Number(item.price) || 0)
         }))
         : [];
 
+    const computedTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
     return {
         customer: String(input.customer || "Walk-in Customer").trim() || "Walk-in Customer",
+        cashier: String(input.cashier || "Pranselen").trim() || "Pranselen",
         tableNo: String(input.tableNo || "").trim(),
         mode: ["Dine In", "To Go", "Online Order"].includes(input.mode) ? input.mode : "Dine In",
+        paymentMethod: normalizePaymentMethod(input.paymentMethod),
         receiptId: String(input.receiptId || String(Date.now()).slice(-8)),
         date: input.date ? new Date(input.date) : new Date(),
         items,
-        total: Number(input.total) || items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+        total: Number.isFinite(Number(input.total)) && Number(input.total) > 0
+            ? Number(input.total)
+            : computedTotal
     };
+}
+
+function sanitizeUser(user) {
+    const { password, ...safe } = user.toObject ? user.toObject() : user;
+    return safe;
+}
+
+function signToken(user) {
+    return jwt.sign(
+        { id: user._id, username: user.username, role: user.role },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES_IN }
+    );
+}
+
+/**
+ * authRequired(roles) — protects endpoints.
+ * - No token        → 401
+ * - Invalid token   → 401
+ * - Wrong role      → 403
+ * Attaches req.user = { id, username, role } from the verified token.
+ */
+function authRequired(roles) {
+    const allowed = roles ? new Set(roles) : null;
+    return (req, res, next) => {
+        const header = req.headers.authorization || "";
+        const token = header.startsWith("Bearer ") ? header.slice(7).trim() : null;
+        if (!token) {
+            return res.status(401).json({ error: 'Authentication required. Please log in.' });
+        }
+        try {
+            const payload = jwt.verify(token, JWT_SECRET);
+            if (allowed && !allowed.has(payload.role)) {
+                return res.status(403).json({ error: 'Access denied for your account role.' });
+            }
+            req.user = payload;
+            next();
+        } catch (err) {
+            return res.status(401).json({ error: 'Session expired or invalid. Please log in again.' });
+        }
+    };
+}
+
+// One-time migration: strip legacy wrong-order fields from stored orders.
+// Uses the raw driver collection — Mongoose strict mode strips $unset paths
+// that no longer exist in the schema, which would make this a silent no-op.
+async function cleanupLegacyOrderFields() {
+    try {
+        const result = await Order.collection.updateMany({}, {
+            $unset: { flagged: "", flaggedAt: "", flaggedReason: "", resolved: "", resolvedAt: "" }
+        });
+        if (result.modifiedCount > 0) {
+            console.log(`🧹 Cleaned legacy wrong-order fields from ${result.modifiedCount} order(s).`);
+        }
+    } catch (err) {
+        console.error('❌ Legacy order field cleanup failed:', err.message);
+    }
+}
+
+// One-time migration: give legacy menu products real stock/threshold values.
+// Products created before the stock feature have no stored stock field —
+// mongoose only shows the schema default on read, so raw $inc would create
+// a stock of -1. Store explicit defaults, then clamp any negatives to 0.
+async function cleanupLegacyProductStock() {
+    try {
+        const missing = await Product.updateMany(
+            { stock: { $exists: false } },
+            { $set: { stock: 999, lowStockThreshold: 10 } }
+        );
+        if (missing.modifiedCount > 0) {
+            console.log(`📦 Backfilled stock/threshold for ${missing.modifiedCount} legacy product(s).`);
+        }
+        const clamped = await Product.updateMany(
+            { stock: { $lt: 0 } },
+            { $set: { stock: 0, status: "Out of Stock" } }
+        );
+        if (clamped.modifiedCount > 0) {
+            console.log(`🔻 Clamped ${clamped.modifiedCount} product(s) with negative stock to 0.`);
+        }
+    } catch (err) {
+        console.error('❌ Legacy product stock cleanup failed:', err.message);
+    }
 }
 
 /* ==========================================================================
@@ -128,6 +277,8 @@ function normalizeOrderPayload(input) {
 app.get('/', (req, res) => { res.redirect('/login.html'); });
 app.get('/CASHIER', (req, res) => { res.redirect('/CASHIER/pos.html'); });
 app.get('/CASHIER/', (req, res) => { res.redirect('/CASHIER/pos.html'); });
+app.get('/ADMIN', (req, res) => { res.redirect('/ADMIN/admin.html'); });
+app.get('/ADMIN/', (req, res) => { res.redirect('/ADMIN/admin.html'); });
 
 // ---------------------- AUTHENTICATION LOGIN ENDPOINT ----------------------
 app.post('/api/login', async (req, res) => {
@@ -136,74 +287,173 @@ app.post('/api/login', async (req, res) => {
         if (!username || !password) {
             return res.status(400).json({ error: 'Username and password are required.' });
         }
-        const user = await User.findOne({ username: username.trim() });
+
+        const user = await User.findOne({ username: String(username).trim().toLowerCase() });
         if (!user) {
             return res.status(401).json({ error: 'Invalid username or password.' });
         }
-        if (user.password !== password) {
+
+        // Backward-compatible check: hashed (bcrypt) or legacy plain text.
+        let passwordMatches;
+        if (isBcryptHash(user.password)) {
+            passwordMatches = await bcrypt.compare(password, user.password);
+        } else {
+            passwordMatches = user.password === password;
+            // Upgrade legacy plain-text password to a bcrypt hash on successful login.
+            if (passwordMatches) {
+                user.password = await bcrypt.hash(password, 10);
+                await user.save();
+            }
+        }
+
+        if (!passwordMatches) {
             return res.status(401).json({ error: 'Invalid username or password.' });
         }
+
         if (user.status !== 'Active') {
             return res.status(403).json({ error: 'Your account is inactive. Please contact an administrator.' });
         }
+
         res.json({
             success: true,
             role: user.role,
-            username: user.username
+            username: user.username,
+            token: signToken(user)
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
+
+// Who am I? — used by the frontend to validate a stored session on page load.
+app.get('/api/auth/me', authRequired(), (req, res) => {
+    res.json({ success: true, username: req.user.username, role: req.user.role });
+});
+
 app.get('/api/health', (req, res) => {
     res.json({ ok: true, mongo: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' });
 });
 
 // ---------------------- ORDER ENDPOINTS (CASHIER / ADMIN) ----------------------
-app.get('/api/orders', async (req, res) => {
+app.get('/api/orders', authRequired(), async (req, res) => {
     try {
         const orders = await Order.find().sort({ _id: -1 });
         res.json(orders);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/orders', async (req, res) => {
+// Place an order. Validates and deducts menu stock atomically per item —
+// the whole order is rejected if any item exceeds the available stock.
+app.post('/api/orders', authRequired(), async (req, res) => {
     try {
         const payload = normalizeOrderPayload(req.body);
         if (!Array.isArray(payload.items) || !payload.items.length) {
             return res.status(400).json({ error: 'Order must include at least one item.' });
         }
+
+        // 1) Verify stock for every item before touching anything.
+        const shortages = [];
+        for (const item of payload.items) {
+            const product = await Product.findOne({ name: item.name }).select('stock status');
+            if (!product) continue; // item not tracked in the menu → allow
+            if ((Number(product.stock) || 0) < item.quantity) {
+                shortages.push({ name: item.name, available: Number(product.stock) || 0, requested: item.quantity });
+            }
+        }
+        if (shortages.length) {
+            const detail = shortages
+                .map(s => `• ${s.name} — only ${s.available} left (needed ${s.requested})`)
+                .join('\n');
+            return res.status(409).json({ error: `Not enough stock to complete this order:\n${detail}` });
+        }
+
+        // 2) Deduct stock atomically, then create the order.
+        for (const item of payload.items) {
+            await Product.updateOne(
+                { name: item.name },
+                { $inc: { stock: -item.quantity } }
+            );
+        }
+        // Auto-flag sold-out items.
+        await Product.updateMany(
+            { name: { $in: payload.items.map(i => i.name) }, stock: { $lte: 0 } },
+            { status: "Out of Stock" }
+        );
+
         const newOrder = new Order(payload);
         res.status(201).json(await newOrder.save());
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
+app.delete('/api/orders/:id', authRequired(['Admin']), async (req, res) => {
+    try {
+        if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order id' });
+        await Order.findByIdAndDelete(req.params.id);
+        res.json({ message: 'Order successfully deleted' });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ---------------------- MENU PRODUCT ENDPOINTS (CRUD) ----------------------
-app.get('/api/products', async (req, res) => {
+app.get('/api/products', authRequired(), async (req, res) => {
     try { res.json(await Product.find({})); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/products/categories', async (req, res) => {
+app.get('/api/products/categories', authRequired(), async (req, res) => {
     try { res.json(await Product.distinct('category')); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/products', async (req, res) => {
+app.post('/api/products', authRequired(['Admin']), async (req, res) => {
     try {
-        const newProduct = new Product(req.body);
+        const { name, category, price, status, image, stock, lowStockThreshold } = req.body || {};
+        if (!name || !category || !Number.isFinite(Number(price))) {
+            return res.status(400).json({ error: 'Product name, category, and a valid price are required.' });
+        }
+        const newProduct = new Product({
+            name: String(name).trim(),
+            category: String(category).trim(),
+            price: Number(price),
+            status: status || 'Available',
+            image: image || '',
+            stock: Number.isFinite(Number(stock)) ? Math.max(0, Number(stock)) : 999,
+            lowStockThreshold: Number.isFinite(Number(lowStockThreshold)) ? Math.max(0, Number(lowStockThreshold)) : 10
+        });
         res.status(201).json(await newProduct.save());
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-app.put('/api/products/:id', async (req, res) => {
+app.put('/api/products/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid product id' });
-        const updated = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const update = { ...req.body };
+        if (update.price !== undefined) {
+            if (!Number.isFinite(Number(update.price))) {
+                return res.status(400).json({ error: 'Price must be a valid number.' });
+            }
+            update.price = Number(update.price);
+        }
+        if (update.stock !== undefined) {
+            if (!Number.isFinite(Number(update.stock))) {
+                return res.status(400).json({ error: 'Stock must be a valid number.' });
+            }
+            update.stock = Math.max(0, Number(update.stock));
+        }
+        if (update.lowStockThreshold !== undefined) {
+            if (!Number.isFinite(Number(update.lowStockThreshold))) {
+                return res.status(400).json({ error: 'Low stock threshold must be a valid number.' });
+            }
+            update.lowStockThreshold = Math.max(0, Number(update.lowStockThreshold));
+        }
+        // Restock fixes a sold-out item; running out marks it sold out.
+        if (update.stock !== undefined && update.status === undefined) {
+            update.status = update.stock > 0 ? 'Available' : 'Out of Stock';
+        }
+        const updated = await Product.findByIdAndUpdate(req.params.id, update, { new: true });
         if (!updated) return res.status(404).json({ error: 'Product not found' });
         res.json(updated);
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-app.delete('/api/products/:id', async (req, res) => {
+app.delete('/api/products/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid product id' });
         await Product.findByIdAndDelete(req.params.id);
@@ -212,27 +462,67 @@ app.delete('/api/products/:id', async (req, res) => {
 });
 
 // ---------------------- USER ACCOUNTS MANAGEMENT (CRUD) ----------------------
-app.get('/api/users', async (req, res) => {
-    try { res.json(await User.find({})); } catch (err) { res.status(500).json({ error: err.message }); }
+app.get('/api/users', authRequired(['Admin']), async (req, res) => {
+    try {
+        const users = await User.find({});
+        res.json(users.map(sanitizeUser));
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/users', async (req, res) => {
+app.post('/api/users', authRequired(['Admin']), async (req, res) => {
     try {
-        const newUser = new User(req.body);
-        res.status(201).json(await newUser.save());
+        const { username, password, role, status } = req.body || {};
+        if (!username || !password) {
+            return res.status(400).json({ error: 'Username and password are required.' });
+        }
+        if (!['Admin', 'Cashier'].includes(role)) {
+            return res.status(400).json({ error: 'Role must be Admin or Cashier.' });
+        }
+
+        const exists = await User.findOne({ username: String(username).trim().toLowerCase() });
+        if (exists) {
+            return res.status(409).json({ error: 'Username already exists.' });
+        }
+
+        const hashedPassword = await bcrypt.hash(String(password), 10);
+        const newUser = new User({
+            username: String(username).trim().toLowerCase(),
+            password: hashedPassword,
+            role,
+            status: status || 'Active'
+        });
+        const saved = await newUser.save();
+        res.status(201).json(sanitizeUser(saved));
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-app.put('/api/users/:id', async (req, res) => {
+app.put('/api/users/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid user id' });
-        const updated = await User.findByIdAndUpdate(req.params.id, req.body, { new: true });
-        if (!updated) return res.status(404).json({ error: 'User profile not found' });
-        res.json(updated);
+
+        const existing = await User.findById(req.params.id);
+        if (!existing) return res.status(404).json({ error: 'User profile not found' });
+
+        const update = { ...req.body };
+        if (update.username) update.username = String(update.username).trim().toLowerCase();
+
+        if (update.role && !['Admin', 'Cashier'].includes(update.role)) {
+            return res.status(400).json({ error: 'Role must be Admin or Cashier.' });
+        }
+
+        // Only re-hash when the password actually changed.
+        if (update.password && update.password !== existing.password) {
+            update.password = await bcrypt.hash(String(update.password), 10);
+        } else {
+            delete update.password;
+        }
+
+        const updated = await User.findByIdAndUpdate(req.params.id, update, { new: true });
+        res.json(sanitizeUser(updated));
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-app.delete('/api/users/:id', async (req, res) => {
+app.delete('/api/users/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid user id' });
         await User.findByIdAndDelete(req.params.id);
@@ -241,27 +531,44 @@ app.delete('/api/users/:id', async (req, res) => {
 });
 
 // ---------------------- INVENTORY SUBSYSTEM ENDPOINTS (CRUD) ----------------------
-app.get('/api/inventory', async (req, res) => {
+app.get('/api/inventory', authRequired(['Admin']), async (req, res) => {
     try { res.json(await InventoryItem.find({})); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/inventory', async (req, res) => {
+app.post('/api/inventory', authRequired(['Admin']), async (req, res) => {
     try {
-        const newItem = new InventoryItem(req.body);
+        const { productName, category, price, stock, status } = req.body || {};
+        if (!productName || !category || !Number.isFinite(Number(price)) || !Number.isFinite(Number(stock))) {
+            return res.status(400).json({ error: 'Product name, category, price, and stock are required.' });
+        }
+        const newItem = new InventoryItem({
+            productName: String(productName).trim(),
+            category: String(category).trim(),
+            price: Number(price),
+            stock: Number(stock),
+            status: status || 'Available'
+        });
         res.status(201).json(await newItem.save());
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-app.put('/api/inventory/:id', async (req, res) => {
+app.put('/api/inventory/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid inventory token id' });
-        const updated = await InventoryItem.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const update = { ...req.body };
+        if (update.price !== undefined && !Number.isFinite(Number(update.price))) {
+            return res.status(400).json({ error: 'Price must be a valid number.' });
+        }
+        if (update.stock !== undefined && !Number.isFinite(Number(update.stock))) {
+            return res.status(400).json({ error: 'Stock must be a valid number.' });
+        }
+        const updated = await InventoryItem.findByIdAndUpdate(req.params.id, update, { new: true });
         if (!updated) return res.status(404).json({ error: 'Inventory stock line item not found' });
         res.json(updated);
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-app.delete('/api/inventory/:id', async (req, res) => {
+app.delete('/api/inventory/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid inventory id' });
         await InventoryItem.findByIdAndDelete(req.params.id);
@@ -269,6 +576,79 @@ app.delete('/api/inventory/:id', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ---------------------- FOOD WASTE ENDPOINTS (CRUD) ----------------------
+app.get('/api/waste', authRequired(), async (req, res) => {
+    try { res.json(await WasteItem.find({}).sort({ _id: -1 })); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/waste', authRequired(), async (req, res) => {
+    try {
+        const payload = normalizeWastePayload(req.body);
+        if (!payload.productName || !Number.isFinite(payload.quantity) || payload.quantity <= 0) {
+            return res.status(400).json({ error: 'Product name and a quantity above zero are required.' });
+        }
+        // Wasted food leaves the inventory — deduct stock when the item is on the menu.
+        await Product.updateOne(
+            { name: payload.productName },
+            { $inc: { stock: -payload.quantity } }
+        );
+        // Auto-flag sold-out items, mirroring the order flow.
+        await Product.updateMany(
+            { name: payload.productName, stock: { $lte: 0 } },
+            { status: "Out of Stock" }
+        );
+        const newWaste = new WasteItem(payload);
+        res.status(201).json(await newWaste.save());
+    } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+app.delete('/api/waste/:id', authRequired(['Admin']), async (req, res) => {
+    try {
+        if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid waste id' });
+        await WasteItem.findByIdAndDelete(req.params.id);
+        res.json({ message: 'Waste entry removed' });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---------------------- SEED DEFAULT ADMIN ----------------------
+// Creates a default admin account on first boot when no users exist.
+// Override credentials with SEED_ADMIN_USERNAME / SEED_ADMIN_PASSWORD in .env
+async function seedDefaultAdmin() {
+    try {
+        const count = await User.countDocuments();
+        if (count === 0) {
+            const username = (process.env.SEED_ADMIN_USERNAME || 'admin').trim().toLowerCase();
+            const password = process.env.SEED_ADMIN_PASSWORD || 'admin123';
+            const hashed = await bcrypt.hash(password, 10);
+            await User.create({ username, password: hashed, role: 'Admin', status: 'Active' });
+            console.log(`👤 Seeded default Admin account → username: "${username}", password: "${password}"`);
+            console.log('   ⚠️  Change this password in the Admin → Add Users panel immediately.');
+        }
+    } catch (err) {
+        console.error('❌ Default admin seeding failed:', err.message);
+    }
+}
+
+// ---------------------- 404 & ERROR HANDLERS ----------------------
+app.use((req, res) => {
+    res.status(404).json({ error: 'Endpoint not found.' });
+});
+
+app.use((err, req, res, next) => {
+    console.error('❌ Unhandled server error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+});
+
 // Initialise Service Execution Host Thread Loop
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Master Back-End Live and Running Cleanly on Port ${PORT}`));
+app.listen(PORT, () => {
+    console.log(`🚀 Master Back-End Live and Running Cleanly on Port ${PORT}`);
+    mongoose.connection.readyState === 1 && seedDefaultAdmin();
+});
+
+// Seed once the DB is ready (covers the case where connection finishes after listen)
+mongoose.connection.once('connected', () => {
+    seedDefaultAdmin();
+    cleanupLegacyOrderFields();
+    cleanupLegacyProductStock();
+});
