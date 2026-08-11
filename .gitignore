@@ -40,7 +40,11 @@ yarn-error.log*
 # Environment files
 .env
 .env.*
+*.env
+!*.env.example
 
 # Ignore credentials that are explicitly placed in specific files
-# (uncomment if you want these ignored):
-# backend/atlas-credentials.env
+backend/atlas-credentials.env
+
+# Local tooling config
+opencode/
