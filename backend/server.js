@@ -4,7 +4,12 @@ const cors = require('cors');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const dns = require('dns');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
+
+// Prefer IPv4 — Atlas `mongodb+srv` lookups can hang on Windows Node when
+// an AAAA record is awaited first (getaddrinfo EAI_AGAIN / timeouts).
+dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 
@@ -73,11 +78,20 @@ const orderSchema = new mongoose.Schema({
     tableNo: { type: String, default: "" },
     mode: { type: String, enum: ["Dine In", "To Go", "Online Order"], default: "Dine In" },
     paymentMethod: { type: String, enum: ["Cash", "G-Cash"], default: "Cash" },
+    status: { type: String, enum: ["Completed", "Voided"], default: "Completed" },
+    voidedBy: { type: String, default: "" },
+    voidedAt: { type: Date, default: null },
+    voidReason: { type: String, default: "" },
     date: { type: Date, default: Date.now },
     receiptId: { type: String, default: () => String(Date.now()).slice(-8) },
     items: { type: [orderItemSchema], default: [] },
-    total: { type: Number, default: 0, min: 0 }
+    total: { type: Number, default: 0, min: 0 },
+    tendered: { type: Number, default: 0, min: 0 },
+    change: { type: Number, default: 0, min: 0 },
+    // Idempotency key for offline sync retries — must be unique per order.
+    clientOrderId: { type: String, trim: true }
 });
+orderSchema.index({ clientOrderId: 1 }, { unique: true, sparse: true });
 const Order = mongoose.model('Order', orderSchema);
 
 // --- Menu Management Schema Configuration ---
@@ -128,6 +142,16 @@ const wasteSchema = new mongoose.Schema({
 });
 const WasteItem = mongoose.model('WasteItem', wasteSchema);
 
+// --- Audit Log Schema Configuration ---
+const logSchema = new mongoose.Schema({
+    action: { type: String, required: true, trim: true },
+    actor: { type: String, default: "", trim: true },
+    targetId: { type: String, default: "", trim: true },
+    detail: { type: String, default: "", trim: true },
+    date: { type: Date, default: Date.now }
+});
+const AuditLog = mongoose.model('AuditLog', logSchema);
+
 /* ==========================================================================
    2. UTILITY INTERCEPTORS & VALIDATION ENGINES
    ========================================================================== */
@@ -174,7 +198,7 @@ function normalizeOrderPayload(input) {
 
     const computedTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-    return {
+    const payload = {
         customer: String(input.customer || "Walk-in Customer").trim() || "Walk-in Customer",
         cashier: String(input.cashier || "Pranselen").trim() || "Pranselen",
         tableNo: String(input.tableNo || "").trim(),
@@ -185,13 +209,31 @@ function normalizeOrderPayload(input) {
         items,
         total: Number.isFinite(Number(input.total)) && Number(input.total) > 0
             ? Number(input.total)
-            : computedTotal
+            : computedTotal,
+        tendered: Math.max(0, Number(input.tendered) || 0),
+        change: Math.max(0, Number(input.change) || 0)
     };
+
+    const clientOrderId = String(input.clientOrderId || "").trim().slice(0, 100);
+    if (clientOrderId) {
+        payload.clientOrderId = clientOrderId;
+    }
+
+    return payload;
 }
 
 function sanitizeUser(user) {
     const { password, ...safe } = user.toObject ? user.toObject() : user;
     return safe;
+}
+
+function writeLog(action, actor = "", targetId = "", detail = "") {
+    return AuditLog.create({
+        action,
+        actor: String(actor || "").slice(0, 100),
+        targetId: String(targetId || ""),
+        detail: String(detail || "").slice(0, 500)
+    }).catch(err => console.error('❌ Audit log write failed:', err.message));
 }
 
 function signToken(user) {
@@ -344,11 +386,21 @@ app.get('/api/orders', authRequired(), async (req, res) => {
 
 // Place an order. Validates and deducts menu stock atomically per item —
 // the whole order is rejected if any item exceeds the available stock.
+// Idempotent: a clientOrderId that was already saved returns the existing
+// order instead of creating a duplicate (offline-queue retries).
 app.post('/api/orders', authRequired(), async (req, res) => {
     try {
         const payload = normalizeOrderPayload(req.body);
         if (!Array.isArray(payload.items) || !payload.items.length) {
             return res.status(400).json({ error: 'Order must include at least one item.' });
+        }
+
+        // 0) Idempotency guard — a retried offline order must not double-save.
+        if (payload.clientOrderId) {
+            const existing = await Order.findOne({ clientOrderId: payload.clientOrderId });
+            if (existing) {
+                return res.json(existing);
+            }
         }
 
         // 1) Verify stock for every item before touching anything.
@@ -367,21 +419,35 @@ app.post('/api/orders', authRequired(), async (req, res) => {
             return res.status(409).json({ error: `Not enough stock to complete this order:\n${detail}` });
         }
 
-        // 2) Deduct stock atomically, then create the order.
+        // 2) Save the order first. If a concurrent retry won the race, the
+        //    unique clientOrderId index rejects this insert before any stock
+        //    is touched — return the winner instead.
+        let newOrder = new Order(payload);
+        try {
+            newOrder = await newOrder.save();
+        } catch (err) {
+            if (payload.clientOrderId && err.code === 11000) {
+                const existing = await Order.findOne({ clientOrderId: payload.clientOrderId });
+                if (existing) {
+                    return res.json(existing);
+                }
+            }
+            throw err;
+        }
+
+        // 3) Deduct stock, then auto-flag sold-out items.
         for (const item of payload.items) {
             await Product.updateOne(
                 { name: item.name },
                 { $inc: { stock: -item.quantity } }
             );
         }
-        // Auto-flag sold-out items.
         await Product.updateMany(
             { name: { $in: payload.items.map(i => i.name) }, stock: { $lte: 0 } },
             { status: "Out of Stock" }
         );
 
-        const newOrder = new Order(payload);
-        res.status(201).json(await newOrder.save());
+        res.status(201).json(newOrder);
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
@@ -389,7 +455,45 @@ app.delete('/api/orders/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order id' });
         await Order.findByIdAndDelete(req.params.id);
+        writeLog('order.delete', req.user.username, req.params.id, `Order ${req.params.id} hard-deleted`);
         res.json({ message: 'Order successfully deleted' });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Soft-void an order (Cashier or Admin). The order stays in history for
+// transparency, is excluded from revenue, and menu stock is restored.
+app.patch('/api/orders/:id/void', authRequired(), async (req, res) => {
+    try {
+        if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order id' });
+
+        const order = await Order.findById(req.params.id);
+        if (!order) return res.status(404).json({ error: 'Order not found' });
+        if (order.status === "Voided") {
+            return res.status(409).json({ error: 'Order is already voided.' });
+        }
+
+        // Restore menu stock for every item, then clear sold-out flags.
+        for (const item of order.items || []) {
+            await Product.updateOne(
+                { name: item.name },
+                { $inc: { stock: item.quantity } }
+            );
+        }
+        await Product.updateMany(
+            { name: { $in: (order.items || []).map(i => i.name) }, stock: { $gt: 0 } },
+            { status: "Available" }
+        );
+
+        order.status = "Voided";
+        order.voidedBy = req.user.username || "";
+        order.voidedAt = new Date();
+        order.voidReason = String(req.body.reason || "").trim().slice(0, 300);
+
+        const savedOrder = await order.save();
+        writeLog('order.void', req.user.username, String(order._id),
+            `Order #${savedOrder.receiptId} voided (₱${savedOrder.total.toFixed(2)})${savedOrder.voidReason ? ' — ' + savedOrder.voidReason : ''}`);
+
+        res.json(savedOrder);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -492,6 +596,7 @@ app.post('/api/users', authRequired(['Admin']), async (req, res) => {
             status: status || 'Active'
         });
         const saved = await newUser.save();
+        writeLog('user.create', req.user.username, String(saved._id), `Created ${role} account "${saved.username}"`);
         res.status(201).json(sanitizeUser(saved));
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
@@ -518,6 +623,7 @@ app.put('/api/users/:id', authRequired(['Admin']), async (req, res) => {
         }
 
         const updated = await User.findByIdAndUpdate(req.params.id, update, { new: true });
+        writeLog('user.update', req.user.username, String(updated._id), `Updated account "${updated.username}"`);
         res.json(sanitizeUser(updated));
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
@@ -525,7 +631,9 @@ app.put('/api/users/:id', authRequired(['Admin']), async (req, res) => {
 app.delete('/api/users/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid user id' });
-        await User.findByIdAndDelete(req.params.id);
+        const deleted = await User.findByIdAndDelete(req.params.id);
+        writeLog('user.delete', req.user.username, req.params.id,
+            deleted ? `Deleted account "${deleted.username}"` : `Delete attempt on missing account ${req.params.id}`);
         res.json({ message: 'User account deactivated and erased' });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -598,7 +706,10 @@ app.post('/api/waste', authRequired(), async (req, res) => {
             { status: "Out of Stock" }
         );
         const newWaste = new WasteItem(payload);
-        res.status(201).json(await newWaste.save());
+        const savedWaste = await newWaste.save();
+        writeLog('waste.create', req.user.username, String(savedWaste._id),
+            `Logged waste "${savedWaste.productName}" × ${savedWaste.quantity} (₱${savedWaste.totalCost.toFixed(2)})`);
+        res.status(201).json(savedWaste);
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
@@ -640,15 +751,20 @@ app.use((err, req, res, next) => {
 });
 
 // Initialise Service Execution Host Thread Loop
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`🚀 Master Back-End Live and Running Cleanly on Port ${PORT}`);
-    mongoose.connection.readyState === 1 && seedDefaultAdmin();
-});
+// Guarded so tests can import the app without binding a port.
+if (require.main === module) {
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+        console.log(`🚀 Master Back-End Live and Running Cleanly on Port ${PORT}`);
+        mongoose.connection.readyState === 1 && seedDefaultAdmin();
+    });
+}
 
 // Seed once the DB is ready (covers the case where connection finishes after listen)
 mongoose.connection.once('connected', () => {
     seedDefaultAdmin();
     cleanupLegacyOrderFields();
-    cleanupLegacyProductStock();
+    console.log('🔄 Startup cleanup + admin seeding check complete.');
 });
+
+module.exports = app;
