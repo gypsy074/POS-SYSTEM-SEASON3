@@ -22,7 +22,10 @@ async function loadLiveDashboardData() {
 
         renderTransactionTable(orders);
 
-        const revenueAccumulator = orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+        const revenueAccumulator = orders.reduce(
+            (sum, order) => (order.status === "Voided" ? sum : sum + Number(order.total || 0)),
+            0
+        );
         totalRevenueEl.innerText = `₱${revenueAccumulator.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
 
         const today = new Date();
@@ -30,7 +33,8 @@ async function loadLiveDashboardData() {
             const orderDate = new Date(order.date);
             return orderDate.getFullYear() === today.getFullYear() &&
                 orderDate.getMonth() === today.getMonth() &&
-                orderDate.getDate() === today.getDate();
+                orderDate.getDate() === today.getDate() &&
+                order.status !== "Voided";
         });
         todaySalesCountEl.innerText = `${todayOrders.length} Orders`;
 
@@ -151,6 +155,50 @@ function renderNotifications() {
     }
 }
 
+// ── CSV Export (Sales Analytics) ───────────────────────────────────────────
+
+function exportSalesCsv() {
+    const orders = latestOrders || [];
+    if (!orders.length) {
+        alert("No orders to export yet.");
+        return;
+    }
+
+    const rangeLimit = { day: 7, week: 28, month: 90, all: Infinity }[activeSalesRange] || 7;
+    const cutoff = activeSalesRange === "all"
+        ? null
+        : Date.now() - (rangeLimit * 24 * 60 * 60 * 1000);
+
+    const rows = [["Receipt", "Customer", "Cashier", "Mode", "Payment", "Items", "Total", "Tendered", "Change", "Status", "Date"]];
+    orders
+        .filter(order => activeSalesRange === "all" || new Date(order.date).getTime() >= cutoff)
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .forEach(order => rows.push([
+            String(order.receiptId || ""),
+            String(order.customer || ""),
+            String(order.cashier || ""),
+            String(order.mode || ""),
+            String(order.paymentMethod || ""),
+            String((order.items || []).map(item => `${item.name} x${item.quantity}`).join("; ")),
+            Number(order.total || 0).toFixed(2),
+            Number(order.tendered ?? 0).toFixed(2),
+            Number(order.change ?? 0).toFixed(2),
+            String(order.status || "Completed"),
+            new Date(order.date).toLocaleString()
+        ]));
+
+    const csv = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `season3-sales-${activeSalesRange}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
 // ── Waste Food Panel (view + remove) ───────────────────────────────────────
 
 async function loadWasteData() {
@@ -173,14 +221,14 @@ async function loadWasteData() {
 function updateWasteStat() {
     const countEl = document.getElementById("wasteCount");
     if (countEl) {
-        const today = new Date();
-        const todayWaste = (latestWaste || []).filter(entry => {
+        const now = new Date();
+        const monthWaste = (latestWaste || []).filter(entry => {
             const entryDate = new Date(entry.date);
-            return entryDate.getFullYear() === today.getFullYear() &&
-                entryDate.getMonth() === today.getMonth() &&
-                entryDate.getDate() === today.getDate();
+            return entryDate.getFullYear() === now.getFullYear() &&
+                entryDate.getMonth() === now.getMonth();
         });
-        countEl.innerText = `${todayWaste.length} Items Today`;
+        const monthCost = monthWaste.reduce((sum, entry) => sum + Number(entry.totalCost || 0), 0);
+        countEl.innerText = `₱${monthCost.toFixed(2)} · ${monthWaste.length} items`;
     }
 }
 
@@ -246,16 +294,19 @@ function renderTransactionTable(orders) {
     const tbody = document.getElementById("transactionBody");
     if (!tbody) return;
 
-    tbody.innerHTML = orders.map(order => `
-        <tr>
+    tbody.innerHTML = orders.map(order => {
+        const isVoided = order.status === "Voided";
+        return `
+        <tr class="${isVoided ? "voided-row" : ""}">
             <td>${escapeHtml(order.customer)}</td>
             <td>${escapeHtml(order.cashier || "—")}</td>
             <td>${new Date(order.date).toLocaleString()}</td>
-            <td>${escapeHtml(order.receiptId)}</td>
+            <td>${escapeHtml(order.receiptId)}${isVoided ? ' <span class="voided-badge">VOIDED</span>' : ""}</td>
             <td>${escapeHtml((order.items || []).map(item => item.name).join(", "))}</td>
             <td>₱${Number(order.total || 0).toFixed(2)}</td>
         </tr>
-    `).join("");
+    `;
+    }).join("");
 }
 
 function renderSalesCharts(orders, products, range = activeSalesRange) {
@@ -267,6 +318,7 @@ function renderSalesCharts(orders, products, range = activeSalesRange) {
 
     // --- Line chart: daily revenue ---
     const dailyTotals = orders.reduce((acc, order) => {
+        if (order.status === "Voided") return acc;
         const day = new Date(order.date).toLocaleDateString();
         acc[day] = (acc[day] || 0) + Number(order.total || 0);
         return acc;

@@ -32,6 +32,12 @@ function showError(message) {
         text.textContent = message;
         banner.classList.add("visible");
     }
+    const container = document.querySelector(".login-page-container");
+    if (container) {
+        container.classList.remove("shake");
+        void container.offsetWidth; // restart the shake animation
+        container.classList.add("shake");
+    }
 }
 
 function clearError() {
@@ -89,10 +95,8 @@ async function handleLogin(e) {
         // ── Route by role ──────────────────────────────────────────────
         // Relative paths so redirects also work when the frontend is opened
         // directly via file:// (not just when served by the backend).
-        if (data.role === "Admin") {
-            window.location.href = "ADMIN/admin.html";
-        } else if (data.role === "Cashier") {
-            window.location.href = "CASHIER/pos.html";
+        if (data.role === "Admin" || data.role === "Cashier") {
+            redirectAfterLogin(data.role, data.username);
         } else {
             showError("Unknown user role. Contact an administrator.");
         }
@@ -102,6 +106,24 @@ async function handleLogin(e) {
     } finally {
         setLoading(false);
     }
+}
+
+// ── Success Transition ──────────────────────────────────────────────────────
+// Shows the brand overlay briefly, then routes the user to their app.
+function redirectAfterLogin(role, username) {
+    const overlay  = document.getElementById("loginTransitionOverlay");
+    const welcome  = document.getElementById("transitionWelcome");
+    const roleEl   = document.getElementById("transitionRole");
+
+    if (overlay) {
+        if (welcome) welcome.textContent = `Welcome, ${String(username || "").trim() || "there"}!`;
+        if (roleEl)  roleEl.textContent  = role === "Admin" ? "Administrator" : "Cashier";
+        overlay.classList.add("show");
+    }
+
+    setTimeout(() => {
+        window.location.href = role === "Admin" ? "ADMIN/admin.html" : "CASHIER/pos.html";
+    }, 1000);
 }
 
 // ── Bootstrap ───────────────────────────────────────────────────────────────

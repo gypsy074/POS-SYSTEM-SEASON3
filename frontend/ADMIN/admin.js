@@ -111,6 +111,17 @@ document.addEventListener("DOMContentLoaded", () => {
     setupSalesFilterTabs();
     setupCalendarControls();
 
+    // CSV export for Sales Analytics
+    const exportBtn = document.getElementById("exportCsvBtn");
+    if (exportBtn) exportBtn.addEventListener("click", exportSalesCsv);
+
+    // Auto-refresh the active view + notification badge every 25s
+    // (same live-update pattern the cashier screen already uses).
+    setInterval(() => {
+        refreshCurrentPanel();
+        renderNotifications();
+    }, 25000);
+
     // Initial data load — wait for both before rendering charts so the
     // line/radar charts never render with half-loaded state.
     const dashboardLoad = loadLiveDashboardData();

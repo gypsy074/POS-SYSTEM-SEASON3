@@ -445,6 +445,7 @@ body {
 
 .main-val { font-size: 2.8rem; font-weight: 600; color: #2e7d32; }
 .sub-val { font-size: 1.15rem; color: #8e6a46; font-weight: 600; white-space: nowrap; }
+.sub-val#wasteCount { font-size: 0.95rem; }
 
 /* Updates Ledger Panel */
 .updates-panel h3 {
@@ -1189,6 +1190,41 @@ tr:hover td {
     padding: 14px;
     text-align: center;
 }
+
+.voided-row td {
+    opacity: 0.55;
+}
+.voided-badge {
+    display: inline-block;
+    background: #c0392b;
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    border-radius: 999px;
+    padding: 2px 7px;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+.csv-export-btn {
+    border: 1px solid var(--accent-brown);
+    background: white;
+    color: var(--accent-brown);
+    border-radius: 10px;
+    padding: 7px 14px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.2s ease, color 0.2s ease;
+}
+.csv-export-btn:hover {
+    background: var(--accent-brown);
+    color: white;
+    transform: translateY(-2px);
+}
+.csv-export-btn:active { transform: scale(0.95); }
+.csv-export-btn i { margin-right: 5px; }
 
 .inventory-form-card {
     background: #ffffff;

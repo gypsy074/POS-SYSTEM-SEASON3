@@ -15,7 +15,7 @@
 
         <aside class="sidebar">
             <div class="brand">
-                <img src="../assets/logo.jpg" alt="Season 3 POS System Logo" class="admin-logo">
+                <img src="../assets/logo.png" alt="Season 3 POS System Logo" class="admin-logo">
             </div>
             <nav class="nav-links">
                 <button class="nav-btn active" data-target="dashboard-view">Dashboard</button>
@@ -93,7 +93,7 @@
                                 <div class="label-group"><i class="fas fa-server"></i><span>Performance</span></div>
                                 <div class="label-group"><i class="fas fa-clipboard-list"></i><span>Todays Sales</span>
                                 </div>
-                                <div class="label-group"><i class="fas fa-recycle"></i><span>Waste</span>
+                                <div class="label-group"><i class="fas fa-recycle"></i><span>Waste (Month)</span>
                                 </div>
                             </div>
                             <div class="performance-values">
@@ -143,11 +143,15 @@
                             <div class="card-header"
                                 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                                 <h3><i class="fas fa-chart-line"></i> Sales Analytics</h3>
-                                <div class="filter-tabs">
-                                    <button class="tab active">Day</button>
-                                    <button class="tab">Week</button>
-                                    <button class="tab">Month</button>
-                                    <button class="tab">All</button>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <div class="filter-tabs">
+                                        <button class="tab active">Day</button>
+                                        <button class="tab">Week</button>
+                                        <button class="tab">Month</button>
+                                        <button class="tab">All</button>
+                                    </div>
+                                    <button type="button" class="csv-export-btn" id="exportCsvBtn"
+                                        title="Export sales as CSV"><i class="fas fa-download"></i> Export</button>
                                 </div>
                             </div>
                             <div style="height: 250px;">
