@@ -11,6 +11,7 @@ let currentOrderId = generateOrderId();
 
 document.addEventListener("DOMContentLoaded", () => {
     guardCashierPage();
+    setupOfflineSupport();
     setupCashierControls();
     setupWasteLogForm();
     setupCashierProfile();
@@ -20,7 +21,8 @@ document.addEventListener("DOMContentLoaded", () => {
     updateSwipeSummary();
     renderOrderId();
     setupQuickTenderChips();
-    setupCalculatorToggle();
+    setupCalculatorModal();
+    setupKeyboardShortcuts();
     updateCalculatorVisibility();
     updateChangeCalculator();
 });
@@ -55,6 +57,8 @@ function apiFetch(path, options = {}) {
 }
 
 // Page guard: opening the POS without a valid session → back to login.
+// When offline, a previously logged-in cashier is still let in so orders
+// can be taken and queued for later sync.
 async function guardCashierPage() {
     try {
         const response = await apiFetch("/api/auth/me");
@@ -62,8 +66,157 @@ async function guardCashierPage() {
             window.location.href = "../login.html";
         }
     } catch (err) {
-        window.location.href = "../login.html";
+        const token = localStorage.getItem("posToken");
+        if (!token) {
+            window.location.href = "../login.html";
+        }
     }
+}
+
+/* ==========================================================================
+   PWA offline support — order queue + auto-sync
+   Orders that fail to reach the server are stored in localStorage and
+   pushed once the connection returns. Each queued order carries a
+   clientOrderId so the backend never saves it twice.
+   ========================================================================== */
+
+const OFFLINE_QUEUE_KEY = "posOfflineOrders";
+
+function getOfflineQueue() {
+    try {
+        const raw = localStorage.getItem(OFFLINE_QUEUE_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveOfflineQueue(queue) {
+    try {
+        localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+    } catch {
+        // Storage full — keep the last 10 orders, drop the oldest.
+        localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue.slice(-10)));
+    }
+}
+
+function queueOfflineOrder(payload) {
+    const queue = getOfflineQueue();
+    const existingIndex = queue.findIndex(order => order.clientOrderId === payload.clientOrderId);
+    if (existingIndex >= 0) {
+        queue[existingIndex] = payload; // keep the latest copy of the same order
+    } else {
+        queue.push(payload);
+    }
+    saveOfflineQueue(queue);
+}
+
+async function flushOfflineOrders() {
+    if (!navigator.onLine) {
+        return;
+    }
+    const queue = getOfflineQueue();
+    if (!queue.length) {
+        return;
+    }
+
+    let synced = 0;
+    const remaining = [];
+
+    for (const payload of queue) {
+        try {
+            const response = await apiFetch("/api/orders", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            if (response.ok) {
+                synced += 1;
+            } else {
+                remaining.push(payload);
+            }
+        } catch (err) {
+            // Still offline or the server is unreachable — retry next time.
+            remaining.push(payload);
+        }
+    }
+
+    saveOfflineQueue(remaining);
+    updateOfflineBanner();
+
+    if (synced > 0) {
+        playSound("success");
+        loadCashierHistory();
+        showSyncBanner(synced);
+    }
+}
+
+function getOfflineQueueCount() {
+    return getOfflineQueue().length;
+}
+
+function updateOfflineBanner() {
+    const banner = document.getElementById("offlineBanner");
+    if (!banner) {
+        return;
+    }
+    const text = document.getElementById("offlineBannerText");
+    const queued = getOfflineQueueCount();
+
+    if (navigator.onLine) {
+        banner.style.display = "none";
+        return;
+    }
+
+    banner.classList.add("offline");
+    banner.style.display = "flex";
+    if (text) {
+        text.textContent = queued > 0
+            ? `You're offline — ${queued} order${queued === 1 ? "" : "s"} saved and waiting to sync.`
+            : "You're offline — orders will be saved and synced automatically.";
+    }
+}
+
+// Green confirmation strip shown briefly after queued orders finish syncing.
+let syncBannerTimer = null;
+function showSyncBanner(count) {
+    const banner = document.getElementById("offlineBanner");
+    const text = document.getElementById("offlineBannerText");
+    if (!banner) {
+        return;
+    }
+    banner.classList.remove("offline");
+    banner.style.display = "flex";
+    if (text) {
+        text.textContent = `${count} offline order${count === 1 ? "" : "s"} synced ✓`;
+    }
+    clearTimeout(syncBannerTimer);
+    syncBannerTimer = setTimeout(() => {
+        banner.style.display = "none";
+    }, 4000);
+}
+
+function setupOfflineSupport() {
+    // Service worker powers the app shell cache so the POS opens offline.
+    if ("serviceWorker" in navigator && window.location.protocol.startsWith("http")) {
+        navigator.serviceWorker.register("sw.js").catch(err => {
+            console.error("❌ Service worker registration failed:", err);
+        });
+    }
+
+    window.addEventListener("online", () => {
+        updateOfflineBanner();
+        flushOfflineOrders();
+    });
+    window.addEventListener("offline", () => {
+        playSound("error");
+        updateOfflineBanner();
+    });
+
+    updateOfflineBanner();
+    // Recovered orders from a previous session sync as soon as we're online.
+    flushOfflineOrders();
 }
 
 function escapeHtml(value) {
@@ -507,7 +660,10 @@ function renderCashierHistory() {
             && d.getMonth() === today.getMonth()
             && d.getDate() === today.getDate();
     });
-    const todayRevenue = todayOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+    const todayRevenue = todayOrders.reduce(
+        (sum, order) => (order.status === "Voided" ? sum : sum + Number(order.total || 0)),
+        0
+    );
 
     if (statsCount) statsCount.textContent = todayOrders.length;
     if (statsRevenue) statsRevenue.textContent = `₱${todayRevenue.toFixed(2)}`;
@@ -520,18 +676,22 @@ function renderCashierHistory() {
     );
 
     list.innerHTML = filtered.length
-        ? filtered.slice(0, 50).map(order => `
-            <button type="button" class="history-order-item" data-order-id="${escapeHtml(order._id)}">
+        ? filtered.slice(0, 50).map(order => {
+            const isVoided = order.status === "Voided";
+            return `
+            <button type="button" class="history-order-item${isVoided ? " voided" : ""}" data-order-id="${escapeHtml(order._id)}">
                 <div class="history-order-main">
                     <strong>${escapeHtml(order.receiptId)}</strong>
                     <span>${escapeHtml(order.customer)} · ${escapeHtml(order.mode || "Dine In")}</span>
+                    ${isVoided ? `<span class="history-void-badge">VOIDED</span>` : ""}
                 </div>
                 <div class="history-order-side">
                     <strong>₱${Number(order.total || 0).toFixed(2)}</strong>
                     <span>${new Date(order.date).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
                 </div>
             </button>
-        `).join("")
+        `;
+        }).join("")
         : `<div class="history-empty">${term ? "No orders match your search." : "No orders yet. Orders you place will appear here."}</div>`;
 
     list.querySelectorAll("[data-order-id]").forEach(btn => {
@@ -546,6 +706,8 @@ function showCashierOrderDetail(orderId) {
         return;
     }
 
+    const isVoided = order.status === "Voided";
+
     detail.innerHTML = `
         <div class="history-detail-head">
             <strong>${escapeHtml(order.receiptId)}</strong>
@@ -555,6 +717,10 @@ function showCashierOrderDetail(orderId) {
             <div class="row"><span>Customer</span><strong>${escapeHtml(order.customer)}</strong></div>
             <div class="row"><span>Mode</span><strong>${escapeHtml(order.mode || "Dine In")}</strong></div>
             <div class="row"><span>Payment</span><strong>${escapeHtml(order.paymentMethod || "Cash")}</strong></div>
+            <div class="row"><span>Status</span><strong>${isVoided ? `<span class="history-void-badge">VOIDED</span>` : "Completed"}</strong></div>
+            ${isVoided && order.voidedBy ? `<div class="row"><span>Voided by</span><strong>${escapeHtml(order.voidedBy)}</strong></div>` : ""}
+            ${isVoided && order.voidedAt ? `<div class="row"><span>Voided at</span><strong>${new Date(order.voidedAt).toLocaleString()}</strong></div>` : ""}
+            ${isVoided && order.voidReason ? `<div class="row"><span>Reason</span><strong>${escapeHtml(order.voidReason)}</strong></div>` : ""}
             ${order.tableNo ? `<div class="row"><span>Table</span><strong>${escapeHtml(order.tableNo)}</strong></div>` : ""}
         </div>
         <div class="history-items">
@@ -566,13 +732,79 @@ function showCashierOrderDetail(orderId) {
             `).join("")}
         </div>
         <div class="pos-modal-total"><span>Total</span><span>₱${Number(order.total || 0).toFixed(2)}</span></div>
-        <button type="button" class="pos-modal-btn pos-modal-btn-secondary" id="historyDetailBackBtn">Back to list</button>`;
+        <div class="history-detail-actions">
+            <button type="button" class="pos-modal-btn pos-modal-btn-secondary" id="historyPrintBtn">Print</button>
+            ${!isVoided ? `<button type="button" class="pos-modal-btn pos-modal-btn-danger" id="historyVoidBtn">Void Order</button>` : ""}
+            <button type="button" class="pos-modal-btn pos-modal-btn-secondary" id="historyDetailBackBtn">Back to list</button>
+        </div>`;
+
+    const printBtn = document.getElementById("historyPrintBtn");
+    if (printBtn) printBtn.addEventListener("click", () => printReceipt(order));
+
+    const voidBtn = document.getElementById("historyVoidBtn");
+    if (voidBtn) voidBtn.addEventListener("click", () => requestOrderVoid(order._id));
 
     document.getElementById("historyDetailBackBtn").addEventListener("click", () => {
         detail.classList.remove("show");
     });
 
     detail.classList.add("show");
+}
+
+function requestOrderVoid(orderId) {
+    const order = cashierOrders.find(o => o._id === orderId);
+    if (!order || order.status === "Voided") {
+        return;
+    }
+
+    showPosConfirm({
+        title: "Void Order",
+        icon: "fa-ban",
+        iconClass: "danger",
+        primaryLabel: "Void Order",
+        bodyHtml: `
+            <p class="pos-modal-note">Voiding <strong>#${escapeHtml(order.receiptId)}</strong> (₱${Number(order.total || 0).toFixed(2)}). Menu stock will be restored. This cannot be undone.</p>
+            <label class="pos-modal-field">
+                <span>Reason (optional)</span>
+                <textarea id="voidReasonInput" rows="3" placeholder="e.g. Customer changed their mind..."></textarea>
+            </label>`
+    }).then(confirmed => {
+        if (!confirmed) return;
+        const input = document.getElementById("voidReasonInput");
+        fetchVoidOrder(orderId, input ? input.value : "");
+    });
+}
+
+async function fetchVoidOrder(orderId, reason) {
+    try {
+        const response = await apiFetch(`/api/orders/${orderId}/void`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reason })
+        });
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.error || "Failed to void the order.");
+        }
+        playSound("success");
+        const detail = document.getElementById("historyDetail");
+        if (detail) detail.classList.remove("show");
+        showPosAlert({
+            title: "Order Voided",
+            icon: "fa-ban",
+            iconClass: "danger",
+            bodyHtml: `<p class="pos-modal-note">The order was voided and menu stock was restored.</p>`
+        });
+        loadCashierHistory();
+    } catch (err) {
+        playSound("error");
+        showPosAlert({
+            title: "Void Failed",
+            icon: "fa-circle-exclamation",
+            iconClass: "danger",
+            bodyHtml: `<p class="pos-modal-note">${escapeHtml(err.message)}</p>`
+        });
+    }
 }
 
 function setHistoryPanelOpen(open) {
@@ -719,6 +951,12 @@ function addToCart(productId) {
 
     playSound("add");
     renderCart();
+
+    // Long carts hide newly added items below the fold — keep them visible.
+    const cartContainer = document.getElementById("cartContainer");
+    if (cartContainer) {
+        cartContainer.scrollTop = cartContainer.scrollHeight;
+    }
 }
 
 function renderCart() {
@@ -897,12 +1135,11 @@ function updateSwipeSummary() {
 
 const CHANGE_DENOMINATIONS = [1000, 500, 200, 100, 50, 20];
 let tenderedAmount = 0;
-let calcExpanded = false;
 
 function updateCalculatorVisibility() {
-    const calc = document.getElementById("changeCalculator");
-    if (calc) {
-        calc.classList.toggle("hidden", selectedPayment !== "cash");
+    const bar = document.getElementById("cashCalcBar");
+    if (bar) {
+        bar.classList.toggle("hidden", selectedPayment !== "cash");
     }
 }
 
@@ -911,6 +1148,8 @@ function updateChangeCalculator() {
     const changeEl = document.getElementById("changeAmount");
     const breakdownEl = document.getElementById("changeBreakdown");
     const swipeTrack = document.getElementById("swipeTrack");
+    const receivedChip = document.getElementById("cashReceivedChip");
+    const changeChip = document.getElementById("cashChangeChip");
     if (!changeEl) {
         return;
     }
@@ -922,6 +1161,12 @@ function updateChangeCalculator() {
 
     changeEl.textContent = `₱${Math.max(0, change).toFixed(2)}`;
     changeEl.classList.toggle("insufficient", change < 0);
+
+    if (receivedChip) receivedChip.textContent = `₱${tendered.toFixed(2)}`;
+    if (changeChip) {
+        changeChip.textContent = `₱${Math.max(0, change).toFixed(2)}`;
+        changeChip.classList.toggle("insufficient", change < 0);
+    }
 
     if (breakdownEl && change > 0) {
         const parts = calculateChangeBreakdown(change);
@@ -997,21 +1242,53 @@ function setupQuickTenderChips() {
     });
 }
 
-function setupCalculatorToggle() {
-    const toggleBtn = document.getElementById("calcToggleBtn");
+function setupCalculatorModal() {
+    const overlay = document.getElementById("calcModalOverlay");
+    const openBtn = document.getElementById("calcOpenBtn");
+    const closeBtn = document.getElementById("calcModalCloseBtn");
+    const doneBtn = document.getElementById("calcDoneBtn");
     const keypad = document.getElementById("calcKeypad");
-    if (!toggleBtn || !keypad) {
+    if (!overlay || !openBtn) {
         return;
     }
-    toggleBtn.addEventListener("click", () => {
-        calcExpanded = !calcExpanded;
-        keypad.style.display = calcExpanded ? "grid" : "none";
-        toggleBtn.classList.toggle("open", calcExpanded);
+
+    function openModal() {
+        overlay.classList.add("show");
+        const input = document.getElementById("amountTenderedInput");
+        if (input) {
+            input.focus();
+            input.select();
+        }
+        updateChangeCalculator();
         playSound("qty");
+    }
+
+    function closeModal() {
+        overlay.classList.remove("show");
+    }
+
+    openBtn.addEventListener("click", openModal);
+    if (closeBtn) closeBtn.addEventListener("click", closeModal);
+    if (doneBtn) {
+        doneBtn.addEventListener("click", () => {
+            playSound("qty");
+            closeModal();
+        });
+    }
+    overlay.addEventListener("click", event => {
+        if (event.target === overlay) closeModal();
     });
-    keypad.querySelectorAll("[data-calc-key]").forEach(key => {
-        key.addEventListener("click", () => calcPress(key.dataset.calcKey));
+    document.addEventListener("keydown", event => {
+        if (event.key === "Escape" && overlay.classList.contains("show")) {
+            closeModal();
+        }
     });
+
+    if (keypad) {
+        keypad.querySelectorAll("[data-calc-key]").forEach(key => {
+            key.addEventListener("click", () => calcPress(key.dataset.calcKey));
+        });
+    }
 }
 
 function resetChangeCalculator() {
@@ -1078,6 +1355,10 @@ async function submitOrder() {
     const customer = customerInput ? customerInput.value.trim() : "Walk-in Customer";
     const tableNo = tableInput ? tableInput.value.trim() : "";
 
+    // Idempotency key: unique per order, stable across sync retries so the
+    // backend never saves the same order twice.
+    const clientOrderId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
     const payload = {
         customer: customer || "Walk-in Customer",
         cashier: getCashierName(),
@@ -1085,13 +1366,18 @@ async function submitOrder() {
         mode: selectedMode,
         paymentMethod: selectedPayment,
         receiptId: currentOrderId,
+        clientOrderId,
         date: new Date().toISOString(),
         items: cart.map(item => ({
             name: item.name,
             quantity: item.quantity,
             price: Number(item.price || 0)
         })),
-        total: cart.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0)
+        total: cart.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0),
+        tendered: selectedPayment === "cash" ? tenderedAmount : 0,
+        change: selectedPayment === "cash"
+            ? Math.max(0, tenderedAmount - cart.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0))
+            : 0
     };
 
     try {
@@ -1134,7 +1420,7 @@ async function submitOrder() {
         playSound("success");
 
         const changeGiven = selectedPayment === "cash"
-            ? `<div class="row"><span>Change</span><strong>₱${Math.max(0, tenderedAmount - Number(payload.total)).toFixed(2)}</strong></div>`
+            ? `<div class="row"><span>Change</span><strong>₱${Number(createdOrder.change ?? Math.max(0, tenderedAmount - Number(payload.total))).toFixed(2)}</strong></div>`
             : "";
 
         await showPosAlert({
@@ -1149,13 +1435,39 @@ async function submitOrder() {
                     <div class="row"><span>Payment</span><strong>${selectedPayment.toUpperCase()}</strong></div>
                     <div class="row"><span>Total</span><strong>₱${Number(payload.total).toFixed(2)}</strong></div>
                     ${changeGiven}
-                </div>`,
-            buttonLabel: "Done"
+                </div>
+                <button type="button" class="pos-modal-btn pos-modal-btn-secondary" id="printReceiptBtn">Print receipt</button>`,
+            buttonLabel: "Done",
+            afterDom: body => {
+                const printBtn = body.querySelector("#printReceiptBtn");
+                if (printBtn) printBtn.addEventListener("click", () => printReceipt(createdOrder));
+            }
         });
 
         cancelOrder(true);
         loadCashierHistory();
+        flushOfflineOrders(); // a pending queue may clear now that we're online
     } catch (err) {
+        // Network failure (offline / server unreachable) → keep the order
+        // locally and sync it automatically once the connection returns.
+        if (!navigator.onLine || err instanceof TypeError) {
+            queueOfflineOrder(payload);
+            updateOfflineBanner();
+            playSound("success");
+            await showPosAlert({
+                title: "Order saved offline",
+                icon: "fa-cloud-arrow-down",
+                iconClass: "warning",
+                bodyHtml: `
+                    <div class="pos-modal-success-icon" style="color: var(--pos-warn, #f59e0b);"><i class="fa-solid fa-cloud-arrow-down"></i></div>
+                    <p class="pos-modal-note">The connection is down, so this order (${escapeHtml(payload.receiptId)} — ₱${Number(payload.total).toFixed(2)}) was saved on this device.<br><br>It will be sent to the server automatically when the connection returns.</p>`,
+                buttonLabel: "OK"
+            });
+            cancelOrder(true);
+            loadCashierHistory();
+            return;
+        }
+
         console.error("❌ Failed to submit order:", err);
         playSound("error");
         await showPosAlert({
@@ -1166,6 +1478,105 @@ async function submitOrder() {
             buttonLabel: "OK"
         });
     }
+}
+
+/* ==========================================================================
+   Digital receipt — prints via the browser dialog (Save as PDF / share).
+   No thermal printer required.
+   ========================================================================== */
+
+function printReceipt(order) {
+    if (!order) return;
+    let host = document.getElementById("printReceiptHost");
+    if (!host) {
+        host = document.createElement("div");
+        host.id = "printReceiptHost";
+        document.body.appendChild(host);
+    }
+
+    const items = (order.items || []).map(item => `
+        <div class="print-line"><span>${escapeHtml(item.name)} × ${item.quantity}</span><span>₱${(Number(item.price || 0) * Number(item.quantity || 0)).toFixed(2)}</span></div>
+    `).join("");
+
+    host.innerHTML = `
+        <div class="print-receipt">
+            <div class="print-head">
+                <img src="../assets/logo.png" alt="logo">
+                <strong class="print-shop">Season 3 Kitchen &amp; Cafe</strong>
+                <span>${new Date(order.date || Date.now()).toLocaleString()}</span>
+            </div>
+            <div class="print-meta">
+                <div><span>Receipt</span><strong>${escapeHtml(order.receiptId || "")}</strong></div>
+                <div><span>Cashier</span><strong>${escapeHtml(order.cashier || "")}</strong></div>
+                <div><span>Customer</span><strong>${escapeHtml(order.customer || "Walk-in Customer")}</strong></div>
+                <div><span>Mode</span><strong>${escapeHtml(order.mode || "Dine In")}</strong></div>
+                <div><span>Payment</span><strong>${escapeHtml(order.paymentMethod || "Cash")}</strong></div>
+            </div>
+            <div class="print-items">${items}</div>
+            <div class="print-total">
+                <div><span>Total</span><strong>₱${Number(order.total || 0).toFixed(2)}</strong></div>
+                ${String(order.paymentMethod || "").toLowerCase().includes("cash") ? `
+                <div><span>Tendered</span><strong>₱${Number(order.tendered ?? 0).toFixed(2)}</strong></div>
+                <div><span>Change</span><strong>₱${Number(order.change ?? 0).toFixed(2)}</strong></div>` : ""}
+            </div>
+            <div class="print-foot">Thank you for your order!<br>Please come again.</div>
+        </div>`;
+
+    window.print();
+}
+
+/* ==========================================================================
+   Keyboard shortcuts — Enter = exact cash (cash mode), Esc = close overlays
+   ========================================================================== */
+
+function setupKeyboardShortcuts() {
+    document.addEventListener("keydown", event => {
+        if (event.key === "Escape") {
+            const calcOverlay = document.getElementById("calcModalOverlay");
+            if (calcOverlay && calcOverlay.classList.contains("show")) {
+                calcOverlay.classList.remove("show");
+                event.preventDefault();
+                return;
+            }
+            const posOverlay = document.getElementById("posModalOverlay");
+            if (posOverlay && posOverlay.classList.contains("show")) {
+                posOverlay.classList.remove("show");
+                event.preventDefault();
+                return;
+            }
+            const historyPanel = document.getElementById("historyPanel");
+            if (historyPanel && historyPanel.classList.contains("open")) {
+                setHistoryPanelOpen(false);
+                event.preventDefault();
+                return;
+            }
+            const dropdown = document.getElementById("cashierDropdown");
+            if (dropdown && dropdown.classList.contains("show")) {
+                dropdown.classList.remove("show");
+                event.preventDefault();
+            }
+            return;
+        }
+
+        if (event.key === "Enter" && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey
+            && selectedPayment === "cash") {
+            const activeTag = document.activeElement && document.activeElement.tagName;
+            if (activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT") {
+                return;
+            }
+            if (document.querySelector(".pos-modal-overlay.show") || document.querySelector(".calc-modal-overlay.show")) {
+                return;
+            }
+            event.preventDefault();
+            const input = document.getElementById("amountTenderedInput");
+            if (input) {
+                const total = cart.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0);
+                input.value = total > 0 ? total.toFixed(2) : "";
+                playSound("qty");
+                updateChangeCalculator();
+            }
+        }
+    });
 }
 
 // ── Themed modal helpers (confirmation + alert) ────────────────────────────
@@ -1200,7 +1611,7 @@ function showPosConfirm({ title, icon = "fa-receipt", iconClass = "", bodyHtml, 
     });
 }
 
-function showPosAlert({ title, icon = "fa-circle-check", iconClass = "success", bodyHtml, buttonLabel = "OK" }) {
+function showPosAlert({ title, icon = "fa-circle-check", iconClass = "success", bodyHtml, buttonLabel = "OK", afterDom } = {}) {
     return new Promise(resolve => {
         const overlay = document.getElementById("posModalOverlay");
         const iconEl = document.getElementById("posModalIcon");
@@ -1222,6 +1633,7 @@ function showPosAlert({ title, icon = "fa-circle-check", iconClass = "success", 
         });
 
         overlay.classList.add("show");
+        if (typeof afterDom === "function") afterDom(body);
     });
 }
 

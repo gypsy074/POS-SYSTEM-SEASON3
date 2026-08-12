@@ -10,6 +10,12 @@
 </head>
 
 <body>
+    <!-- Offline status banner (shown when the connection drops) -->
+    <div class="offline-banner" id="offlineBanner" style="display: none;">
+        <i class="fa-solid fa-wifi"></i>
+        <span id="offlineBannerText">You're offline — orders will be saved and synced automatically.</span>
+    </div>
+
     <!-- Phone not supported — the cashier is built for tablets and desktops -->
     <div class="device-block" id="deviceBlock">
         <div class="device-block-card">
@@ -25,7 +31,7 @@
 
             <header class="top-bar">
                 <div class="logo-box">
-                    <img src="../assets/logo.jpg" alt="Season 3 Logo" style="width: 100%; height: 100%; border-radius: 10%; object-fit: cover;">
+                    <img src="../assets/logo.png" alt="Season 3 Logo" style="width: 100%; height: 100%; border-radius: 10%; object-fit: cover;">
                 </div>
                 <div class="date-display" id="currentDate">Loading date...</div>
 
@@ -154,51 +160,13 @@
                     </label>
                 </div>
 
-                <!-- Cash change calculator (cash payments only) -->
-                <div class="change-calculator hidden" id="changeCalculator">
-                    <div class="change-row">
-                        <div class="change-input-wrap">
-                            <label>Amount received</label>
-                            <input type="number" id="amountTenderedInput" placeholder="0.00" min="0" step="0.01">
-                        </div>
-                        <div class="change-display">
-                            <span>Change</span>
-                            <strong id="changeAmount">₱0.00</strong>
-                        </div>
-                    </div>
-
-                    <div class="quick-tender-chips">
-                        <button type="button" class="tender-chip" data-amount="exact">Exact</button>
-                        <button type="button" class="tender-chip" data-amount="20">₱20</button>
-                        <button type="button" class="tender-chip" data-amount="50">₱50</button>
-                        <button type="button" class="tender-chip" data-amount="100">₱100</button>
-                        <button type="button" class="tender-chip" data-amount="200">₱200</button>
-                        <button type="button" class="tender-chip" data-amount="500">₱500</button>
-                        <button type="button" class="tender-chip" data-amount="1000">₱1000</button>
-                    </div>
-
-                    <button type="button" class="calc-toggle" id="calcToggleBtn">
-                        <i class="fa-solid fa-calculator"></i> Calculator
+                <!-- Cash change calculator launcher (cash payments only) -->
+                <div class="cash-calc-bar hidden" id="cashCalcBar">
+                    <button type="button" class="calc-open-btn" id="calcOpenBtn" title="Cash calculator">
+                        <i class="fa-solid fa-calculator"></i>
                     </button>
-
-                    <div class="calc-keypad" id="calcKeypad">
-                        <button type="button" class="calc-key" data-calc-key="7">7</button>
-                        <button type="button" class="calc-key" data-calc-key="8">8</button>
-                        <button type="button" class="calc-key" data-calc-key="9">9</button>
-                        <button type="button" class="calc-key key-back" data-calc-key="backspace"><i class="fa-solid fa-delete-left"></i></button>
-                        <button type="button" class="calc-key" data-calc-key="4">4</button>
-                        <button type="button" class="calc-key" data-calc-key="5">5</button>
-                        <button type="button" class="calc-key" data-calc-key="6">6</button>
-                        <button type="button" class="calc-key key-clear" data-calc-key="clear">C</button>
-                        <button type="button" class="calc-key" data-calc-key="1">1</button>
-                        <button type="button" class="calc-key" data-calc-key="2">2</button>
-                        <button type="button" class="calc-key" data-calc-key="3">3</button>
-                        <button type="button" class="calc-key" data-calc-key=".">.</button>
-                        <button type="button" class="calc-key" data-calc-key="0">0</button>
-                        <button type="button" class="calc-key key-equal" data-calc-key="00">00</button>
-                    </div>
-
-                    <div class="change-breakdown" id="changeBreakdown"></div>
+                    <span class="cash-chip">Received <strong id="cashReceivedChip">₱0.00</strong></span>
+                    <span class="cash-chip">Change <strong id="cashChangeChip">₱0.00</strong></span>
                 </div>
 
                 <div class="slide-button-container">
@@ -222,6 +190,59 @@
             </div>
             <div class="pos-modal-body" id="posModalBody"></div>
             <div class="pos-modal-actions" id="posModalActions"></div>
+        </div>
+    </div>
+
+    <!-- Cash change calculator popup (opens centered on screen) -->
+    <div class="calc-modal-overlay" id="calcModalOverlay">
+        <div class="calc-modal-card">
+            <div class="calc-modal-head">
+                <div class="calc-modal-icon"><i class="fa-solid fa-calculator"></i></div>
+                <h3>Cash Received</h3>
+                <button type="button" class="calc-modal-close" id="calcModalCloseBtn" title="Close"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <div class="change-row">
+                <div class="change-input-wrap">
+                    <label>Amount received</label>
+                    <input type="number" id="amountTenderedInput" placeholder="0.00" min="0" step="0.01">
+                </div>
+                <div class="change-display">
+                    <span>Change</span>
+                    <strong id="changeAmount">₱0.00</strong>
+                </div>
+            </div>
+
+            <div class="quick-tender-chips">
+                <button type="button" class="tender-chip" data-amount="exact">Exact</button>
+                <button type="button" class="tender-chip" data-amount="20">₱20</button>
+                <button type="button" class="tender-chip" data-amount="50">₱50</button>
+                <button type="button" class="tender-chip" data-amount="100">₱100</button>
+                <button type="button" class="tender-chip" data-amount="200">₱200</button>
+                <button type="button" class="tender-chip" data-amount="500">₱500</button>
+                <button type="button" class="tender-chip" data-amount="1000">₱1000</button>
+            </div>
+
+            <div class="calc-keypad" id="calcKeypad">
+                <button type="button" class="calc-key" data-calc-key="7">7</button>
+                <button type="button" class="calc-key" data-calc-key="8">8</button>
+                <button type="button" class="calc-key" data-calc-key="9">9</button>
+                <button type="button" class="calc-key key-back" data-calc-key="backspace"><i class="fa-solid fa-delete-left"></i></button>
+                <button type="button" class="calc-key" data-calc-key="4">4</button>
+                <button type="button" class="calc-key" data-calc-key="5">5</button>
+                <button type="button" class="calc-key" data-calc-key="6">6</button>
+                <button type="button" class="calc-key key-clear" data-calc-key="clear">C</button>
+                <button type="button" class="calc-key" data-calc-key="1">1</button>
+                <button type="button" class="calc-key" data-calc-key="2">2</button>
+                <button type="button" class="calc-key" data-calc-key="3">3</button>
+                <button type="button" class="calc-key" data-calc-key=".">.</button>
+                <button type="button" class="calc-key" data-calc-key="0">0</button>
+                <button type="button" class="calc-key key-equal" data-calc-key="00">00</button>
+            </div>
+
+            <div class="change-breakdown" id="changeBreakdown"></div>
+
+            <button type="button" class="pos-modal-btn pos-modal-btn-primary" id="calcDoneBtn">Done</button>
         </div>
     </div>
 
