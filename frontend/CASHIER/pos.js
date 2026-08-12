@@ -28,15 +28,13 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function getApiBaseUrl() {
+    // file:// (opened directly from disk, no server) → the local dev backend.
     if (window.location.protocol === "file:") {
         return "http://localhost:3000";
     }
-
-    if (window.location.port === "3000") {
-        return window.location.origin;
-    }
-
-    return "http://localhost:3000";
+    // Served by the backend itself (local dev on :3000 or a live deploy) —
+    // always use the same origin so the cashier works on any host.
+    return window.location.origin;
 }
 
 function apiFetch(path, options = {}) {
