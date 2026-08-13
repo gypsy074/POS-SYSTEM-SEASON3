@@ -70,7 +70,10 @@
 
             <div class="input-group">
                 <label for="password">password</label>
-                <input type="password" id="password" placeholder="Enter password..." required autocomplete="current-password">
+                <div class="password-wrap">
+                    <input type="password" id="password" placeholder="Enter password..." required autocomplete="current-password">
+                    <button type="button" class="password-toggle" aria-label="Show password"><i class="fa-solid fa-eye"></i></button>
+                </div>
             </div>
 
             <!-- Error banner shown on failed login -->
@@ -92,6 +95,7 @@
         <div class="login-transition-sub" id="transitionRole">Cashier</div>
     </div>
 
+    <script src="js/passwordToggle.js"></script>
     <script src="login.js"></script>
 </body>
 </html>

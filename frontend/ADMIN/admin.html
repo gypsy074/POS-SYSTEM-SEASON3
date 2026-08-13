@@ -230,7 +230,10 @@
                             </div>
                             <div class="input-group">
                                 <label>Password</label>
-                                <input type="password" id="passwordInput">
+                                <div class="password-wrap">
+                                    <input type="password" id="passwordInput">
+                                    <button type="button" class="password-toggle" aria-label="Show password"><i class="fa-solid fa-eye"></i></button>
+                                </div>
                             </div>
                             <div class="input-group">
                                 <label>Role</label>
@@ -488,6 +491,7 @@
     <script src="js/api.js"></script>
     <script src="js/toast.js"></script>
     <script src="js/confirm.js"></script>
+    <script src="js/passwordToggle.js"></script>
     <script src="js/imageCompressor.js"></script>
 
     <!-- Reusable Components -->
