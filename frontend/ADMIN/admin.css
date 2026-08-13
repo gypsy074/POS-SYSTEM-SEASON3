@@ -1475,6 +1475,18 @@ body.dark .sidebar,
 body.dark .admin-header,
 body.dark .server-status,
 body.dark .stat-card,
+body.dark .card,
+body.dark .menu-form-grid,
+body.dark .date-chip,
+body.dark .btn-pill,
+body.dark .btn-main,
+body.dark .action-btn-secondary,
+body.dark .action-btn-neutral,
+body.dark .action-btn-danger,
+body.dark .import-btn,
+body.dark .form-image-uploader,
+body.dark .receipt-tag,
+body.dark .profile-avatar,
 body.dark .analytics-card,
 body.dark .calendar-card,
 body.dark .transactions-section,
@@ -1603,4 +1615,62 @@ body.dark .update-avatar {
 
 body.dark .main-val {
     color: #4caf50;
+}
+
+/* --- Extended dark-mode coverage for remaining white surfaces / dark text --- */
+body.dark .receipt-tag {
+    color: #d8c4a8;
+}
+
+body.dark .design-table th {
+    background: #4a3a2c;
+    color: #e8dccb;
+    border-color: #4a3a2c;
+}
+
+body.dark .design-table td {
+    border-color: #3a2d1f;
+}
+
+body.dark tr:hover td {
+    background-color: #3a2d1f;
+}
+
+body.dark .calendar-days-header {
+    color: #b09a80 !important;
+}
+
+body.dark .menu-row-selected td {
+    background-color: #3a2d1f !important;
+}
+
+body.dark .selected-row td,
+body.dark .selected-row th {
+    background-color: #3a2d1f !important;
+}
+
+body.dark #previewIcon {
+    color: #b09a80;
+}
+
+body.dark .form-image-uploader {
+    border-color: #4a3a2c;
+}
+
+body.dark .action-btn-danger {
+    background: #4a2a26;
+    border-color: #6b3330;
+    color: #f5a09a;
+}
+
+body.dark .import-btn {
+    color: #c9a178;
+}
+
+body.dark .action-btn-secondary {
+    border-color: #4a3a2c;
+}
+
+body.dark .btn-main {
+    border-color: var(--accent-brown);
 }

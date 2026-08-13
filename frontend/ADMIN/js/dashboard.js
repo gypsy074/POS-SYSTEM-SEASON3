@@ -4,6 +4,8 @@
    ========================================================================== */
 
 let activeSalesRange = "day";
+let activeRadarCategory = "All";
+let builtPillCategories = null;
 let calendarViewDate = new Date();
 
 async function loadLiveDashboardData() {
@@ -57,6 +59,7 @@ async function loadLiveDashboardData() {
         renderNotifications();
 
         renderSalesCharts(orders, allProducts);
+        setupCategoryPills();
         renderUsageChart(orders);
         renderCalendar();
     } catch (err) {
@@ -373,6 +376,14 @@ function renderSalesCharts(orders, products, range = activeSalesRange) {
         });
     }
 
+    if (activeRadarCategory !== "All") {
+        const selected = categoryCounts[activeRadarCategory] || 0;
+        Object.keys(categoryCounts).forEach(key => {
+            if (key !== activeRadarCategory) delete categoryCounts[key];
+        });
+        categoryCounts[activeRadarCategory] = selected;
+    }
+
     const radarLabels = Object.keys(categoryCounts);
     const radarData   = radarLabels.map(label => categoryCounts[label]);
 
@@ -482,6 +493,32 @@ function renderUsageChart(orders, range = activeSalesRange) {
             },
             plugins: { legend: { position: "top" } }
         }
+    });
+}
+
+// ── Category filter pills (Items Performance radar) ────────────────────────
+
+function setupCategoryPills() {
+    const container = document.querySelector(".category-pills");
+    if (!container) return;
+
+    const categories = ["All", ...new Set((allProducts || []).map(p => p.category || "Unknown"))];
+    const key = categories.join("|");
+    if (builtPillCategories === key) return;
+    builtPillCategories = key;
+
+    container.innerHTML = categories.map(category => `
+        <button type="button" class="pill${category === activeRadarCategory ? " active" : ""}"
+            data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>
+    `).join("");
+
+    container.querySelectorAll(".pill").forEach(pill => {
+        pill.addEventListener("click", () => {
+            container.querySelectorAll(".pill").forEach(p => p.classList.remove("active"));
+            pill.classList.add("active");
+            activeRadarCategory = pill.dataset.category;
+            renderSalesCharts(latestOrders, allProducts);
+        });
     });
 }
 
