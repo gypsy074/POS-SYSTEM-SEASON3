@@ -80,6 +80,11 @@ async function guardAdminPage() {
         const response = await apiFetch("/api/auth/me");
         if (!response.ok) {
             window.location.href = "../login.html";
+            return;
+        }
+        const data = await response.json();
+        if (data.role !== "Admin") {
+            window.location.href = "../CASHIER/pos.html";
         }
     } catch (err) {
         window.location.href = "../login.html";

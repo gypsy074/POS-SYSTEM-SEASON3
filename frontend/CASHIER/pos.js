@@ -62,6 +62,11 @@ async function guardCashierPage() {
         const response = await apiFetch("/api/auth/me");
         if (!response.ok) {
             window.location.href = "../login.html";
+            return;
+        }
+        const data = await response.json();
+        if (data.role !== "Cashier") {
+            window.location.href = "../ADMIN/admin.html";
         }
     } catch (err) {
         const token = localStorage.getItem("posToken");
