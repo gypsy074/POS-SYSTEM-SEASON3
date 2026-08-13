@@ -36,6 +36,21 @@ app.use(helmet({
 }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Realtime visit logging — prints who accesses the POS to the terminal
+// (and streams to Render dashboard logs in production). Noise filtered:
+// static assets, favicon and the /api/health probe are skipped.
+app.use((req, res, next) => {
+    res.on('finish', () => {
+        if (process.env.NODE_ENV === 'test') return;
+        const url = req.originalUrl;
+        if (/\/ADMIN\/(css|js|assets)|favicon|^\/api\/health/.test(url)) return;
+        const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress;
+        console.log(`👁 ${new Date().toLocaleTimeString()} ${res.statusCode} ${req.method} ${url} · ${ip} · ${(req.get('user-agent') || '').slice(0, 60)}`);
+    });
+    next();
+});
+
 app.use(express.static(path.join(__dirname, '..', 'frontend')));
 
 // Brute-force guard for the login endpoint — 10 attempts per 15 min per IP.
@@ -57,22 +72,22 @@ if (!mongoUri) {
 
 mongoose.connection.on('connected', () => {
     const dbName = mongoose.connection.db?.databaseName || 'unknown';
-    console.log(`✅ Connected to MongoDB Atlas — Database: "${dbName}"`);
+    console.log(`✓ [MongoDB] Connected to MongoDB Atlas — Database: "${dbName}"`);
 });
 
 mongoose.connection.on('error', err => {
-    console.error('❌ Database Connection Error:', err.message);
+    console.error(`✗ [MongoDB] Database Connection Error:`, err.message);
 });
 
 mongoose.connection.on('disconnected', () => {
-    console.warn('⚠️  MongoDB disconnected. Attempting to reconnect...');
+    console.warn(`✗ [MongoDB] Disconnected. Attempting to reconnect...`);
 });
 
 mongoose.connect(mongoUri, {
     serverSelectionTimeoutMS: 10000,
     retryWrites: true
 }).catch(err => {
-    console.error('❌ Initial MongoDB Connection Failed:', err.message);
+    console.error(`✗ [MongoDB] Initial Connection Failed:`, err.message);
     console.error('   → Check your MONGO_URI in .env and ensure your IP is whitelisted in Atlas.');
 });
 
@@ -801,10 +816,10 @@ function checkRenderStatus() {
     const started = Date.now();
     fetch(`${renderUrl}/api/health`, { signal: AbortSignal.timeout(10000) })
         .then(res => {
-            console.log(`[Render] Production: ${res.ok ? "ONLINE" : "OFFLINE"} (HTTP ${res.status}, ${Date.now() - started}ms)`);
+            console.log(`${res.ok ? "✓" : "✗"} [Render] POS link ${renderUrl} is ${res.ok ? "ONLINE" : "OFFLINE"} (HTTP ${res.status}, ${Date.now() - started}ms)`);
         })
         .catch(err => {
-            console.log(`[Render] Production: OFFLINE (${err.code || "timeout"}) — free tier may be waking (30-60s)`);
+            console.log(`✗ [Render] POS link ${renderUrl} is OFFLINE (${err.code || "timeout"}) — free tier may be waking (30-60s)`);
         });
 }
 

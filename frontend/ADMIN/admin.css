@@ -1660,6 +1660,11 @@ body.dark .admin-search i {
     color: #e8dccb;
 }
 
+body.dark .revenue-main h2,
+body.dark .revenue-main .stat-label {
+    color: #e8dccb;
+}
+
 body.dark .table-container table,
 body.dark .table-container td {
     color: #d8c4a8;
