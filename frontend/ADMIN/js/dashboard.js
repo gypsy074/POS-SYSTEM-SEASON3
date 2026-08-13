@@ -57,6 +57,7 @@ async function loadLiveDashboardData() {
         renderNotifications();
 
         renderSalesCharts(orders, allProducts);
+        renderUsageChart(orders);
         renderCalendar();
     } catch (err) {
         console.error("❌ Dashboard sync pipeline broken:", err);
@@ -395,6 +396,92 @@ function renderSalesCharts(orders, products, range = activeSalesRange) {
     });
 }
 
+// ── Orders & Revenue bar chart (usage analytics) ──────────────────────────
+
+function renderUsageChart(orders, range = activeSalesRange) {
+    if (!window.Chart) return;
+
+    const usageCanvas = document.getElementById("usageBarChart");
+    if (!usageCanvas) return;
+
+    const dailyRevenue = {};
+    const dailyCount   = {};
+    (orders || []).forEach(order => {
+        if (order.status === "Voided") return;
+        const key = new Date(order.date).toLocaleDateString();
+        dailyRevenue[key] = (dailyRevenue[key] || 0) + Number(order.total || 0);
+        dailyCount[key]   = (dailyCount[key] || 0) + 1;
+    });
+
+    const rangeLimit = { day: 7, week: 28, month: 90, all: Infinity }[range] || 7;
+    let labels = [];
+    let revenueByLabel = [];
+    let countByLabel   = [];
+
+    if (range === "all") {
+        const monthlyRevenue = {};
+        const monthlyCount   = {};
+        (orders || []).forEach(order => {
+            if (order.status === "Voided") return;
+            const key = new Date(order.date).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+            monthlyRevenue[key] = (monthlyRevenue[key] || 0) + Number(order.total || 0);
+            monthlyCount[key]   = (monthlyCount[key] || 0) + 1;
+        });
+        labels = Object.keys(monthlyRevenue).sort((a, b) => new Date(a) - new Date(b));
+        revenueByLabel = labels.map(label => monthlyRevenue[label]);
+        countByLabel   = labels.map(label => monthlyCount[label]);
+    } else {
+        for (let i = rangeLimit - 1; i >= 0; i--) {
+            const label = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toLocaleDateString();
+            labels.push(label);
+            revenueByLabel.push(dailyRevenue[label] || 0);
+            countByLabel.push(dailyCount[label] || 0);
+        }
+    }
+
+    if (usageBarChart) usageBarChart.destroy();
+
+    usageBarChart = new Chart(usageCanvas, {
+        type: "bar",
+        data: {
+            labels,
+            datasets: [{
+                type: "bar",
+                label: "Revenue",
+                data: revenueByLabel,
+                backgroundColor: "#4e73df",
+                yAxisID: "y"
+            }, {
+                type: "line",
+                label: "Orders",
+                data: countByLabel,
+                borderColor: "#e74a3b",
+                backgroundColor: "rgba(231,74,59,0.1)",
+                fill: true,
+                tension: 0.3,
+                yAxisID: "y1"
+            }]
+        },
+        options: {
+            responsive: true,
+            interaction: { mode: "index", intersect: false },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: "Revenue (₱)" }
+                },
+                y1: {
+                    beginAtZero: true,
+                    position: "right",
+                    grid: { drawOnChartArea: false },
+                    title: { display: true, text: "Orders" }
+                }
+            },
+            plugins: { legend: { position: "top" } }
+        }
+    });
+}
+
 // ── Sales Range Filter Tabs (Day / Week / Month / All) ─────────────────────
 
 function setupSalesFilterTabs() {
@@ -407,6 +494,7 @@ function setupSalesFilterTabs() {
             tab.classList.add("active");
             activeSalesRange = tab.textContent.trim().toLowerCase();
             renderSalesCharts(latestOrders, allProducts);
+            renderUsageChart(latestOrders);
         });
     });
 }

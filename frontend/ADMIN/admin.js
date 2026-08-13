@@ -28,6 +28,7 @@ let latestWaste  = [];
 
 let salesLineChart = null;
 let itemsRadarChart = null;
+let usageBarChart  = null;
 let activePanelId  = "dashboard-view";
 
 // ── Profile Badge ──────────────────────────────────────────────────────────
