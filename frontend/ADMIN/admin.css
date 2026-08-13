@@ -491,7 +491,15 @@ body {
 .update-list {
     display: flex;
     flex-direction: column;
+    max-height: 260px;
+    overflow-y: auto;
+    padding-right: 4px;
 }
+
+.update-list::-webkit-scrollbar { width: 6px; }
+.update-list::-webkit-scrollbar-thumb { background: #d9b99a; border-radius: 3px; }
+.update-list::-webkit-scrollbar-track { background: transparent; }
+body.dark .update-list::-webkit-scrollbar-thumb { background: #4a3a2c; }
 
 .update-item {
     display: flex;
@@ -499,6 +507,21 @@ body {
     gap: 15px;
     padding: 10px 0;
     border-bottom: 1px solid #f1f1f1;
+}
+
+.update-item--compact {
+    padding: 4px 0;
+    gap: 10px;
+}
+
+.update-item--compact .update-avatar {
+    width: 26px;
+    height: 26px;
+    font-size: 0.65rem;
+}
+
+.update-item--compact .update-text strong {
+    font-size: 0.78rem;
 }
 
 .update-item:last-child { border-bottom: none; }

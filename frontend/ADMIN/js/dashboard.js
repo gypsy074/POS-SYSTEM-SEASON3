@@ -115,6 +115,7 @@ function buildUpdates() {
             updates.push({
                 icon: active ? "fa-user-check" : "fa-user",
                 kind: "activity",
+                compact: true,
                 title: `${active ? "🟢" : "⚪"} ${user.username} · ${active ? "active now" : t ? `last seen ${timeAgo(t)}` : "never seen"} · ${user.role}`,
                 sub: ""
             });
@@ -195,7 +196,7 @@ function renderUpdates() {
             return `<div class="update-section">${escapeHtml(update.section)}</div>`;
         }
         return `
-            <div class="update-item">
+            <div class="update-item${update.compact ? " update-item--compact" : ""}">
                 <div class="update-avatar${update.flagged ? " update-avatar-danger" : ""}">
                     <i class="fas ${update.icon}"></i>
                 </div>
