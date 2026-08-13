@@ -445,11 +445,16 @@ body {
 .perf-col {
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
     gap: 18px;
     text-align: center;
     padding: 0 16px;
+}
+
+.perf-col .main-val,
+.perf-col .sub-val {
+    margin: auto 0;
 }
 
 .perf-col:not(:last-child) {
@@ -473,8 +478,8 @@ body {
 }
 
 .main-val { font-size: 2.4rem; font-weight: 600; color: #2e7d32; }
-.sub-val { font-size: 1.15rem; color: #8e6a46; font-weight: 600; white-space: nowrap; }
-.sub-val#wasteCount { font-size: 0.95rem; color: #c0392b; }
+.sub-val { font-size: 2.4rem; color: #8e6a46; font-weight: 600; white-space: nowrap; }
+.sub-val#wasteCount { color: #c0392b; }
 
 /* Updates Ledger Panel */
 .updates-panel h3 {
