@@ -43,6 +43,9 @@ yarn-error.log*
 *.env
 !*.env.example
 
+# Database backups (npm run backup)
+backend/backup/
+
 # Ignore credentials that are explicitly placed in specific files
 backend/atlas-credentials.env
 

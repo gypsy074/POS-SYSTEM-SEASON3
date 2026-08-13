@@ -143,4 +143,46 @@ Manual smoke test (live site or local):
 3. Confirm the receipt modal + print dialog, then find it under My Orders
 4. Admin → Menu: the product's stock decreased; Sales shows the order; CSV export works
 5. Void the order from My Orders → stock returns, revenue excludes it
-6. Offline test: DevTools → Network → Offline → place an order → green "synced" banner when back online
+ 6. Offline test: DevTools → Network → Offline → place an order → green "synced" banner when back online
+
+---
+
+## 8. Backups (free)
+
+Atlas auto-backups are a paid feature, so this project ships a free local backup script:
+
+```bash
+cd backend
+npm run backup
+```
+
+It dumps every collection (users, products, orders, waste, inventory, auditlogs) to
+`backend/backup/<timestamp>/` as JSON files.
+
+**Schedule it daily (Windows):**
+
+1. Open Task Scheduler → Create Basic Task → name "POS Backup"
+2. Trigger: Daily at a quiet hour (e.g. 4:00 AM)
+3. Action: Start a program → `powershell.exe` → arguments:
+   `-NoProfile -Command "cd D:\rawpos\POS-SYSTEM-SEASON3\backend; npm run backup"`
+4. Optionally back up the `backend/backup` folder to OneDrive/Google Drive for off-site safety
+
+---
+
+## 9. Uptime Monitoring (free)
+
+1. Sign up at https://uptimerobot.com (free plan)
+2. Add a monitor: **HTTPS**, URL `https://season3-pos.onrender.com`, interval 5 minutes
+3. Add your email as the alert contact — you'll be notified if the site goes down.
+   Free tier also covers the monthly sleep at the end of the week; expect alerts during
+   Render's scheduled maintenance only.
+
+---
+
+## 10. Security Notes
+
+- Login is rate-limited (10 attempts / 15 min per IP) and protected by helmet headers
+- The old Atlas user that appeared in public git history was retired; the live DB uses a
+  separate user. If you ever leak credentials again, rotate them immediately in Atlas
+  (Database Access → the user → edit) and update `backend/.env` + the Render env vars.
+- Admin page actions are recorded in the audit log — view them in Admin → Audit Log

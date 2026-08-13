@@ -112,6 +112,12 @@ document.addEventListener("DOMContentLoaded", () => {
     setupSalesFilterTabs();
     setupCalendarControls();
 
+    // Audit log module
+    setupAuditFilters();
+
+    // Dark mode
+    setupDarkModeToggle();
+
     // CSV export for Sales Analytics
     const exportBtn = document.getElementById("exportCsvBtn");
     if (exportBtn) exportBtn.addEventListener("click", exportSalesCsv);

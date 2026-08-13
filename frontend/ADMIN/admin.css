@@ -93,18 +93,6 @@ body {
     box-shadow: 0 4px 10px rgba(166, 124, 82, 0.4);
 }
 
-.logout-btn {
-    width: 90%;
-    background: white;
-    border: 1px solid #c8a281;
-    padding: 15px;
-    border-radius: 30px;
-    font-weight: bold;
-    cursor: pointer;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    margin-top: auto;
-}
-
 /* ==========================================================================
    3. Header Navigation Elements
    ========================================================================== */
@@ -758,13 +746,6 @@ tr:hover td {
         padding: 10px 16px;
     }
 
-    .logout-btn {
-        width: auto;
-        margin-top: 0;
-        padding: 10px 18px;
-        border-radius: 20px;
-    }
-
     .main-body {
         padding: 0 12px 20px;
     }
@@ -996,7 +977,7 @@ tr:hover td {
     display: grid;
     grid-template-columns: 1fr 320px;
     gap: 25px;
-    margin: 20px 0 0 20px;
+    margin: 20px 20px 0 20px;
 }
 
 .charts-column {
@@ -1043,7 +1024,8 @@ tr:hover td {
     border: 1px solid var(--header-brown);
     border-radius: 25px;
     padding: 25px;
-    height: fit-content;
+    display: flex;
+    flex-direction: column;
 }
 
 .calendar-header {
@@ -1051,6 +1033,11 @@ tr:hover td {
     justify-content: space-between;
     align-items: center;
     color: var(--dark-brown);
+}
+
+.calendar-grid {
+    flex: 1;
+    grid-auto-rows: minmax(40px, 1fr);
 }
 
 .year-dropdown {
@@ -1329,21 +1316,6 @@ tr:hover td {
     animation: popIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* Logout button */
-.logout-btn {
-    transition: all 0.25s ease;
-}
-.logout-btn:hover {
-    transform: translateY(-2px);
-    background: #ffeded;
-    border-color: #ff9d9d;
-    color: #c0392b;
-    box-shadow: 0 8px 18px rgba(192, 57, 43, 0.22);
-}
-.logout-btn:active {
-    transform: scale(0.92);
-}
-
 /* Header icon circles (refresh, bell) */
 .icon-circle {
     transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
@@ -1408,4 +1380,173 @@ tr:hover td {
 .notification-dropdown.show {
     animation: dropdownIn 0.24s ease-out;
     transform-origin: top right;
+}
+
+/* ==========================================================================
+   Audit Log view
+   ========================================================================== */
+.audit-date-filter {
+    background: #fff;
+    border: 1px solid #c8a281;
+    border-radius: 20px;
+    padding: 8px 14px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    color: var(--dark-brown);
+    outline: none;
+}
+
+.audit-action-badge {
+    display: inline-block;
+    background: #f1d8c4;
+    color: var(--dark-brown);
+    border-radius: 12px;
+    padding: 3px 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+/* ==========================================================================
+   Dark mode — body.dark overrides
+   ========================================================================== */
+body.dark {
+    background-color: #221912;
+    --bg-admin: #221912;
+    --white: #2e2318;
+    --dark-brown: #e8dccb;
+    --header-brown: #4a3a2c;
+    --sidebar-white: #2a1f15;
+    --text-dark: #e8dccb;
+}
+
+body.dark .sidebar,
+body.dark .admin-header,
+body.dark .stat-card,
+body.dark .analytics-card,
+body.dark .calendar-card,
+body.dark .transactions-section,
+body.dark .updates-panel,
+body.dark .inventory-table-card,
+body.dark .inventory-form-card,
+body.dark .menu-form-section,
+body.dark .profile-dropdown,
+body.dark .notification-dropdown {
+    background: #2e2318;
+    border-color: #4a3a2c;
+}
+
+body.dark .nav-btn {
+    background: #2e2318;
+    color: #d8c4a8;
+}
+
+body.dark .nav-btn.active {
+    background: var(--accent-brown);
+    color: #fff;
+}
+
+body.dark .admin-search input,
+body.dark .icon-circle,
+body.dark .form-inputs input,
+body.dark .form-inputs select,
+body.dark .form-inputs textarea,
+body.dark .inline-input,
+body.dark .audit-date-filter,
+body.dark .input-group input,
+body.dark .input-group select,
+body.dark .menu-form-grid input,
+body.dark .menu-form-grid select {
+    background: #3a2d1f;
+    border-color: #4a3a2c;
+    color: #e8dccb;
+}
+
+body.dark ::placeholder {
+    color: #b09a80;
+}
+
+body.dark .date-chip,
+body.dark .section-header,
+body.dark .panel-header-title h2,
+body.dark .card-header h3,
+body.dark .profile-name,
+body.dark .profile-role,
+body.dark .profile-dropdown-header strong,
+body.dark .calendar-header,
+body.dark .year-dropdown,
+body.dark #monthDisplay,
+body.dark .calendar-day,
+body.dark .update-text strong,
+body.dark .notification-item strong,
+body.dark .table-container th,
+body.dark .admin-search i {
+    color: #e8dccb;
+}
+
+body.dark .table-container table,
+body.dark .table-container td {
+    color: #d8c4a8;
+    border-color: #3a2d1f;
+}
+
+body.dark .table-container th {
+    background: #3a2d1f;
+    color: #e8dccb;
+}
+
+body.dark .update-text span,
+body.dark .notification-item span,
+body.dark .waste-total,
+body.dark .sub-val,
+body.dark .label-group span,
+body.dark .performance-labels span {
+    color: #b09a80;
+}
+
+body.dark .filter-tabs,
+body.dark .category-pills,
+body.dark .csv-export-btn {
+    background: #3a2d1f;
+}
+
+body.dark .tab,
+body.dark .pill,
+body.dark .btn-pill {
+    color: #d8c4a8;
+}
+
+body.dark .tab.active,
+body.dark .pill.active {
+    background: var(--accent-brown);
+    color: #fff;
+}
+
+body.dark .calendar-day:hover {
+    background: #3a2d1f;
+}
+
+body.dark .calendar-day.has-orders {
+    background: #4a3a2c;
+}
+
+body.dark .profile-dropdown-item:hover,
+body.dark .notification-item:hover {
+    background: #3a2d1f;
+}
+
+body.dark .audit-action-badge {
+    background: #4a3a2c;
+    color: #e8dccb;
+}
+
+body.dark .voided-row td {
+    color: #b09a80;
+}
+
+body.dark .update-avatar {
+    background: #3a2d1f;
+}
+
+body.dark .main-val {
+    color: #4caf50;
 }

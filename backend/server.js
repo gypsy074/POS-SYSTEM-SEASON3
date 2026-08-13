@@ -5,6 +5,8 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const dns = require('dns');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 // Prefer IPv4 — Atlas `mongodb+srv` lookups can hang on Windows Node when
@@ -28,9 +30,22 @@ const corsOrigin = process.env.CORS_ORIGIN === '*'
         : true;
 
 app.use(cors({ origin: corsOrigin }));
+app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, '..', 'frontend')));
+
+// Brute-force guard for the login endpoint — 10 attempts per 15 min per IP.
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many login attempts. Please try again in 15 minutes.' }
+});
 
 // Strict Database Connection Token Processing
 const mongoUri = process.env.MONGO_URI;
@@ -323,7 +338,7 @@ app.get('/ADMIN', (req, res) => { res.redirect('/ADMIN/admin.html'); });
 app.get('/ADMIN/', (req, res) => { res.redirect('/ADMIN/admin.html'); });
 
 // ---------------------- AUTHENTICATION LOGIN ENDPOINT ----------------------
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', loginLimiter, async (req, res) => {
     try {
         const { username, password } = req.body;
         if (!username || !password) {
@@ -718,6 +733,25 @@ app.delete('/api/waste/:id', authRequired(['Admin']), async (req, res) => {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid waste id' });
         await WasteItem.findByIdAndDelete(req.params.id);
         res.json({ message: 'Waste entry removed' });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---------------------- AUDIT LOG ENDPOINT ----------------------
+app.get('/api/audit', authRequired(['Admin']), async (req, res) => {
+    try {
+        const filter = {};
+        const { from, to, limit } = req.query;
+        if (from) {
+            const fromDate = new Date(from);
+            if (!isNaN(fromDate)) filter.date = { ...(filter.date || {}), $gte: fromDate };
+        }
+        if (to) {
+            const toDate = new Date(to);
+            if (!isNaN(toDate)) filter.date = { ...(filter.date || {}), $lte: toDate };
+        }
+        const max = Math.min(Math.max(Number(limit) || 500, 1), 5000);
+        const logs = await AuditLog.find(filter).sort({ date: -1 }).limit(max);
+        res.json(logs);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

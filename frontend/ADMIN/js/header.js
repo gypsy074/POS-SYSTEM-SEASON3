@@ -6,7 +6,6 @@
 function setupHeaderActions() {
     const refreshButton      = document.getElementById("refreshAdminBtn");
     const notificationsButton = document.getElementById("notificationsBtn");
-    const logoutButton       = document.getElementById("logoutBtn");
     const dateChip           = document.getElementById("adminDate");
 
     // Live date chip
@@ -36,18 +35,9 @@ function setupHeaderActions() {
             dropdown.classList.remove("show");
         }
     });
-
-    if (logoutButton) {
-        logoutButton.addEventListener("click", () => {
-            localStorage.removeItem("posToken");
-            localStorage.removeItem("posUser");
-            window.location.href = "../login.html";
-        });
-    }
 }
 
-function setupGlobalSearch() {
-    const searchInput = document.getElementById("globalSearch");
+function setupGlobalSearch() {    const searchInput = document.getElementById("globalSearch");
     if (!searchInput) return;
 
     searchInput.addEventListener("input", event => {
@@ -66,5 +56,25 @@ function refreshCurrentPanel() {
     if (activePanelId === "users-view")     { loadLiveUserData();      return; }
     if (activePanelId === "inventory-view") { loadLiveInventoryData(); return; }
     if (activePanelId === "waste-view")     { loadWasteData();        return; }
+    if (activePanelId === "audit-view")     { loadAuditData();        return; }
     loadLiveDashboardData();
+}
+
+function setupDarkModeToggle() {
+    const btn = document.getElementById("darkModeBtn");
+    if (!btn) return;
+
+    const icon = btn.querySelector("i");
+    const apply = dark => {
+        document.body.classList.toggle("dark", dark);
+        if (icon) icon.className = dark ? "fas fa-sun" : "fas fa-moon";
+    };
+
+    apply(localStorage.getItem("posDarkMode") === "1");
+
+    btn.addEventListener("click", () => {
+        const dark = !document.body.classList.contains("dark");
+        localStorage.setItem("posDarkMode", dark ? "1" : "0");
+        apply(dark);
+    });
 }

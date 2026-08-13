@@ -24,8 +24,8 @@
                 <button class="nav-btn" data-target="menu-view">Add Menu</button>
                 <button class="nav-btn" data-target="inventory-view">Inventory</button>
                 <button class="nav-btn" data-target="waste-view"><i class="fas fa-recycle"></i> Waste Food</button>
+                <button class="nav-btn" data-target="audit-view"><i class="fas fa-scroll"></i> Audit Log</button>
             </nav>
-            <button class="logout-btn" type="button" id="logoutBtn">Log out</button>
         </aside>
 
         <header class="admin-header">
@@ -40,6 +40,8 @@
 
                 <div class="header-right-group">
                     <div class="header-icons">
+                        <button class="icon-circle white-btn" type="button" id="darkModeBtn"
+                            title="Toggle dark mode"><i class="fas fa-moon"></i></button>
                         <button class="icon-circle white-btn" type="button" id="refreshAdminBtn"
                             title="Refresh current view"><i class="fas fa-file-alt"></i></button>
                         <button class="icon-circle white-btn" type="button" id="notificationsBtn"
@@ -444,6 +446,38 @@
                 </div>
             </div>
 
+            <div id="audit-view" class="admin-panel hidden">
+                <div class="panel-header-title" style="margin-left:20px;">
+                    <h2><i class="fas fa-scroll"></i> Audit Log</h2>
+                </div>
+                <div class="content-wrapper">
+                    <section class="transactions-section">
+                        <div class="section-header">
+                            <i class="fas fa-clipboard-list"></i> System Activity
+                            <div style="display: flex; gap: 10px; align-items: center; margin-left: auto;">
+                                <input type="date" id="auditFrom" class="audit-date-filter" title="From date">
+                                <input type="date" id="auditTo" class="audit-date-filter" title="To date">
+                                <button type="button" class="csv-export-btn" id="exportAuditCsvBtn"
+                                    title="Export audit log as CSV"><i class="fas fa-download"></i> Export</button>
+                            </div>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Action</th>
+                                        <th>Actor</th>
+                                        <th>Detail</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="auditTableBody"></tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
         </main>
     </div>
     <!-- Utilities -->
@@ -459,6 +493,7 @@
     <script src="js/menu.js"></script>
     <script src="js/users.js"></script>
     <script src="js/inventory.js"></script>
+    <script src="js/audit.js"></script>
 
     <!-- Main Entry Point (runs last) -->
     <script src="admin.js"></script>
