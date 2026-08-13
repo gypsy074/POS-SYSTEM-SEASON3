@@ -1844,3 +1844,12 @@ body.dark .action-btn-secondary {
 body.dark .btn-main {
     border-color: var(--accent-brown);
 }
+
+/* Refresh button — spin the arrow while data reloads */
+#refreshAdminBtn.spinning i {
+    animation: spin 0.8s linear infinite;
+    transform-origin: center;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}

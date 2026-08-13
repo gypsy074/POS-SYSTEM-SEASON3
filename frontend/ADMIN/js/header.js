@@ -52,12 +52,19 @@ function setupGlobalSearch() {    const searchInput = document.getElementById("g
 }
 
 function refreshCurrentPanel() {
-    if (activePanelId === "menu-view")      { loadLiveMenuData();      return; }
-    if (activePanelId === "users-view")     { loadLiveUserData();      return; }
-    if (activePanelId === "inventory-view") { loadLiveInventoryData(); return; }
-    if (activePanelId === "waste-view")     { loadWasteData();        return; }
-    if (activePanelId === "audit-view")     { loadAuditData();        return; }
-    loadLiveDashboardData();
+    const btn = document.getElementById("refreshAdminBtn");
+    if (btn) btn.classList.add("spinning");
+    const job = (() => {
+        if (activePanelId === "menu-view")      return loadLiveMenuData();
+        if (activePanelId === "users-view")     return loadLiveUserData();
+        if (activePanelId === "inventory-view") return loadLiveInventoryData();
+        if (activePanelId === "waste-view")     return loadWasteData();
+        if (activePanelId === "audit-view")     return loadAuditData();
+        return loadLiveDashboardData();
+    })();
+    Promise.resolve(job).finally(() => {
+        if (btn) btn.classList.remove("spinning");
+    });
 }
 
 function setupDarkModeToggle() {
