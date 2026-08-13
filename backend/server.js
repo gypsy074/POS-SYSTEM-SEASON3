@@ -15,10 +15,6 @@ dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 
-// Terminal status icons — green check / red cross (ANSI, works in Windows Terminal)
-const OK_ICON = '\x1b[32m✓\x1b[0m';
-const FAIL_ICON = '\x1b[31m✗\x1b[0m';
-
 // JWT signing secret — set JWT_SECRET in .env for production use.
 const JWT_SECRET = process.env.JWT_SECRET || 'season3-pos-dev-secret';
 if (!process.env.JWT_SECRET) {
@@ -76,22 +72,22 @@ if (!mongoUri) {
 
 mongoose.connection.on('connected', () => {
     const dbName = mongoose.connection.db?.databaseName || 'unknown';
-    console.log(`${OK_ICON} [MongoDB] Connected to MongoDB Atlas — Database: "${dbName}"`);
+    console.log(`✅ [MongoDB] Connected to MongoDB Atlas — Database: "${dbName}"`);
 });
 
 mongoose.connection.on('error', err => {
-    console.error(`${FAIL_ICON} [MongoDB] Database Connection Error:`, err.message);
+    console.error(`❌ [MongoDB] Database Connection Error:`, err.message);
 });
 
 mongoose.connection.on('disconnected', () => {
-    console.warn(`${FAIL_ICON} [MongoDB] Disconnected. Attempting to reconnect...`);
+    console.warn(`❌ [MongoDB] Disconnected. Attempting to reconnect...`);
 });
 
 mongoose.connect(mongoUri, {
     serverSelectionTimeoutMS: 10000,
     retryWrites: true
 }).catch(err => {
-    console.error(`${FAIL_ICON} [MongoDB] Initial Connection Failed:`, err.message);
+    console.error(`❌ [MongoDB] Initial Connection Failed:`, err.message);
     console.error('   → Check your MONGO_URI in .env and ensure your IP is whitelisted in Atlas.');
 });
 
@@ -820,10 +816,10 @@ function checkRenderStatus() {
     const started = Date.now();
     fetch(`${renderUrl}/api/health`, { signal: AbortSignal.timeout(10000) })
         .then(res => {
-            console.log(`${res.ok ? OK_ICON : FAIL_ICON} [Render] POS link ${renderUrl} is ${res.ok ? "ONLINE" : "OFFLINE"} (HTTP ${res.status}, ${Date.now() - started}ms)`);
+            console.log(`${res.ok ? "✅" : "❌"} [Render] POS link ${renderUrl} is ${res.ok ? "ONLINE" : "OFFLINE"} (HTTP ${res.status}, ${Date.now() - started}ms)`);
         })
         .catch(err => {
-            console.log(`${FAIL_ICON} [Render] POS link ${renderUrl} is OFFLINE (${err.code || "timeout"}) — free tier may be waking (30-60s)`);
+            console.log(`❌ [Render] POS link ${renderUrl} is OFFLINE (${err.code || "timeout"}) — free tier may be waking (30-60s)`);
         });
 }
 
