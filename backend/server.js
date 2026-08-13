@@ -38,13 +38,18 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Realtime visit logging — prints who accesses the POS to the terminal
-// (and streams to Render dashboard logs in production). Noise filtered:
-// static assets, favicon and the /api/health probe are skipped.
+// (and streams to Render dashboard logs in production). Only meaningful
+// traffic is logged: page loads, non-GET actions and 5xx errors — the
+// frontend's 20-30s data polls, /api/health, static assets and bot 404s
+// are skipped so the log stays readable.
 app.use((req, res, next) => {
     res.on('finish', () => {
         if (process.env.NODE_ENV === 'test') return;
         const url = req.originalUrl;
-        if (/\/ADMIN\/(css|js|assets)|favicon|^\/api\/health/.test(url)) return;
+        const isPageLoad = url === '/' || /\.html$/.test(url);
+        const isAction = req.method !== 'GET';
+        const isError = res.statusCode >= 500;
+        if (!isPageLoad && !isAction && !isError) return;
         const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress;
         console.log(`👁 ${new Date().toLocaleTimeString()} ${res.statusCode} ${req.method} ${url} · ${ip} · ${(req.get('user-agent') || '').slice(0, 60)}`);
     });
