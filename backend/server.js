@@ -59,10 +59,13 @@ app.use((req, res, next) => {
 
 app.use(express.static(path.join(__dirname, '..', 'frontend')));
 
-// Brute-force guard for the login endpoint — 10 attempts per 15 min per IP.
+// Brute-force guard for the login endpoint — 10 failed attempts per 15 min
+// per IP. Successful logins never consume the budget, so legitimate staff
+// logging in often (or automated tests) can't lock everyone out.
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 10,
+    skipSuccessfulRequests: true,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Too many login attempts. Please try again in 15 minutes.' }
