@@ -276,7 +276,16 @@ async function deleteMenuItem() {
         return;
     }
 
-    if (!confirm("Are you completely sure you want to permanently delete this menu item?")) return;
+    const product = allProducts.find(p => p._id === selectedProductId);
+    const confirmed = await showConfirmModal({
+        title: "Delete menu item?",
+        message: product
+            ? `"${product.name}" will be permanently removed from the menu. This cannot be undone.`
+            : "This menu item will be permanently removed. This cannot be undone.",
+        confirmLabel: "Delete",
+        danger: true
+    });
+    if (!confirmed) return;
 
     try {
         const response = await apiFetch(`/api/products/${selectedProductId}`, {

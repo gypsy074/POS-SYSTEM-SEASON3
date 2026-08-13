@@ -131,11 +131,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const exportBtn = document.getElementById("exportCsvBtn");
     if (exportBtn) exportBtn.addEventListener("click", exportSalesCsv);
 
-    // Auto-refresh the active view + notification badge every 25s
-    // (same live-update pattern the cashier screen already uses).
+    // Auto-refresh the active view + notification badge every 25s.
+    // Ticks are skipped while the tab is hidden or a previous load is still
+    // in flight, so backgrounded tabs and slow connections never pile up work.
+    let autoRefreshPending = false;
     setInterval(() => {
-        refreshCurrentPanel();
-        renderNotifications();
+        if (document.hidden || autoRefreshPending) return;
+        autoRefreshPending = true;
+        refreshCurrentPanel().finally(() => {
+            autoRefreshPending = false;
+            renderNotifications();
+        });
     }, 25000);
 
     // Initial data load — wait for both before rendering charts so the

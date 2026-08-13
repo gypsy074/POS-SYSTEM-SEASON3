@@ -935,14 +935,24 @@ function addToCart(productId) {
 
     const available = productStock(product);
     if (available <= 0) {
-        alert(`${product.name} is out of stock.`);
+        showPosAlert({
+            title: "Out of Stock",
+            icon: "fa-circle-exclamation",
+            iconClass: "danger",
+            bodyHtml: `<p class="pos-modal-note">${escapeHtml(product.name)} is out of stock.</p>`
+        });
         return;
     }
 
     const existingItem = cart.find(item => item._id === productId);
     const currentQty = existingItem ? existingItem.quantity : 0;
     if (currentQty >= available) {
-        alert(`Only ${available} left in stock for ${product.name}.`);
+        showPosAlert({
+            title: "Stock Limit Reached",
+            icon: "fa-circle-exclamation",
+            iconClass: "danger",
+            bodyHtml: `<p class="pos-modal-note">Only ${available} left in stock for ${escapeHtml(product.name)}.</p>`
+        });
         return;
     }
 
@@ -1042,7 +1052,12 @@ function setupSwipeSubmit() {
     function beginDrag(clientX) {
         if (swipeTrack.classList.contains("processing")) return;
         if (!cart.length) {
-            alert("Add at least one item before placing an order.");
+            showPosAlert({
+                title: "Empty Cart",
+                icon: "fa-basket-shopping",
+                iconClass: "info",
+                bodyHtml: '<p class="pos-modal-note">Add at least one item before placing an order.</p>'
+            });
             return;
         }
         dragging = true;
@@ -1111,7 +1126,12 @@ function setupSwipeSubmit() {
     swipeTrack.addEventListener("click", () => {
         if (suppressClick) return;
         if (!cart.length) {
-            alert("Add at least one item before placing an order.");
+            showPosAlert({
+                title: "Empty Cart",
+                icon: "fa-basket-shopping",
+                iconClass: "info",
+                bodyHtml: '<p class="pos-modal-note">Add at least one item before placing an order.</p>'
+            });
             return;
         }
         processSubmit();
@@ -1311,7 +1331,12 @@ function changeQuantity(index, delta) {
     const available = product ? productStock(product) : Infinity;
 
     if (delta > 0 && item.quantity >= available) {
-        alert(`Only ${available} left in stock for ${item.name}.`);
+        showPosAlert({
+            title: "Stock Limit Reached",
+            icon: "fa-circle-exclamation",
+            iconClass: "danger",
+            bodyHtml: `<p class="pos-modal-note">Only ${available} left in stock for ${escapeHtml(item.name)}.</p>`
+        });
         return;
     }
 
@@ -1333,7 +1358,12 @@ function removeCartItem(index) {
 
 async function submitOrder() {
     if (!cart.length) {
-        alert("Add at least one item before placing an order.");
+        showPosAlert({
+            title: "Empty Cart",
+            icon: "fa-basket-shopping",
+            iconClass: "info",
+            bodyHtml: '<p class="pos-modal-note">Add at least one item before placing an order.</p>'
+        });
         return;
     }
 
@@ -1679,7 +1709,12 @@ async function logWasteItems(items, reason) {
         }
     }
     if (logged > 0) {
-        alert(`${logged} item(s) logged as food waste.`);
+        showPosAlert({
+            title: "Waste Logged",
+            icon: "fa-circle-check",
+            iconClass: "success",
+            bodyHtml: `<p class="pos-modal-note">${logged} item(s) logged as food waste.</p>`
+        });
     }
 }
 
@@ -1829,8 +1864,24 @@ function setupWasteLogForm() {
             const quantity = Number(qtyInput ? qtyInput.value : 0);
             const price = Number(priceInput ? priceInput.value : 0);
 
-            if (!productName) { alert("Enter the product name."); return; }
-            if (!(quantity > 0)) { alert("Enter a quantity above zero."); return; }
+            if (!productName) {
+                showPosAlert({
+                    title: "Missing Product Name",
+                    icon: "fa-circle-info",
+                    iconClass: "info",
+                    bodyHtml: '<p class="pos-modal-note">Enter the product name.</p>'
+                });
+                return;
+            }
+            if (!(quantity > 0)) {
+                showPosAlert({
+                    title: "Invalid Quantity",
+                    icon: "fa-circle-info",
+                    iconClass: "info",
+                    bodyHtml: '<p class="pos-modal-note">Enter a quantity above zero.</p>'
+                });
+                return;
+            }
 
             try {
                 const response = await apiFetch("/api/waste", {
@@ -1845,14 +1896,24 @@ function setupWasteLogForm() {
                     })
                 });
                 if (!response.ok) throw new Error("Failed to log waste");
-                alert("Waste logged successfully.");
+                showPosAlert({
+                    title: "Waste Logged",
+                    icon: "fa-circle-check",
+                    iconClass: "success",
+                    bodyHtml: '<p class="pos-modal-note">Waste logged successfully.</p>'
+                });
                 if (form) form.style.display = "none";
                 if (name) name.value = "";
                 if (qtyInput) qtyInput.value = "";
                 if (priceInput) priceInput.value = "";
             } catch (err) {
                 console.error("❌ Waste save failed:", err);
-                alert("Failed to log the waste.");
+                showPosAlert({
+                    title: "Log Failed",
+                    icon: "fa-circle-exclamation",
+                    iconClass: "danger",
+                    bodyHtml: '<p class="pos-modal-note">Failed to log the waste.</p>'
+                });
             }
         });
     }

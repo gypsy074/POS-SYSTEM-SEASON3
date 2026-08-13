@@ -156,7 +156,16 @@ async function deleteUser() {
         return;
     }
 
-    if (!confirm("Are you sure you want to delete this user?")) return;
+    const user = (allUsers || []).find(u => u._id === selectedUserId);
+    const confirmed = await showConfirmModal({
+        title: "Delete user?",
+        message: user
+            ? `Account "${user.username}" will be permanently removed. This cannot be undone.`
+            : "This user account will be permanently removed. This cannot be undone.",
+        confirmLabel: "Delete",
+        danger: true
+    });
+    if (!confirmed) return;
 
     try {
         const response = await apiFetch(`/api/users/${selectedUserId}`, {

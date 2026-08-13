@@ -62,7 +62,7 @@ function refreshCurrentPanel() {
         if (activePanelId === "audit-view")     return loadAuditData();
         return loadLiveDashboardData();
     })();
-    Promise.resolve(job).finally(() => {
+    return Promise.resolve(job).finally(() => {
         if (btn) btn.classList.remove("spinning");
     });
 }

@@ -2018,6 +2018,78 @@ body.dark .server-status {
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
 }
 
+/* ==========================================================================
+   Confirm modal (replaces native window.confirm)
+   ========================================================================== */
+.confirm-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 12, 20, 0.55);
+    z-index: 1800;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+.confirm-modal-overlay.open { display: flex; }
+
+.confirm-modal {
+    background: #fff;
+    border-radius: 14px;
+    width: 100%;
+    max-width: 400px;
+    padding: 24px;
+    text-align: center;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+    animation: confirmIn 0.22s cubic-bezier(0.21, 1.02, 0.73, 1);
+}
+.confirm-modal-icon {
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 12px;
+    border-radius: 14px;
+    background: #2563eb;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+}
+.confirm-modal-icon.danger { background: #dc2626; }
+.confirm-modal-title { margin: 0 0 8px; font-size: 16px; color: #1a2233; }
+.confirm-modal-message { margin: 0 0 20px; font-size: 13px; color: #6b7280; line-height: 1.5; }
+.confirm-modal-actions { display: flex; gap: 10px; justify-content: center; }
+.confirm-btn {
+    border: 0;
+    border-radius: 9px;
+    padding: 9px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+.confirm-btn:hover { transform: translateY(-1px); }
+.confirm-btn:active { transform: scale(0.95); }
+.confirm-btn-cancel { background: #f1f5f9; color: #475569; }
+.confirm-btn-cancel:hover { background: #e2e8f0; }
+.confirm-btn-primary { background: #2563eb; color: #fff; }
+.confirm-btn-primary.danger { background: #dc2626; }
+.confirm-btn-primary.danger:hover { background: #b91c1c; }
+
+@keyframes confirmIn {
+    from { opacity: 0; transform: translateY(16px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+body.dark .confirm-modal {
+    background: #2e2318;
+    border: 1px solid #4a3a2c;
+}
+body.dark .confirm-modal-title { color: #e8dccb; }
+body.dark .confirm-modal-message { color: #b09a80; }
+body.dark .confirm-btn-cancel { background: #3a2d1f; color: #d8c4a8; }
+body.dark .confirm-btn-cancel:hover { background: #46372a; }
+
 /* Respect users who prefer less motion */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {

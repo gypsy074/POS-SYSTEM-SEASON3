@@ -1368,6 +1368,7 @@ payment-details-section h3 {
 
 .pos-modal-icon.success { background: #2e7d32; }
 .pos-modal-icon.danger { background: #c0392b; }
+.pos-modal-icon.info { background: #5b6ee1; }
 
 .pos-modal-header h3 {
     margin: 0;
@@ -2106,7 +2107,7 @@ payment-details-section h3 {
 
 
 /* ==========================================================================
-   PWA offline banner — connection status strip on top of the cashier
+   PWA offline banner ï¿½ connection status strip on top of the cashier
    ========================================================================== */
 
 .offline-banner {

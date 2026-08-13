@@ -161,7 +161,16 @@ async function deleteInventoryItem() {
         return;
     }
 
-    if (!confirm("Are you sure you want to delete this inventory item?")) return;
+    const item = (allInventory || []).find(i => i._id === selectedInventoryId);
+    const confirmed = await showConfirmModal({
+        title: "Delete inventory item?",
+        message: item
+            ? `"${item.productName}" will be permanently removed from inventory. This cannot be undone.`
+            : "This inventory item will be permanently removed. This cannot be undone.",
+        confirmLabel: "Delete",
+        danger: true
+    });
+    if (!confirmed) return;
 
     try {
         const response = await apiFetch(`/api/inventory/${selectedInventoryId}`, {
