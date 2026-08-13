@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const dns = require('dns');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -153,6 +154,22 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
+// --- Active Session Schema Configuration ---
+// One row per issued JWT — the `revoked` flag lets us kill a token instantly
+// instead of waiting for its 8h expiry, and powers the "new sign-in" banner
+// and "log out other sessions" feature. Expired rows auto-delete via TTL.
+const sessionSchema = new mongoose.Schema({
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    jti: { type: String, required: true, unique: true, index: true },
+    ip: { type: String, default: "" },
+    userAgent: { type: String, default: "", trim: true },
+    createdAt: { type: Date, default: Date.now },
+    expiresAt: { type: Date, required: true },
+    revoked: { type: Boolean, default: false }
+});
+sessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+const Session = mongoose.model('Session', sessionSchema);
+
 // --- Stock Supply Inventory Schema Configuration ---
 const inventorySchema = new mongoose.Schema({
     productName: { type: String, required: true, trim: true },
@@ -286,37 +303,58 @@ function touchUserActivity(userId) {
 
 function signToken(user) {
     return jwt.sign(
-        { id: user._id, username: user.username, role: user.role },
+        { id: user._id, username: user.username, role: user.role, jti: crypto.randomUUID() },
         JWT_SECRET,
         { expiresIn: JWT_EXPIRES_IN }
     );
+}
+
+// Session expiry in Date form — mirrors the JWT's expiresIn string (e.g. '8h')
+// so the Session row dies at the same moment the token does.
+function jwtExpiresAt() {
+    const units = { s: 1, m: 60, h: 3600, d: 86400 };
+    const match = String(JWT_EXPIRES_IN).trim().match(/^(\d+)([smhd])$/);
+    const seconds = match ? Number(match[1]) * (units[match[2]] || 1) : 8 * 3600;
+    return new Date(Date.now() + seconds * 1000);
 }
 
 /**
  * authRequired(roles) — protects endpoints.
  * - No token        → 401
  * - Invalid token   → 401
+ * - Revoked session → 401 (token killed via "log out other devices")
  * - Wrong role      → 403
- * Attaches req.user = { id, username, role } from the verified token.
+ * Attaches req.user = { id, username, role } from the verified token and
+ * req.session = the matching Session row.
  */
 function authRequired(roles) {
     const allowed = roles ? new Set(roles) : null;
-    return (req, res, next) => {
+    return async (req, res, next) => {
         const header = req.headers.authorization || "";
         const token = header.startsWith("Bearer ") ? header.slice(7).trim() : null;
         if (!token) {
             return res.status(401).json({ error: 'Authentication required. Please log in.' });
         }
+        let payload;
         try {
-            const payload = jwt.verify(token, JWT_SECRET);
-            if (allowed && !allowed.has(payload.role)) {
-                return res.status(403).json({ error: 'Access denied for your account role.' });
+            payload = jwt.verify(token, JWT_SECRET);
+        } catch (err) {
+            return res.status(401).json({ error: 'Session expired or invalid. Please log in again.' });
+        }
+        if (allowed && !allowed.has(payload.role)) {
+            return res.status(403).json({ error: 'Access denied for your account role.' });
+        }
+        try {
+            const session = await Session.findOne({ jti: payload.jti });
+            if (!session || session.revoked) {
+                return res.status(401).json({ error: 'Session expired or invalid. Please log in again.' });
             }
             req.user = payload;
+            req.session = session;
             touchUserActivity(payload.id);
             next();
         } catch (err) {
-            return res.status(401).json({ error: 'Session expired or invalid. Please log in again.' });
+            return res.status(500).json({ error: err.message });
         }
     };
 }
@@ -409,11 +447,22 @@ app.post('/api/login', loginLimiter, async (req, res) => {
         writeLog('user.login', user.username, '', 'Successful login');
         touchUserActivity(user._id);
 
+        // Register this login as an active session so it can be listed and revoked.
+        const token = signToken(user);
+        const payload = jwt.decode(token);
+        await Session.create({
+            userId: user._id,
+            jti: payload.jti,
+            ip: (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '',
+            userAgent: (req.get('user-agent') || '').slice(0, 200),
+            expiresAt: jwtExpiresAt()
+        });
+
         res.json({
             success: true,
             role: user.role,
             username: user.username,
-            token: signToken(user)
+            token
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -422,18 +471,106 @@ app.post('/api/login', loginLimiter, async (req, res) => {
 
 // Who am I? — used by the frontend to validate a stored session on page load.
 app.get('/api/auth/me', authRequired(), (req, res) => {
-    res.json({ success: true, username: req.user.username, role: req.user.role });
+    res.json({
+        success: true,
+        username: req.user.username,
+        role: req.user.role,
+        session: { jti: req.session.jti, createdAt: req.session.createdAt }
+    });
 });
 
-// Log out — JWTs are stateless so there is nothing to invalidate server-side;
-// the route exists so the client can record the event in the audit log.
+// Log out — kills the current session server-side so the token dies instantly.
 app.post('/api/logout', authRequired(), async (req, res) => {
     try {
+        await Session.updateOne({ jti: req.session.jti }, { $set: { revoked: true } });
         writeLog('user.logout', req.user.username, '', 'Logged out');
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
+});
+
+// Active sessions for the current user — powers "my devices" + new-sign-in banner.
+app.get('/api/auth/sessions', authRequired(), async (req, res) => {
+    try {
+        const sessions = await Session.find({ userId: req.user.id }).sort({ createdAt: -1 }).limit(20);
+        res.json({
+            success: true,
+            sessions: sessions.map(s => ({
+                jti: s.jti,
+                ip: s.ip,
+                userAgent: s.userAgent,
+                createdAt: s.createdAt,
+                isCurrent: s.jti === req.session.jti
+            }))
+        });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Kill every other session (e.g. after noticing a suspicious sign-in).
+app.post('/api/auth/sessions/revoke-others', authRequired(), async (req, res) => {
+    try {
+        const result = await Session.updateMany(
+            { userId: req.user.id, jti: { $ne: req.session.jti }, revoked: false },
+            { $set: { revoked: true } }
+        );
+        if (result.modifiedCount > 0) {
+            writeLog('session.revoke', req.user.username, '', `Logged out ${result.modifiedCount} other session(s)`);
+        }
+        res.json({ success: true, revoked: result.modifiedCount });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Kill one specific session (the current one is protected from this route).
+app.delete('/api/auth/sessions/:jti', authRequired(), async (req, res) => {
+    try {
+        if (!req.params.jti || req.params.jti === req.session.jti) {
+            return res.status(400).json({ error: 'Cannot log out the current session this way.' });
+        }
+        const result = await Session.updateOne(
+            { userId: req.user.id, jti: req.params.jti },
+            { $set: { revoked: true } }
+        );
+        writeLog('session.revoke', req.user.username, String(req.params.jti).slice(0, 24), 'Logged out one session');
+        res.json({ success: true, matched: result.matchedCount });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Self-service password change — verifies the current password, then revokes
+// every other session so a stolen-account intruder is kicked out instantly.
+app.put('/api/auth/password', authRequired(), async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body || {};
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ error: 'Current and new password are required.' });
+        }
+        if (String(newPassword).length < 4) {
+            return res.status(400).json({ error: 'New password must be at least 4 characters.' });
+        }
+        const user = await User.findById(req.user.id);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        let passwordMatches;
+        if (isBcryptHash(user.password)) {
+            passwordMatches = await bcrypt.compare(String(currentPassword), user.password);
+        } else {
+            passwordMatches = user.password === String(currentPassword);
+        }
+        if (!passwordMatches) {
+            return res.status(401).json({ error: 'Current password is incorrect.' });
+        }
+
+        user.password = await bcrypt.hash(String(newPassword), 10);
+        await user.save();
+
+        const revoked = await Session.updateMany(
+            { userId: user._id, jti: { $ne: req.session.jti }, revoked: false },
+            { $set: { revoked: true } }
+        );
+        writeLog('user.password', req.user.username, String(user._id),
+            `Password changed — ${revoked.modifiedCount} other session(s) logged out`);
+        res.json({ success: true, revoked: revoked.modifiedCount });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/health', (req, res) => {
@@ -687,7 +824,19 @@ app.put('/api/users/:id', authRequired(['Admin']), async (req, res) => {
         }
 
         const updated = await User.findByIdAndUpdate(req.params.id, update, { new: true });
-        writeLog('user.update', req.user.username, String(updated._id), `Updated account "${updated.username}"`);
+
+        // Password was reset — kill every session so the old password
+        // stops working everywhere immediately.
+        if (update.password) {
+            const revoked = await Session.updateMany(
+                { userId: updated._id, revoked: false },
+                { $set: { revoked: true } }
+            );
+            writeLog('user.update', req.user.username, String(updated._id),
+                `Reset password for "${updated.username}" — ${revoked.modifiedCount} session(s) revoked`);
+        } else {
+            writeLog('user.update', req.user.username, String(updated._id), `Updated account "${updated.username}"`);
+        }
         res.json(sanitizeUser(updated));
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
