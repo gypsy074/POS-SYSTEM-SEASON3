@@ -14,12 +14,12 @@ function getApiBaseUrl() {
 const API_BASE_URL = getApiBaseUrl();
 
 function getAuthToken() {
-    return localStorage.getItem("posToken") || "";
+    return localStorage.getItem("posAdminToken") || "";
 }
 
 function clearSession() {
-    localStorage.removeItem("posToken");
-    localStorage.removeItem("posUser");
+    localStorage.removeItem("posAdminToken");
+    localStorage.removeItem("posAdminUser");
 }
 
 function redirectToLogin() {

@@ -84,12 +84,18 @@ async function handleLogin(e) {
         }
 
         // ── Store session user + token for profile widgets & API calls ──
-        localStorage.setItem("posUser", JSON.stringify({
-            username: data.username,
-            role: data.role
-        }));
+        // Each app keeps its own session keys (admin vs cashier) so one
+        // browser can hold both logins without them overwriting each other.
+        const isAdmin = data.role === "Admin";
+        localStorage.setItem(
+            isAdmin ? "posAdminUser" : "posUser",
+            JSON.stringify({
+                username: data.username,
+                role: data.role
+            })
+        );
         if (data.token) {
-            localStorage.setItem("posToken", data.token);
+            localStorage.setItem(isAdmin ? "posAdminToken" : "posToken", data.token);
         }
 
         // ── Route by role ──────────────────────────────────────────────

@@ -102,18 +102,24 @@
         return browser ? `${browser} · ${os}` : os;
     }
 
+    // account.js runs on both apps — each stores its own session keys.
+    const isAdminApp = window.location.pathname.includes("/ADMIN/");
+    const tokenKey = isAdminApp ? "posAdminToken" : "posToken";
+    const userKey = isAdminApp ? "posAdminUser" : "posUser";
+
     async function api(path, options) {
         if (typeof window.apiFetch === "function") return window.apiFetch(path, options);
         const res = await fetch(path, {
             ...options,
             headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${localStorage.getItem("posToken") || ""}`,
+                Authorization: `Bearer ${localStorage.getItem(tokenKey) || ""}`,
                 ...(options && options.headers ? options.headers : {})
             }
         });
         if (res.status === 401 && !path.includes("/api/login")) {
-            localStorage.removeItem("posToken");
+            localStorage.removeItem(tokenKey);
+            localStorage.removeItem(userKey);
             window.location.href = "../login.html";
         }
         return res;

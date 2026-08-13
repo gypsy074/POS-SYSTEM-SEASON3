@@ -34,7 +34,7 @@ let activePanelId  = "dashboard-view";
 // ── Profile Badge ──────────────────────────────────────────────────────────
 
 function setupProfileBadge() {
-    const user = JSON.parse(localStorage.getItem("posUser") || "null");
+    const user = JSON.parse(localStorage.getItem("posAdminUser") || "null");
     const name = (user && user.username) || "Admin";
     const role = (user && user.role) || "Admin";
 
@@ -68,8 +68,8 @@ function setupProfileBadge() {
 
     document.getElementById("profileLogoutBtn").addEventListener("click", () => {
         apiFetch("/api/logout", { method: "POST" }).catch(() => {});
-        localStorage.removeItem("posToken");
-        localStorage.removeItem("posUser");
+        localStorage.removeItem("posAdminToken");
+        localStorage.removeItem("posAdminUser");
         window.location.href = "../login.html";
     });
 }
