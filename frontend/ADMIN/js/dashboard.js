@@ -191,11 +191,23 @@ function renderUpdates() {
     const updateList = document.getElementById("updateList");
     if (!updateList) return;
 
-    updateList.innerHTML = buildUpdates().map(update => {
+    const items = buildUpdates();
+    let html = "";
+    let listOpen = false;
+
+    items.forEach(update => {
         if (update.section) {
-            return `<div class="update-section">${escapeHtml(update.section)}</div>`;
-        }
-        return `
+            if (listOpen) {
+                html += "</div>";
+                listOpen = false;
+            }
+            html += `<div class="update-section-group"><div class="update-section">${escapeHtml(update.section)}</div>`;
+        } else {
+            if (!listOpen) {
+                html += '<div class="update-section-list">';
+                listOpen = true;
+            }
+            html += `
             <div class="update-item${update.compact ? " update-item--compact" : ""}">
                 <div class="update-avatar${update.flagged ? " update-avatar-danger" : ""}">
                     <i class="fas ${update.icon}"></i>
@@ -204,9 +216,13 @@ function renderUpdates() {
                     <strong>${escapeHtml(update.title)}</strong>
                     <span>${escapeHtml(update.sub)}</span>
                 </div>
-            </div>
-        `;
-    }).join("");
+            </div>`;
+        }
+    });
+
+    if (listOpen) html += "</div>";
+
+    updateList.innerHTML = html;
 }
 
 function renderNotifications() {
