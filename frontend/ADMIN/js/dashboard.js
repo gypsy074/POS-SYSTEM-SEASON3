@@ -347,6 +347,7 @@ function renderSalesCharts(orders, products, range = activeSalesRange) {
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: { legend: { display: false } }
         }
     });
@@ -391,6 +392,7 @@ function renderSalesCharts(orders, products, range = activeSalesRange) {
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             scales: { r: { beginAtZero: true } }
         }
     });
@@ -464,6 +466,7 @@ function renderUsageChart(orders, range = activeSalesRange) {
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             interaction: { mode: "index", intersect: false },
             scales: {
                 y: {
@@ -483,7 +486,6 @@ function renderUsageChart(orders, range = activeSalesRange) {
 }
 
 // ── Sales Range Filter Tabs (Day / Week / Month / All) ─────────────────────
-
 function setupSalesFilterTabs() {
     const tabs = document.querySelectorAll(".filter-tabs .tab");
     if (!tabs.length) return;

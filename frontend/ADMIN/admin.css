@@ -1045,6 +1045,11 @@ tr:hover td {
     gap: 4px;
 }
 
+.category-pills {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
 .tab, .pill {
     padding: 6px 16px;
     border-radius: 15px;
@@ -1055,6 +1060,16 @@ tr:hover td {
     font-weight: 700;
     color: var(--dark-brown);
     transition: background 0.2s ease, color 0.2s ease;
+}
+
+.category-pills .pill {
+    padding: 5px 10px;
+    font-size: 0.75rem;
+}
+
+.radar-card .card-header {
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .tab.active, .pill.active {
