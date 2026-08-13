@@ -127,12 +127,14 @@ function buildUpdates() {
         (latestLogins || []).forEach(log => updates.push({
             icon: "fa-right-to-bracket",
             kind: "activity",
+            compact: true,
             title: `${log.actor || "someone"} logged in`,
             sub: new Date(log.date).toLocaleTimeString()
         }));
         (latestLogouts || []).forEach(log => updates.push({
             icon: "fa-arrow-right-from-bracket",
             kind: "activity",
+            compact: true,
             title: `${log.actor || "someone"} logged out`,
             sub: new Date(log.date).toLocaleTimeString()
         }));
