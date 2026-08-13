@@ -20,6 +20,11 @@ function setupSidebarNavigation() {
                 targetPanel.classList.remove("hidden");
             }
 
+            // On phones the nav is a scrollable bottom bar — keep the active tab in view
+            if (window.innerWidth <= 720) {
+                button.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+            }
+
             if (activePanelId === "dashboard-view") loadLiveDashboardData();
             if (activePanelId === "menu-view")      loadLiveMenuData();
             if (activePanelId === "users-view")     loadLiveUserData();

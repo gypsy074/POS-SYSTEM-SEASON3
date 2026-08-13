@@ -791,7 +791,21 @@ if (require.main === module) {
     app.listen(PORT, () => {
         console.log(`🚀 Master Back-End Live and Running Cleanly on Port ${PORT}`);
         mongoose.connection.readyState === 1 && seedDefaultAdmin();
+        checkRenderStatus();
     });
+}
+
+// Quick smoke check of the production deployment — non-blocking, never crashes.
+function checkRenderStatus() {
+    const renderUrl = process.env.RENDER_URL || "https://season3-pos.onrender.com";
+    const started = Date.now();
+    fetch(`${renderUrl}/api/health`, { signal: AbortSignal.timeout(10000) })
+        .then(res => {
+            console.log(`[Render] Production: ${res.ok ? "ONLINE" : "OFFLINE"} (HTTP ${res.status}, ${Date.now() - started}ms)`);
+        })
+        .catch(err => {
+            console.log(`[Render] Production: OFFLINE (${err.code || "timeout"}) — free tier may be waking (30-60s)`);
+        });
 }
 
 // Seed once the DB is ready (covers the case where connection finishes after listen)
