@@ -82,7 +82,7 @@ function getInventoryPayload() {
     const status      = statusInput   ? statusInput.value           : "Available";
 
     if (!productName || !Number.isFinite(price) || !Number.isFinite(stock)) {
-        alert("Please complete inventory product name, price, and stock before saving.");
+        showToast("Please complete inventory product name, price, and stock before saving.", "warning");
         return null;
     }
 
@@ -110,7 +110,7 @@ async function addInventoryItem() {
         });
 
         if (response.ok) {
-            alert("✅ Inventory item added successfully!");
+            showToast("Inventory item added successfully!");
             clearInventoryForm();
             loadLiveInventoryData();
             return;
@@ -120,13 +120,13 @@ async function addInventoryItem() {
         throw new Error(errorPayload?.error || "Failed to create inventory item.");
     } catch (err) {
         console.error("❌ Inventory creation pipeline error:", err);
-        alert("Failed to save inventory item to database server.");
+        showToast("Failed to save inventory item to database server.", "error");
     }
 }
 
 async function updateInventoryItem() {
     if (!selectedInventoryId) {
-        alert("Please select an inventory row from the table first before updating.");
+        showToast("Please select an inventory row from the table first before updating.", "warning");
         return;
     }
 
@@ -141,7 +141,7 @@ async function updateInventoryItem() {
         });
 
         if (response.ok) {
-            alert("✅ Inventory item updated successfully!");
+            showToast("Inventory item updated successfully!");
             clearInventoryForm();
             loadLiveInventoryData();
             return;
@@ -151,13 +151,13 @@ async function updateInventoryItem() {
         throw new Error(errorPayload?.error || "Failed to update inventory item.");
     } catch (err) {
         console.error("❌ Inventory update pipeline error:", err);
-        alert("Failed to update inventory item.");
+        showToast("Failed to update inventory item.", "error");
     }
 }
 
 async function deleteInventoryItem() {
     if (!selectedInventoryId) {
-        alert("Please select an inventory row from the table first to delete.");
+        showToast("Please select an inventory row from the table first to delete.", "warning");
         return;
     }
 
@@ -169,7 +169,7 @@ async function deleteInventoryItem() {
         });
 
         if (response.ok) {
-            alert("🗑️ Inventory item deleted successfully.");
+            showToast("Inventory item deleted successfully.");
             clearInventoryForm();
             loadLiveInventoryData();
             return;
@@ -179,7 +179,7 @@ async function deleteInventoryItem() {
         throw new Error(errorPayload?.error || "Failed to delete inventory item.");
     } catch (err) {
         console.error("❌ Inventory deletion pipeline error:", err);
-        alert("Failed to delete inventory item.");
+        showToast("Failed to delete inventory item.", "error");
     }
 }
 

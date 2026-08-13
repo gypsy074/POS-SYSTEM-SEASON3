@@ -191,7 +191,7 @@ function getMenuPayload() {
     const lowStockThreshold = lowStockInput ? Number(lowStockInput.value) : NaN;
 
     if (!name || !Number.isFinite(price) || price < 0) {
-        alert("Please complete the product name and a valid price before saving.");
+        showToast("Please complete the product name and a valid price before saving.", "warning");
         return null;
     }
 
@@ -223,7 +223,7 @@ async function addMenuItem() {
         });
 
         if (response.ok) {
-            alert("✅ New menu item uploaded to MongoDB!");
+            showToast("New menu item uploaded to MongoDB!");
             clearMenuForm();
             loadLiveMenuData();
             return;
@@ -231,16 +231,16 @@ async function addMenuItem() {
 
         const errorPayload = await response.json().catch(() => null);
         const reason = errorPayload?.error || `HTTP ${response.status}`;
-        alert(`❌ Failed to save product.\n\nReason: ${reason}`);
+        showToast(`Failed to save product. ${reason}`, "error");
     } catch (err) {
         console.error("❌ Product creation pipeline error:", err);
-        alert(`❌ Failed to save product.\n\nReason: ${err.message}`);
+        showToast(`Failed to save product. ${err.message}`, "error");
     }
 }
 
 async function updateMenuItem() {
     if (!selectedProductId) {
-        alert("Please select a menu product row from the table first before updating.");
+        showToast("Please select a menu product row from the table first before updating.", "warning");
         return;
     }
 
@@ -255,7 +255,7 @@ async function updateMenuItem() {
         });
 
         if (response.ok) {
-            alert("✅ Menu item configuration updated on MongoDB!");
+            showToast("Menu item configuration updated on MongoDB!");
             clearMenuForm();
             loadLiveMenuData();
             return;
@@ -263,16 +263,16 @@ async function updateMenuItem() {
 
         const errorPayload = await response.json().catch(() => null);
         const reason = errorPayload?.error || `HTTP ${response.status}`;
-        alert(`❌ Failed to update product.\n\nReason: ${reason}`);
+        showToast(`Failed to update product. ${reason}`, "error");
     } catch (err) {
         console.error("❌ Update communication fault:", err);
-        alert(`❌ Failed to update product.\n\nReason: ${err.message}`);
+        showToast(`Failed to update product. ${err.message}`, "error");
     }
 }
 
 async function deleteMenuItem() {
     if (!selectedProductId) {
-        alert("Please select a menu product row from the table first to delete.");
+        showToast("Please select a menu product row from the table first to delete.", "warning");
         return;
     }
 
@@ -284,7 +284,7 @@ async function deleteMenuItem() {
         });
 
         if (response.ok) {
-            alert("🗑️ Menu item completely deleted from the system.");
+            showToast("Menu item completely deleted from the system.");
             clearMenuForm();         // ← clears form AND re-enables Add
             loadLiveMenuData();
             return;
@@ -294,7 +294,7 @@ async function deleteMenuItem() {
         throw new Error(errorPayload?.error || "Failed to delete product");
     } catch (err) {
         console.error("❌ Delete database pipeline fault:", err);
-        alert("Failed to delete product.");
+        showToast("Failed to delete product.", "error");
     }
 }
 

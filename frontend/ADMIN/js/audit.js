@@ -51,7 +51,7 @@ function renderAuditTable() {
 
 function exportAuditCsv() {
     if (!latestAudit.length) {
-        alert("No audit entries to export yet.");
+        showToast("No audit entries to export yet.", "info");
         return;
     }
 

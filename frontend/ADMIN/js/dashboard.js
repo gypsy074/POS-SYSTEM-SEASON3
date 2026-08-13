@@ -149,6 +149,7 @@ function buildUpdates() {
             businessUpdates.push({
                 icon: "fa-box-open",
                 flagged: true,
+                compact: true,
                 title: `${product.status === "Out of Stock" ? "OUT OF STOCK" : "Low stock"} — ${product.name}`,
                 sub: `${Number(product.stock ?? 0)} left · threshold ${Number(product.lowStockThreshold ?? 10)}`
             });
@@ -158,6 +159,7 @@ function buildUpdates() {
         businessUpdates.push({
             icon: "fa-recycle",
             flagged: true,
+            compact: true,
             title: `Waste logged — ${waste.productName}`,
             sub: `${waste.cashier || "—"} · ${waste.reason || "Other"} · Qty ${waste.quantity} · ₱${Number(waste.totalCost || 0).toFixed(2)} · ${new Date(waste.date).toLocaleString()}`
         });
@@ -167,6 +169,7 @@ function buildUpdates() {
         businessUpdates.push({
             icon: "fa-clipboard-check",
             flagged: false,
+            compact: true,
             title: `${order.customer} placed an order`,
             sub: `${order.cashier || "—"} · ${order.receiptId} · ₱${Number(order.total || 0).toFixed(2)}`
         });
@@ -263,7 +266,7 @@ function renderNotifications() {
 function exportSalesCsv() {
     const orders = latestOrders || [];
     if (!orders.length) {
-        alert("No orders to export yet.");
+        showToast("No orders to export yet.", "info");
         return;
     }
 
@@ -389,7 +392,7 @@ async function removeWasteEntry(entryId) {
         await Promise.all([loadWasteData(), loadLiveDashboardData()]);
     } catch (err) {
         console.error("❌ Waste removal error:", err);
-        alert("Failed to remove the waste entry.");
+        showToast("Failed to remove the waste entry.", "error");
     }
 }
 

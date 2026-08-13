@@ -70,12 +70,12 @@ function getUserPayload(requirePassword) {
     const role     = roleSelect    ? roleSelect.value           : "Admin";
 
     if (!username || !role) {
-        alert("Please complete username and role before saving.");
+        showToast("Please complete username and role before saving.", "warning");
         return null;
     }
 
     if (requirePassword && !password) {
-        alert("Please enter a password before saving.");
+        showToast("Please enter a password before saving.", "warning");
         return null;
     }
 
@@ -105,7 +105,7 @@ async function addUser() {
         });
 
         if (response.ok) {
-            alert("✅ New user added successfully!");
+            showToast("New user added successfully!");
             clearUserForm();
             loadLiveUserData();
             return;
@@ -115,13 +115,13 @@ async function addUser() {
         throw new Error(errorPayload?.error || "Failed to create user.");
     } catch (err) {
         console.error("❌ User creation pipeline error:", err);
-        alert("Failed to save user to database server.");
+        showToast("Failed to save user to database server.", "error");
     }
 }
 
 async function updateUser() {
     if (!selectedUserId) {
-        alert("Please select a user row from the table first before updating.");
+        showToast("Please select a user row from the table first before updating.", "warning");
         return;
     }
 
@@ -136,7 +136,7 @@ async function updateUser() {
         });
 
         if (response.ok) {
-            alert("✅ User updated successfully!");
+            showToast("User updated successfully!");
             clearUserForm();
             loadLiveUserData();
             return;
@@ -146,13 +146,13 @@ async function updateUser() {
         throw new Error(errorPayload?.error || "Failed to update user.");
     } catch (err) {
         console.error("❌ User update pipeline error:", err);
-        alert("Failed to update user.");
+        showToast("Failed to update user.", "error");
     }
 }
 
 async function deleteUser() {
     if (!selectedUserId) {
-        alert("Please select a user row from the table first to delete.");
+        showToast("Please select a user row from the table first to delete.", "warning");
         return;
     }
 
@@ -164,7 +164,7 @@ async function deleteUser() {
         });
 
         if (response.ok) {
-            alert("🗑️ User deleted successfully.");
+            showToast("User deleted successfully.");
             clearUserForm();
             loadLiveUserData();
             return;
@@ -174,7 +174,7 @@ async function deleteUser() {
         throw new Error(errorPayload?.error || "Failed to delete user.");
     } catch (err) {
         console.error("❌ User deletion pipeline error:", err);
-        alert("Failed to delete user.");
+        showToast("Failed to delete user.", "error");
     }
 }
 
