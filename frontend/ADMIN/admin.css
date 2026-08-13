@@ -436,17 +436,24 @@ body {
 }
 
 .performance-wide {
-    display: flex;
-    flex-direction: row;
-    padding: 28px 38px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    padding: 28px 24px;
 }
 
-.performance-labels {
+.perf-col {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    min-width: 180px;
-    gap: 8px;
+    align-items: center;
+    gap: 18px;
+    text-align: center;
+    padding: 0 16px;
+}
+
+.perf-col:not(:last-child) {
+    background: linear-gradient(to bottom, transparent, var(--header-brown) 30%, var(--header-brown) 70%, transparent) no-repeat right center / 2px 60%;
 }
 
 .label-group {
@@ -465,18 +472,9 @@ body {
     text-align: center;
 }
 
-.performance-values {
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-}
-
-.main-val { font-size: 2.8rem; font-weight: 600; color: #2e7d32; }
+.main-val { font-size: 2.4rem; font-weight: 600; color: #2e7d32; }
 .sub-val { font-size: 1.15rem; color: #8e6a46; font-weight: 600; white-space: nowrap; }
-.sub-val#wasteCount { font-size: 0.95rem; }
+.sub-val#wasteCount { font-size: 0.95rem; color: #c0392b; }
 
 /* Updates Ledger Panel */
 .updates-panel h3 {
@@ -810,11 +808,6 @@ tr:hover td {
         grid-template-columns: 1fr;
     }
 
-    .performance-wide {
-        flex-direction: column;
-        gap: 16px;
-    }
-
     /* Sales analytics — charts stacked, calendar full width */
     .analytics-grid {
         grid-template-columns: 1fr;
@@ -1014,10 +1007,20 @@ tr:hover td {
 
     .performance-wide {
         padding: 18px;
+        grid-template-columns: 1fr;
+        gap: 14px;
     }
 
-    .performance-labels {
-        min-width: 140px;
+    .perf-col {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        padding: 0;
+    }
+
+    .perf-col:not(:last-child) {
+        background: none;
     }
 
     .label-group {
@@ -1667,9 +1670,12 @@ body.dark .update-text span,
 body.dark .notification-item span,
 body.dark .waste-total,
 body.dark .sub-val,
-body.dark .label-group span,
-body.dark .performance-labels span {
+body.dark .label-group span {
     color: #b09a80;
+}
+
+body.dark .sub-val#wasteCount {
+    color: #ef8a8a;
 }
 
 body.dark .filter-tabs,
