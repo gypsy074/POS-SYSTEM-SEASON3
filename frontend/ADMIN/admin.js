@@ -67,6 +67,7 @@ function setupProfileBadge() {
     });
 
     document.getElementById("profileLogoutBtn").addEventListener("click", () => {
+        apiFetch("/api/logout", { method: "POST" }).catch(() => {});
         localStorage.removeItem("posToken");
         localStorage.removeItem("posUser");
         window.location.href = "../login.html";

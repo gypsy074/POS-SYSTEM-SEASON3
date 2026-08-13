@@ -503,6 +503,27 @@ body {
 
 .update-item:last-child { border-bottom: none; }
 
+.update-section {
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    color: #8e6a46;
+    border-top: 1px dashed #e3cbb0;
+    padding: 12px 0 2px;
+    margin-top: 6px;
+}
+
+.update-section:first-child {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+}
+
+body.dark .update-section {
+    color: #b09a80;
+    border-top-color: #4a3a2c;
+}
+
 .update-avatar {
     width: 40px;
     height: 40px;

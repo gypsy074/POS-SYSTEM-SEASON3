@@ -148,6 +148,7 @@ const userSchema = new mongoose.Schema({
     password: { type: String, required: true },
     role: { type: String, enum: ['Admin', 'Cashier'], default: 'Admin' },
     status: { type: String, default: 'Active' },
+    lastActiveAt: { type: Date, default: null },
     date: { type: String, default: () => new Date().toLocaleDateString() }
 });
 const User = mongoose.model('User', userSchema);
@@ -268,7 +269,19 @@ function writeLog(action, actor = "", targetId = "", detail = "") {
         actor: String(actor || "").slice(0, 100),
         targetId: String(targetId || ""),
         detail: String(detail || "").slice(0, 500)
-    }).catch(err => console.error('❌ Audit log write failed:', err.message));
+    }).catch(() => {});
+}
+
+// Throttled "last seen" tracker — at most one DB write per user per 60s,
+// so background polling from open tabs never floods the database.
+const activityThrottle = new Map();
+function touchUserActivity(userId) {
+    if (!userId) return;
+    const key = String(userId);
+    const now = Date.now();
+    if (now - (activityThrottle.get(key) || 0) < 60 * 1000) return;
+    activityThrottle.set(key, now);
+    User.updateOne({ _id: userId }, { $set: { lastActiveAt: new Date() } }).catch(() => {});
 }
 
 function signToken(user) {
@@ -300,6 +313,7 @@ function authRequired(roles) {
                 return res.status(403).json({ error: 'Access denied for your account role.' });
             }
             req.user = payload;
+            touchUserActivity(payload.id);
             next();
         } catch (err) {
             return res.status(401).json({ error: 'Session expired or invalid. Please log in again.' });
@@ -391,6 +405,10 @@ app.post('/api/login', loginLimiter, async (req, res) => {
             return res.status(403).json({ error: 'Your account is inactive. Please contact an administrator.' });
         }
 
+        // Record the login + first activity (fire-and-forget, never blocks the response)
+        writeLog('user.login', user.username, '', 'Successful login');
+        touchUserActivity(user._id);
+
         res.json({
             success: true,
             role: user.role,
@@ -405,6 +423,17 @@ app.post('/api/login', loginLimiter, async (req, res) => {
 // Who am I? — used by the frontend to validate a stored session on page load.
 app.get('/api/auth/me', authRequired(), (req, res) => {
     res.json({ success: true, username: req.user.username, role: req.user.role });
+});
+
+// Log out — JWTs are stateless so there is nothing to invalidate server-side;
+// the route exists so the client can record the event in the audit log.
+app.post('/api/logout', authRequired(), async (req, res) => {
+    try {
+        writeLog('user.logout', req.user.username, '', 'Logged out');
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.get('/api/health', (req, res) => {
@@ -760,7 +789,7 @@ app.delete('/api/waste/:id', authRequired(['Admin']), async (req, res) => {
 app.get('/api/audit', authRequired(['Admin']), async (req, res) => {
     try {
         const filter = {};
-        const { from, to, limit } = req.query;
+        const { from, to, limit, action } = req.query;
         if (from) {
             const fromDate = new Date(from);
             if (!isNaN(fromDate)) filter.date = { ...(filter.date || {}), $gte: fromDate };
@@ -769,6 +798,7 @@ app.get('/api/audit', authRequired(['Admin']), async (req, res) => {
             const toDate = new Date(to);
             if (!isNaN(toDate)) filter.date = { ...(filter.date || {}), $lte: toDate };
         }
+        if (action) filter.action = action;
         const max = Math.min(Math.max(Number(limit) || 500, 1), 5000);
         const logs = await AuditLog.find(filter).sort({ date: -1 }).limit(max);
         res.json(logs);

@@ -7,6 +7,9 @@ let activeSalesRange = "day";
 let activeRadarCategory = "All";
 let builtPillCategories = null;
 let calendarViewDate = new Date();
+let latestUsers = [];
+let latestLogins = [];
+let latestLogouts = [];
 
 async function loadLiveDashboardData() {
     try {
@@ -55,6 +58,7 @@ async function loadLiveDashboardData() {
             performanceEl.innerText = performance;
         }
 
+        await loadActivityFeed();
         renderUpdates();
         renderNotifications();
 
@@ -67,16 +71,79 @@ async function loadLiveDashboardData() {
     }
 }
 
+// Best-effort activity feed — who's logged in / active. Never breaks the dashboard.
+async function loadActivityFeed() {
+    try {
+        const [usersRes, loginRes, logoutRes] = await Promise.allSettled([
+            apiFetch("/api/users"),
+            apiFetch("/api/audit?action=user.login&limit=2"),
+            apiFetch("/api/audit?action=user.logout&limit=2")
+        ]);
+        if (usersRes.status === "fulfilled" && usersRes.value.ok) latestUsers = await usersRes.value.json();
+        if (loginRes.status === "fulfilled" && loginRes.value.ok) latestLogins = await loginRes.value.json();
+        if (logoutRes.status === "fulfilled" && logoutRes.value.ok) latestLogouts = await logoutRes.value.json();
+    } catch (err) {
+        // silent — the activity feed is optional
+    }
+}
+
 // ── Updates Panel & Notification Feed ──────────────────────────────────────
+
+function timeAgo(ts) {
+    const s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 60) return "just now";
+    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+    if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+    return `${Math.floor(s / 86400)}d ago`;
+}
 
 function buildUpdates() {
     const updates = [];
+    const activeCutoff = Date.now() - 5 * 60 * 1000;
+
+    const sortedUsers = [...(latestUsers || [])].sort((a, b) => {
+        const ta = a.lastActiveAt ? new Date(a.lastActiveAt).getTime() : 0;
+        const tb = b.lastActiveAt ? new Date(b.lastActiveAt).getTime() : 0;
+        return tb - ta;
+    });
+
+    if (sortedUsers.length) {
+        updates.push({ section: "USERS" });
+        sortedUsers.forEach(user => {
+            const t = user.lastActiveAt ? new Date(user.lastActiveAt).getTime() : 0;
+            const active = t > activeCutoff;
+            updates.push({
+                icon: active ? "fa-user-check" : "fa-user",
+                kind: "activity",
+                title: `${active ? "🟢" : "⚪"} ${user.username} · ${active ? "active now" : t ? `last seen ${timeAgo(t)}` : "never seen"} · ${user.role}`,
+                sub: ""
+            });
+        });
+    }
+
+    if ((latestLogins || []).length || (latestLogouts || []).length) {
+        updates.push({ section: "LOGINS & LOGOUTS" });
+        (latestLogins || []).forEach(log => updates.push({
+            icon: "fa-right-to-bracket",
+            kind: "activity",
+            title: `${log.actor || "someone"} logged in`,
+            sub: new Date(log.date).toLocaleTimeString()
+        }));
+        (latestLogouts || []).forEach(log => updates.push({
+            icon: "fa-arrow-right-from-bracket",
+            kind: "activity",
+            title: `${log.actor || "someone"} logged out`,
+            sub: new Date(log.date).toLocaleTimeString()
+        }));
+    }
+
+    const businessUpdates = [];
 
     (allProducts || [])
         .filter(product => Number(product.stock ?? 0) <= Number(product.lowStockThreshold ?? 10))
         .slice(0, 3)
         .forEach(product => {
-            updates.push({
+            businessUpdates.push({
                 icon: "fa-box-open",
                 flagged: true,
                 title: `${product.status === "Out of Stock" ? "OUT OF STOCK" : "Low stock"} — ${product.name}`,
@@ -85,7 +152,7 @@ function buildUpdates() {
         });
 
     (latestWaste || []).slice(0, 3).forEach(waste => {
-        updates.push({
+        businessUpdates.push({
             icon: "fa-recycle",
             flagged: true,
             title: `Waste logged — ${waste.productName}`,
@@ -94,13 +161,18 @@ function buildUpdates() {
     });
 
     (latestOrders || []).slice(0, 4).forEach(order => {
-        updates.push({
+        businessUpdates.push({
             icon: "fa-clipboard-check",
             flagged: false,
             title: `${order.customer} placed an order`,
             sub: `${order.cashier || "—"} · ${order.receiptId} · ₱${Number(order.total || 0).toFixed(2)}`
         });
     });
+
+    if (businessUpdates.length) {
+        updates.push({ section: "STOCK & ORDERS" });
+        updates.push(...businessUpdates);
+    }
 
     if (!updates.length) {
         updates.push({
@@ -111,31 +183,39 @@ function buildUpdates() {
         });
     }
 
-    return updates.slice(0, 6);
+    return updates.slice(0, 30);
 }
 
 function renderUpdates() {
     const updateList = document.getElementById("updateList");
     if (!updateList) return;
 
-    updateList.innerHTML = buildUpdates().map(update => `
-        <div class="update-item">
-            <div class="update-avatar${update.flagged ? " update-avatar-danger" : ""}">
-                <i class="fas ${update.icon}"></i>
+    updateList.innerHTML = buildUpdates().map(update => {
+        if (update.section) {
+            return `<div class="update-section">${escapeHtml(update.section)}</div>`;
+        }
+        return `
+            <div class="update-item">
+                <div class="update-avatar${update.flagged ? " update-avatar-danger" : ""}">
+                    <i class="fas ${update.icon}"></i>
+                </div>
+                <div class="update-text">
+                    <strong>${escapeHtml(update.title)}</strong>
+                    <span>${escapeHtml(update.sub)}</span>
+                </div>
             </div>
-            <div class="update-text">
-                <strong>${escapeHtml(update.title)}</strong>
-                <span>${escapeHtml(update.sub)}</span>
-            </div>
-        </div>
-    `).join("");
+        `;
+    }).join("");
 }
 
 function renderNotifications() {
     const panel = document.getElementById("notificationDropdown");
     if (!panel) return;
 
-    panel.innerHTML = buildUpdates().map(update => `
+    panel.innerHTML = buildUpdates()
+        .filter(update => !update.section && update.kind !== "activity")
+        .slice(0, 6)
+        .map(update => `
         <div class="notification-item${update.flagged ? " notification-item-danger" : ""}">
             <i class="fas ${update.icon}"></i>
             <div>
