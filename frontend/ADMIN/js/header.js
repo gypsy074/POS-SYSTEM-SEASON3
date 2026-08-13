@@ -78,3 +78,43 @@ function setupDarkModeToggle() {
         apply(dark);
     });
 }
+
+function setupServerStatus() {
+    const statusEl = document.getElementById("serverStatus");
+    if (!statusEl) return;
+
+    const dot = statusEl.querySelector(".status-dot");
+    const text = statusEl.querySelector(".status-text");
+    let pending = false;
+
+    const setState = (state, label) => {
+        statusEl.classList.remove("online", "offline", "waking");
+        if (state) statusEl.classList.add(state);
+        text.textContent = label;
+    };
+
+    const check = async () => {
+        if (pending) return;
+        pending = true;
+        setState("waking", "Checking...");
+        try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 10000);
+            const response = await fetch("/api/health", { signal: controller.signal });
+            clearTimeout(timer);
+            if (response.ok) {
+                const data = await response.json();
+                setState(data && data.ok ? "online" : "offline", data && data.ok ? "Online" : "Offline");
+            } else {
+                setState("offline", "Offline");
+            }
+        } catch (err) {
+            setState("offline", "Offline");
+        } finally {
+            pending = false;
+        }
+    };
+
+    check();
+    setInterval(check, 30000);
+}

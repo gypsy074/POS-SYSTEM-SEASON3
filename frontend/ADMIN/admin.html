@@ -31,6 +31,11 @@
         <header class="admin-header">
                 <div class="date-chip" id="adminDate">Sunday, Jun 21</div>
 
+                <div class="server-status" id="serverStatus">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Checking...</span>
+                </div>
+
                 <div class="admin-search-wrapper">
                     <div class="admin-search">
                         <i class="fas fa-search"></i>
@@ -156,11 +161,23 @@
                                         title="Export sales as CSV"><i class="fas fa-download"></i> Export</button>
                                 </div>
                             </div>
-                            <div style="height: 250px;">
+                            <div style="height: 330px;">
                                 <canvas id="salesLineChart"></canvas>
                             </div>
                         </div>
 
+                        <div class="analytics-card usage-card">
+                            <div class="card-header"
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                <h3><i class="fas fa-chart-bar"></i> Orders & Revenue</h3>
+                            </div>
+                            <div style="height: 330px;">
+                                <canvas id="usageBarChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="charts-column" style="display: flex; flex-direction: column; gap: 20px;">
                         <div class="analytics-card radar-card">
                             <div class="card-header"
                                 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
@@ -171,23 +188,12 @@
                                     <span class="pill">Snacks</span>
                                 </div>
                             </div>
-                            <div style="height: 250px; display: flex; justify-content: center;">
+                            <div style="height: 280px; display: flex; justify-content: center;">
                                 <canvas id="itemsRadarChart"></canvas>
                             </div>
                         </div>
 
-                        <div class="analytics-card usage-card">
-                            <div class="card-header"
-                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                                <h3><i class="fas fa-chart-bar"></i> Orders & Revenue</h3>
-                            </div>
-                            <div style="height: 250px;">
-                                <canvas id="usageBarChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="analytics-card calendar-card">
+                        <div class="analytics-card calendar-card">
                         <div class="calendar-header"
                             style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                             <button type="button" id="prevMonthBtn"
@@ -209,6 +215,7 @@
                         <div class="calendar-grid" id="calendarGrid"
                             style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; text-align: center;">
                         </div>
+                    </div>
                     </div>
                 </div>
             </div>

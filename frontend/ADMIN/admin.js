@@ -118,6 +118,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // Dark mode
     setupDarkModeToggle();
 
+    // Server status indicator
+    setupServerStatus();
+
     // CSV export for Sales Analytics
     const exportBtn = document.getElementById("exportCsvBtn");
     if (exportBtn) exportBtn.addEventListener("click", exportSalesCsv);
