@@ -89,6 +89,20 @@
     animation: cremaPulse 0.6s ease 0.15s both;
 }
 
+/* Farewell variant: the cup drains instead of filling (used on logout).
+   `both` fill mode holds the full cup during the text delay, then empties. */
+.login-transition-overlay.drain .cup-fill {
+    animation-name: cupDrain;
+}
+
+.login-transition-overlay.drain .steam {
+    display: none;
+}
+
+.login-transition-overlay.drain .cup-fill.pulse::after {
+    animation: none;
+}
+
 .cup-handle {
     position: absolute;
     top: 10px;
@@ -123,6 +137,11 @@
 @keyframes cupFill {
     from { height: 0; }
     to   { height: 100%; }
+}
+
+@keyframes cupDrain {
+    from { height: 100%; }
+    to   { height: 0; }
 }
 
 @keyframes steamRise {

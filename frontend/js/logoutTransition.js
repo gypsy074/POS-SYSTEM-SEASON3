@@ -49,7 +49,7 @@
         injectStyle();
 
         const overlay = document.createElement("div");
-        overlay.className = "login-transition-overlay";
+        overlay.className = "login-transition-overlay drain";
         overlay.id = "logoutTransitionOverlay";
         overlay.innerHTML = `
             <div class="coffee-cup" aria-hidden="true">
