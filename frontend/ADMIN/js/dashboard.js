@@ -527,11 +527,66 @@ function renderSalesCharts(orders, products, range = activeSalesRange) {
         }
     });
 
-    // --- Radar chart: items sold by category (from real orders) ---
+    // --- Category drill-down: per-item bars when a category pill is active ---
     const categoryByProduct = (products || []).reduce((map, product) => {
         map[product.name] = product.category || "Unknown";
         return map;
     }, {});
+
+    const radarTitleEl = document.getElementById("radarCardTitle");
+
+    if (activeRadarCategory !== "All") {
+        const itemCounts = {};
+        (products || []).forEach(product => {
+            if ((product.category || "Unknown") === activeRadarCategory) {
+                itemCounts[product.name] = 0;
+            }
+        });
+        (orders || []).forEach(order => {
+            (order.items || []).forEach(item => {
+                const category = categoryByProduct[item.name] || item.category || "Unknown";
+                if (category === activeRadarCategory) {
+                    itemCounts[item.name] = (itemCounts[item.name] || 0) + Number(item.quantity || 0);
+                }
+            });
+        });
+
+        const itemLabels = Object.keys(itemCounts).sort((a, b) => itemCounts[b] - itemCounts[a]);
+        const itemData   = itemLabels.map(name => itemCounts[name]);
+
+        if (radarTitleEl) radarTitleEl.textContent = `${activeRadarCategory} Items`;
+
+        if (itemsRadarChart) itemsRadarChart.destroy();
+
+        itemsRadarChart = new Chart(radarCanvas, {
+            type: "bar",
+            data: {
+                labels: itemLabels,
+                datasets: [{
+                    label: "Quantity sold",
+                    data: itemData,
+                    backgroundColor: "#a67c52",
+                    borderRadius: 6,
+                    barThickness: 18
+                }]
+            },
+            options: {
+                indexAxis: "y",
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { beginAtZero: true, ticks: { precision: 0 } },
+                    y: { ticks: { autoSkip: false } }
+                }
+            }
+        });
+
+        return;
+    }
+
+    // --- Radar chart: items sold by category (from real orders) ---
+    if (radarTitleEl) radarTitleEl.textContent = "Items Performance";
 
     const categoryCounts = (orders || []).reduce((acc, order) => {
         (order.items || []).forEach(item => {
@@ -546,14 +601,6 @@ function renderSalesCharts(orders, products, range = activeSalesRange) {
             const category = product.category || "Unknown";
             categoryCounts[category] = (categoryCounts[category] || 0);
         });
-    }
-
-    if (activeRadarCategory !== "All") {
-        const selected = categoryCounts[activeRadarCategory] || 0;
-        Object.keys(categoryCounts).forEach(key => {
-            if (key !== activeRadarCategory) delete categoryCounts[key];
-        });
-        categoryCounts[activeRadarCategory] = selected;
     }
 
     const radarLabels = Object.keys(categoryCounts);
