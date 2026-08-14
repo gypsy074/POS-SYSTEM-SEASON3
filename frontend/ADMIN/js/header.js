@@ -51,6 +51,37 @@ function setupGlobalSearch() {    const searchInput = document.getElementById("g
     });
 }
 
+const HEADER_VIEW_TITLES = {
+    "dashboard-view":  { icon: "fa-gauge-high", title: "Dashboard" },
+    "sales-view":      { icon: "fa-chart-line", title: "Sales Analytics" },
+    "users-view":      { icon: "fa-user-plus", title: "Add Users" },
+    "menu-view":       { icon: "fa-utensils", title: "Add Menu" },
+    "inventory-view":  { icon: "fa-boxes-stacked", title: "Inventory" },
+    "waste-view":      { icon: "fa-recycle", title: "Waste Food" },
+    "audit-view":      { icon: "fa-scroll", title: "Audit Log" }
+};
+
+function updateHeaderCenter() {
+    const icon = document.getElementById("headerCenterIcon");
+    const title = document.getElementById("headerCenterTitle");
+    if (!icon || !title) return;
+    const entry = HEADER_VIEW_TITLES[activePanelId] || HEADER_VIEW_TITLES["dashboard-view"];
+    icon.className = `fas ${entry.icon}`;
+    title.textContent = entry.title;
+}
+
+function setupHeaderCenter() {
+    const clock = document.getElementById("headerCenterClock");
+    if (clock) {
+        const tick = () => {
+            clock.textContent = new Date().toLocaleTimeString("en-US", { hour12: false });
+        };
+        tick();
+        setInterval(tick, 1000);
+    }
+    updateHeaderCenter();
+}
+
 function refreshCurrentPanel() {
     const btn = document.getElementById("refreshAdminBtn");
     if (btn) btn.classList.add("spinning");

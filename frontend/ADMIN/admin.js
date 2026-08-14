@@ -131,6 +131,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // AI Insights header pill — open/close the dropdown panel
     setupAiHeaderPanel();
 
+    // Header center — current view title + live clock
+    setupHeaderCenter();
+
     // Audit log module
     setupAuditFilters();
 

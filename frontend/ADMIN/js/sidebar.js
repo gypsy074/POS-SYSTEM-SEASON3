@@ -20,6 +20,8 @@ function setupSidebarNavigation() {
                 targetPanel.classList.remove("hidden");
             }
 
+            if (typeof updateHeaderCenter === "function") updateHeaderCenter();
+
             // On phones the nav is a scrollable bottom bar — keep the active tab
             // in view by scrolling ONLY the bar. Never scrollIntoView the button:
             // it pans every scrollable ancestor, including the page itself,

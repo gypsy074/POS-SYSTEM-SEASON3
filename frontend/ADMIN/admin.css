@@ -188,6 +188,50 @@ body {
     margin-left: auto;
 }
 
+/* Center block — current view title + live clock. Absolutely centered so the
+   date chip and right icons can grow/shrink without moving it. */
+.admin-header {
+    position: relative;
+}
+
+.header-center {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    white-space: nowrap;
+    pointer-events: none;
+    user-select: none;
+}
+
+.header-center-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--dark-brown);
+    letter-spacing: 0.01em;
+}
+
+.header-center-title::before {
+    content: "|";
+    color: var(--header-brown);
+    margin-right: 12px;
+    font-weight: 400;
+}
+
+.header-center-clock {
+    font-family: "Consolas", "SF Mono", monospace;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--accent-brown);
+    background: #faf3ec;
+    border: 1px solid #f0e2d4;
+    padding: 6px 14px;
+    border-radius: 20px;
+    letter-spacing: 0.04em;
+}
+
 .header-icons {
     display: flex;
     gap: 12px;
@@ -1815,6 +1859,16 @@ body.dark .inventory-table-card,
 body.dark .inventory-form-card,
 body.dark .menu-form-section,
 body.dark .profile-dropdown,
+body.dark .header-center-title {
+    color: #e8dccb;
+}
+
+body.dark .header-center-clock {
+    background: #2e2318;
+    border-color: #4a3a2c;
+    color: #e8b98a;
+}
+
 body.dark .notification-dropdown {
     background: #2e2318;
     border-color: #4a3a2c;
@@ -2826,6 +2880,11 @@ body.dark .ai-skeleton-line { background: #3a2d1f; }
         margin-right: auto;
     }
 
+    /* Center title + clock stay on desktop — phones keep the thin header */
+    .header-center {
+        display: none;
+    }
+
     /* Mobile: dropdown opens as a bottom sheet above the tab bar — avoids
        the centered pill's geometry and any header-height dependency. */
     .ai-header-panel {
@@ -2899,6 +2958,13 @@ body.dark .ai-skeleton-line { background: #3a2d1f; }
     .analytics-grid > *,
     .inventory-management > * {
         min-width: 0;
+    }
+}
+
+/* Narrow desktop/tablet — the centered title could crowd the pills; hide it */
+@media (max-width: 900px) {
+    .header-center {
+        display: none;
     }
 }
 

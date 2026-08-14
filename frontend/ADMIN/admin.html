@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Season 3</title>
-    <link rel="stylesheet" href="admin.css?v=27">
+    <link rel="stylesheet" href="admin.css?v=28">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -49,6 +49,12 @@
                         </div>
                         <div class="ai-header-panel-body" id="aiHeaderPanelBody"></div>
                     </div>
+                </div>
+
+                <div class="header-center" id="headerCenter" aria-live="off">
+                    <i class="fas fa-gauge-high" id="headerCenterIcon"></i>
+                    <span class="header-center-title" id="headerCenterTitle">Dashboard</span>
+                    <span class="header-center-clock" id="headerCenterClock" aria-hidden="true">--:--:--</span>
                 </div>
 
                 <div class="header-right-group">
@@ -518,8 +524,8 @@
     <script src="js/imageCompressor.js"></script>
 
     <!-- Reusable Components -->
-    <script src="js/sidebar.js"></script>
-    <script src="js/header.js"></script>
+    <script src="js/sidebar.js?v=28"></script>
+    <script src="js/header.js?v=28"></script>
 
     <!-- Feature Modules -->
     <script src="js/dashboard.js?v=27"></script>
@@ -530,7 +536,7 @@
     <script src="js/audit.js"></script>
 
     <!-- Main Entry Point (runs last) -->
-    <script src="admin.js"></script>
+    <script src="admin.js?v=28"></script>
 
     <!-- Shared account/session panel -->
     <script src="js/account.js"></script>
