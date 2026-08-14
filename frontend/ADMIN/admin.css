@@ -11,6 +11,10 @@
     --sidebar-white: #fdfdfd;
 }
 
+html {
+    overflow-x: hidden;
+}
+
 body {
     margin: 0;
     background-color: var(--bg-admin);
@@ -2193,6 +2197,26 @@ body.dark .confirm-btn-cancel:hover { background: #46372a; }
 @media (max-width: 720px) {
     .management-grid {
         grid-template-columns: 1fr;
+    }
+
+    .stats-row > .stat-card {
+        min-width: 0;
+    }
+
+    .performance-wide {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    .perf-col {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .perf-col:not(:last-child) {
+        background: none;
     }
 
     .content-wrapper {

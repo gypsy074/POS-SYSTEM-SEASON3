@@ -20,9 +20,20 @@ function setupSidebarNavigation() {
                 targetPanel.classList.remove("hidden");
             }
 
-            // On phones the nav is a scrollable bottom bar — keep the active tab in view
+            // On phones the nav is a scrollable bottom bar — keep the active tab
+            // in view by scrolling ONLY the bar. Never scrollIntoView the button:
+            // it pans every scrollable ancestor, including the page itself,
+            // which makes the screen slide sideways on mobile.
             if (window.innerWidth <= 720) {
-                button.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+                const links = document.querySelector(".nav-links");
+                if (links) {
+                    const btnRect = button.getBoundingClientRect();
+                    const barRect = links.getBoundingClientRect();
+                    links.scrollTo({
+                        left: links.scrollLeft + (btnRect.left - barRect.left) - (links.clientWidth - btnRect.width) / 2,
+                        behavior: "smooth"
+                    });
+                }
             }
 
             if (activePanelId === "dashboard-view") loadLiveDashboardData();
