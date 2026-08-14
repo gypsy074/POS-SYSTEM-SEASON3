@@ -1874,6 +1874,15 @@ body.dark .notification-dropdown {
     border-color: #4a3a2c;
 }
 
+body.dark .profile-dropdown {
+    background: #2e2318;
+    border-color: #4a3a2c;
+}
+
+body.dark .profile-dropdown-header {
+    border-bottom-color: #4a3a2c;
+}
+
 body.dark .nav-btn {
     background: #2e2318;
     color: #d8c4a8;
