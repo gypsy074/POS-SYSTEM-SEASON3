@@ -6,43 +6,59 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 
-// Middleware Engine Configuration
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, '..', 'frontend')));
 
-// Strict Database Connection Token Processing
 const mongoUri = process.env.MONGO_URI;
 
 if (!mongoUri) {
-    console.error('❌ FATAL: MONGO_URI is not defined in .env file. Server cannot start.');
-    process.exit(1);
+  console.error('FATAL: MONGO_URI is not defined in .env file. Server cannot start.');
+  process.exit(1);
 }
 
 mongoose.connection.on('connected', () => {
-    const dbName = mongoose.connection.db?.databaseName || 'unknown';
-    console.log(`✅ Connected to MongoDB Atlas — Database: "${dbName}"`);
+  const dbName = mongoose.connection.db?.databaseName || 'unknown';
+  console.log(`Connected to MongoDB Atlas — Database: "${dbName}"`);
 });
 
 mongoose.connection.on('error', err => {
-    console.error('❌ Database Connection Error:', err.message);
+  console.error('Database Connection Error:', err.message);
 });
 
 mongoose.connection.on('disconnected', () => {
-    console.warn('⚠️  MongoDB disconnected. Attempting to reconnect...');
+  console.warn('MongoDB disconnected.');
 });
 
-mongoose.connect(mongoUri, {
-    serverSelectionTimeoutMS: 10000,
-    retryWrites: true
-}).catch(err => {
-    console.error('❌ Initial MongoDB Connection Failed:', err.message);
-    console.error('   → Check your MONGO_URI in .env and ensure your IP is whitelisted in Atlas.');
-});
+async function start() {
+  try {
+    await mongoose.connect(mongoUri, {
+      serverSelectionTimeoutMS: 10000,
+      retryWrites: true,
+      maxPoolSize: 10
+    });
+
+    console.log('MongoDB connection established');
+
+    app.get('/health', (req, res) => {
+      res.json({ ok: true, mongo: 'connected' });
+    });
+
+    const port = process.env.PORT || 3000;
+    app.listen(port, () => {
+      console.log(`Server listening on port ${port}`);
+    });
+  } catch (err) {
+    console.error('Initial MongoDB Connection Failed:', err.message);
+    process.exit(1);
+  }
+}
+
+start();
 
 /* ==========================================================================
-   1. DATABASE DATA MODELS & STRUCUTURAL SCHEMAS
+   1. DATABASE DATA MODELS & STRUCTURAL SCHEMAS
    ========================================================================== */
 
 // --- Order System Schema Configuration ---
