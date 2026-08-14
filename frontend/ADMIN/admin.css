@@ -26,6 +26,7 @@ body {
         "sidebar header"
         "sidebar content";
     height: 100vh;
+    height: 100dvh;
 }
 
 /* Single Page Application State Engine Utility */
