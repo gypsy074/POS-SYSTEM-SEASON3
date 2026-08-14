@@ -68,9 +68,16 @@ function setupProfileBadge() {
 
     document.getElementById("profileLogoutBtn").addEventListener("click", () => {
         apiFetch("/api/logout", { method: "POST" }).catch(() => {});
+        let name = "";
+        try {
+            const stored = JSON.parse(localStorage.getItem("posAdminUser") || "{}");
+            name = stored.username || "";
+        } catch (err) { /* ignore */ }
         localStorage.removeItem("posAdminToken");
         localStorage.removeItem("posAdminUser");
-        window.location.href = "../login.html";
+        showLogoutTransition(name, () => {
+            window.location.href = "../login.html";
+        });
     });
 }
 

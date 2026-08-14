@@ -1962,9 +1962,17 @@ function setupCashierProfile() {
 
     if (logoutBtn) {
         logoutBtn.addEventListener("click", () => {
+            apiFetch("/api/logout", { method: "POST" }).catch(() => {});
+            let name = "";
+            try {
+                const stored = JSON.parse(localStorage.getItem("posUser") || "{}");
+                name = stored.username || "";
+            } catch (err) { /* ignore */ }
             localStorage.removeItem("posToken");
             localStorage.removeItem("posUser");
-            window.location.href = "../login.html";
+            showLogoutTransition(name, () => {
+                window.location.href = "../login.html";
+            });
         });
     }
 }
