@@ -1,29 +1,21 @@
 /* ==========================================================================
-   insights.js — AI Insights panel (in-house statistics, admin dashboard)
-   Renders the forecast / restock / waste / anomaly cards into
-   #aiInsightsGrid. Every failure degrades to a quiet empty state.
+   insights.js — AI Insights (in-house statistics, admin header)
+   Renders compact forecast / restock / waste / anomaly cards into the
+   header dropdown panel (#aiHeaderPanelBody) and keeps the pill count
+   (#aiPillCount) updated. Every failure degrades to a quiet empty state.
    ========================================================================== */
 
-const SKELETON_HTML = `
-    <div class="ai-card ai-card-forecast">
-        <div class="ai-card-header"><i class="fas fa-chart-line"></i> Tomorrow's Forecast</div>
-        <div class="ai-skeleton-line" style="width: 55%;"></div>
-        <div class="ai-skeleton-line" style="width: 80%;"></div>
-    </div>
+const AI_LOADING_HTML = `
     <div class="ai-card">
-        <div class="ai-card-header"><i class="fas fa-boxes-stacked"></i> Restock Alerts</div>
+        <div class="ai-card-header"><i class="fas fa-robot"></i> Computing…</div>
         <div class="ai-skeleton-line"></div>
         <div class="ai-skeleton-line" style="width: 70%;"></div>
-    </div>
+    </div>`;
+
+const AI_ERROR_HTML = `
     <div class="ai-card">
-        <div class="ai-card-header"><i class="fas fa-recycle"></i> Waste Insights</div>
-        <div class="ai-skeleton-line"></div>
-        <div class="ai-skeleton-line" style="width: 60%;"></div>
-    </div>
-    <div class="ai-card">
-        <div class="ai-card-header"><i class="fas fa-exclamation-triangle"></i> Anomalies</div>
-        <div class="ai-skeleton-line"></div>
-        <div class="ai-skeleton-line" style="width: 75%;"></div>
+        <div class="ai-card-header"><i class="fas fa-robot"></i> AI Insights</div>
+        <p class="ai-empty">Insights are unavailable right now. Pull the refresh button to try again.</p>
     </div>`;
 
 function aiPeso(value) {
@@ -91,10 +83,10 @@ function renderAnomaliesCard(items) {
 }
 
 function renderInsights(data) {
-    const grid = document.getElementById("aiInsightsGrid");
-    if (!grid) return;
-    grid.innerHTML = `
-        <div class="ai-card ai-card-forecast">
+    const body = document.getElementById("aiHeaderPanelBody");
+    if (!body) return;
+    body.innerHTML = `
+        <div class="ai-card">
             <div class="ai-card-header"><i class="fas fa-chart-line"></i> Tomorrow's Forecast</div>
             <div class="ai-card-body">${renderForecastCard(data)}</div>
         </div>
@@ -112,19 +104,74 @@ function renderInsights(data) {
         </div>`;
 }
 
+function updateAiPillCount(data) {
+    const countEl = document.getElementById("aiPillCount");
+    if (!countEl) return;
+    const count = (data.restock || []).length
+        + ((data.wasteInsights && data.wasteInsights.items) || []).length
+        + (data.anomalies || []).length;
+    countEl.textContent = String(count);
+    countEl.classList.toggle("zero", count === 0);
+}
+
 async function loadInsights() {
-    const grid = document.getElementById("aiInsightsGrid");
-    if (!grid) return;
-    grid.innerHTML = SKELETON_HTML;
+    const body = document.getElementById("aiHeaderPanelBody");
+    const countEl = document.getElementById("aiPillCount");
+    if (!body || !countEl) return;
+    body.innerHTML = AI_LOADING_HTML;
+    countEl.textContent = "–";
+    countEl.classList.remove("zero");
     try {
         const response = await apiFetch("/api/insights");
         if (!response.ok) throw new Error("Network payload reading failed");
         const data = await response.json();
         renderInsights(data);
+        updateAiPillCount(data);
     } catch (err) {
-        grid.innerHTML = `<div class="ai-card ai-card-full">
-            <div class="ai-card-header"><i class="fas fa-robot"></i> AI Insights</div>
-            <p class="ai-empty">Insights are unavailable right now. Pull the refresh button to try again.</p>
-        </div>`;
+        body.innerHTML = AI_ERROR_HTML;
+        countEl.textContent = "–";
+        countEl.classList.add("zero");
     }
+}
+
+function setAiPanelOpen(open) {
+    const pill = document.getElementById("aiHeaderPill");
+    if (!pill) return;
+    pill.classList.toggle("open", open);
+    pill.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function setupAiHeaderPanel() {
+    const pill = document.getElementById("aiHeaderPill");
+    const closeBtn = document.getElementById("aiHeaderPanelClose");
+    if (!pill) return;
+
+    const toggle = () => setAiPanelOpen(!pill.classList.contains("open"));
+
+    pill.addEventListener("click", event => {
+        if (event.target.closest(".ai-header-panel-close") || event.target.closest(".ai-header-panel")) return;
+        toggle();
+    });
+
+    if (closeBtn) closeBtn.addEventListener("click", event => {
+        event.stopPropagation();
+        setAiPanelOpen(false);
+    });
+
+    pill.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            toggle();
+        }
+        if (event.key === "Escape") setAiPanelOpen(false);
+    });
+
+    document.addEventListener("click", event => {
+        if (!pill.classList.contains("open")) return;
+        if (!pill.contains(event.target)) setAiPanelOpen(false);
+    });
+
+    document.addEventListener("keydown", event => {
+        if (event.key === "Escape") setAiPanelOpen(false);
+    });
 }

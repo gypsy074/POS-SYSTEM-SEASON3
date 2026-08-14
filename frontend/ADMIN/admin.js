@@ -128,6 +128,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // Updates card — tap a section header to expand it full-screen
     setupUpdateSectionExpand();
 
+    // AI Insights header pill — open/close the dropdown panel
+    setupAiHeaderPanel();
+
     // Audit log module
     setupAuditFilters();
 

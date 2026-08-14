@@ -2296,17 +2296,126 @@ body.dark .updates-detail-close { color: #e8dccb; }
 body.dark .updates-detail-close:hover { background: #3a2d1f; }
 
 /* ==========================================================================
-   AI Insights panel (admin dashboard)
+   AI Insights — header pill + dropdown panel (admin)
    ========================================================================== */
-.ai-insights-section {
-    margin: 25px 20px 0 20px;
+.ai-header-pill {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: white;
+    padding: 10px 16px;
+    border-radius: 30px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--dark-brown);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.15s ease;
 }
 
-.ai-insights-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 20px;
-    margin-top: 15px;
+.ai-header-pill > i {
+    color: var(--accent-brown);
+}
+
+.ai-header-pill:hover {
+    background: #f1d8c4;
+}
+
+.ai-header-pill:active {
+    transform: scale(0.96);
+}
+
+.ai-header-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 10px;
+    background: var(--accent-brown);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+
+.ai-header-count.zero {
+    background: #e5d5c3;
+    color: #8e6a46;
+}
+
+.ai-header-panel {
+    display: none;
+    position: absolute;
+    top: calc(100% + 12px);
+    left: 0;
+    width: min(360px, 92vw);
+    background: white;
+    border: 1px solid #d7b59a;
+    border-radius: 18px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+    z-index: 200;
+}
+
+.ai-header-pill.open .ai-header-panel {
+    display: block;
+    animation: dropdownIn 0.24s ease-out;
+    transform-origin: top left;
+}
+
+.ai-header-panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    border-bottom: 1px solid #f0e2d4;
+    font-weight: 700;
+    color: var(--dark-brown);
+    font-size: 0.9rem;
+}
+
+.ai-header-panel-head i {
+    color: var(--accent-brown);
+}
+
+.ai-header-panel-close {
+    background: none;
+    border: none;
+    font-size: 1rem;
+    color: var(--dark-brown);
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 9px;
+    transition: background 0.2s ease, transform 0.15s ease;
+}
+
+.ai-header-panel-close:hover { background: #f1e3d5; }
+.ai-header-panel-close:active { transform: scale(0.94); }
+
+.ai-header-panel-body {
+    max-height: min(70vh, 480px);
+    overflow-y: auto;
+    padding: 12px 12px 14px;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Mobile bottom-sheet open animation — keeps the centering translate. */
+@keyframes aiDropdownIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(0.98); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+.ai-header-panel-body .ai-card {
+    padding: 14px;
+    border-radius: 16px;
+    box-shadow: none;
+    margin-bottom: 10px;
+}
+
+.ai-header-panel-body .ai-card:last-child {
+    margin-bottom: 0;
 }
 
 .ai-card {
@@ -2315,10 +2424,6 @@ body.dark .updates-detail-close:hover { background: #3a2d1f; }
     border-radius: 25px;
     padding: 20px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
-}
-
-.ai-card-forecast {
-    grid-column: span 2;
 }
 
 .ai-card-header {
@@ -2474,6 +2579,34 @@ body.dark .ai-card {
     border-color: #4a3a2c;
 }
 
+body.dark .ai-header-pill {
+    background: #2e2318;
+    color: #e8dccb;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+}
+
+body.dark .ai-header-pill:hover {
+    background: #3a2d1f;
+}
+
+body.dark .ai-header-panel {
+    background: #2e2318;
+    border-color: #4a3a2c;
+}
+
+body.dark .ai-header-panel-head {
+    color: #b09a80;
+    border-bottom-color: #4a3a2c;
+}
+
+body.dark .ai-header-panel-close {
+    color: #e8dccb;
+}
+
+body.dark .ai-header-panel-close:hover {
+    background: #3a2d1f;
+}
+
 body.dark .ai-card-header {
     color: #b09a80;
     border-bottom-color: #4a3a2c;
@@ -2517,19 +2650,38 @@ body.dark .ai-skeleton-line { background: #3a2d1f; }
         grid-template-columns: 1fr;
         margin: 20px 0 0;
     }
-
-    .ai-insights-section {
-        margin: 25px 0 0;
-    }
 }
 
 @media (max-width: 720px) {
-    .ai-insights-grid {
-        grid-template-columns: 1fr;
+    /* Row 1 = Online pill + AI pill, centered as a pair */
+    .server-status {
+        margin-left: auto;
+        margin-right: 0;
     }
 
-    .ai-card-forecast {
-        grid-column: span 1;
+    .ai-header-pill {
+        margin-right: auto;
+    }
+
+    /* Mobile: dropdown opens as a bottom sheet above the tab bar — avoids
+       the centered pill's geometry and any header-height dependency. */
+    .ai-header-panel {
+        position: fixed;
+        bottom: calc(100px + env(safe-area-inset-bottom));
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(92vw, 360px);
+        top: auto;
+    }
+
+    /* The generic dropdownIn keyframe animates transform, which would clobber
+       the centering translateX(-50%) — use a variant that keeps it. */
+    .ai-header-pill.open .ai-header-panel {
+        animation-name: aiDropdownIn;
+    }
+
+    .ai-header-panel-body {
+        max-height: 55vh;
     }
 
     .management-grid {
