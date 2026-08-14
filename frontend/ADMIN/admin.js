@@ -134,6 +134,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // Header center — current view title + live clock
     setupHeaderCenter();
 
+    // Mobile: hide the fixed header while scrolling down, show on scroll up
+    setupScrollHeader();
+
     // Audit log module
     setupAuditFilters();
 

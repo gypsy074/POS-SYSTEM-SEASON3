@@ -117,6 +117,31 @@ function setupDarkModeToggle() {
     });
 }
 
+function setupScrollHeader() {
+    const header = document.querySelector(".admin-header");
+    if (!header) return;
+    if (!window.matchMedia("(max-width: 720px)").matches) return;
+
+    let lastY = window.scrollY;
+    let lastRun = 0;
+
+    const onScroll = () => {
+        const now = Date.now();
+        if (now - lastRun < 80) return;
+        lastRun = now;
+        const y = window.scrollY;
+        const dy = y - lastY;
+        if (dy > 8 && y > 80) {
+            header.classList.add("header-hidden");
+        } else if (dy < -8 || y <= 80) {
+            header.classList.remove("header-hidden");
+        }
+        lastY = y;
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+}
+
 function setupServerStatus() {
     const statusEl = document.getElementById("serverStatus");
     if (!statusEl) return;
