@@ -19,11 +19,7 @@
 
 body {
     background-color: white;
-    display: flex;
-    justify-content: center;
-    align-items: center;
     min-height: 100vh;
-    min-height: 100dvh;
     padding: 20px;
 }
 
@@ -44,6 +40,7 @@ body {
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
     justify-content: center;
     position: relative;
+    margin: 7vh auto 0;
 }
 
 /* Dynamic Date Tag Floating At Top Center */
@@ -153,6 +150,7 @@ body {
     color: var(--text-dark);
     background-color: var(--card-white);
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    scroll-margin-top: 24px;
 }
 
 .input-group input:focus {
@@ -253,33 +251,6 @@ body {
     box-shadow: 0 0 0 5px rgba(166, 124, 82, 0.35);
 }
 
-/* Steam — subtle heat shimmer rising from the field's top edge while typing */
-.password-wrap.steam::before,
-.password-wrap.steam::after {
-    content: "";
-    position: absolute;
-    bottom: calc(100% - 4px);
-    left: 50%;
-    width: 5px;
-    height: 10px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.5);
-    filter: blur(1.5px);
-    opacity: 0;
-    z-index: 1;
-    pointer-events: none;
-    animation: steamRise 1.4s ease-out infinite;
-}
-
-.password-wrap.steam::before { margin-left: -10px; animation-delay: 0.3s; }
-.password-wrap.steam::after  { margin-left: 5px;   animation-delay: 0.8s; }
-
-@keyframes steamRise {
-    0%   { transform: translateY(4px) scale(0.5); opacity: 0; }
-    30%  { opacity: 0.5; }
-    100% { transform: translateY(-10px) scale(1); opacity: 0; }
-}
-
 /* Respect users who prefer less motion */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -302,11 +273,6 @@ body {
     /* Typing feedback stays animated too — brief, functional feedback. */
     .input-group input.typing {
         animation-duration: 1.2s !important;
-        animation-iteration-count: infinite !important;
-    }
-    .password-wrap.steam::before,
-    .password-wrap.steam::after {
-        animation-duration: 1.4s !important;
         animation-iteration-count: infinite !important;
     }
 }
