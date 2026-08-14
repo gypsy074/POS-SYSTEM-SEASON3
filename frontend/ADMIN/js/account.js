@@ -127,6 +127,53 @@
 
     // ── State ────────────────────────────────────────────────────────────
     let sessions = [];
+    let lastAlertedJti = null;
+
+    // ── Alert sound (browser-generated tones — no audio files needed) ────
+    let alertAudioCtx = null;
+
+    function getAlertAudioContext() {
+        if (!alertAudioCtx) {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (Ctx) {
+                alertAudioCtx = new Ctx();
+                // Browsers block audio until the first user gesture — unlock then.
+                const resume = () => {
+                    if (alertAudioCtx && alertAudioCtx.state === "suspended") {
+                        alertAudioCtx.resume().catch(() => {});
+                    }
+                };
+                document.addEventListener("pointerdown", resume, { once: true });
+                document.addEventListener("keydown", resume, { once: true });
+            }
+        }
+        return alertAudioCtx;
+    }
+
+    function alertTone(freq, duration, volume, type, delay) {
+        const ctx = getAlertAudioContext();
+        if (!ctx) return;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        const start = ctx.currentTime + (delay || 0);
+        gain.gain.setValueAtTime(volume, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + duration + 0.02);
+    }
+
+    function playNewSignInAlert() {
+        if (localStorage.getItem("posSoundOn") === "off") return;
+        const ctx = getAlertAudioContext();
+        if (!ctx) return;
+        if (ctx.state === "suspended") ctx.resume().catch(() => {});
+        // Two-tone security chime: high then low.
+        alertTone(988, 0.14, 0.2, "triangle");
+        alertTone(784, 0.22, 0.2, "triangle", 0.16);
+    }
 
     // ── Banner ───────────────────────────────────────────────────────────
     const banner = document.createElement("div");
@@ -157,6 +204,10 @@
         const newer = sessions.filter(s => !s.isCurrent && new Date(s.createdAt) > new Date(current.createdAt));
         if (!newer.length) { banner.style.display = "none"; return; }
         const latest = newer[0];
+        if (latest.jti !== lastAlertedJti) {
+            playNewSignInAlert();
+            lastAlertedJti = latest.jti;
+        }
         banner.querySelector("#accountBannerText").innerHTML =
             `New sign-in detected: <strong>${deviceLabel(latest.userAgent)}</strong> · ${fmtTime(latest.createdAt)}` +
             ` — if this wasn't you, log that session out now.`;

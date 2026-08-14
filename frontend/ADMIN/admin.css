@@ -971,6 +971,12 @@ tr:hover td {
         display: none;
     }
 
+    /* Online badge sits alone on the first header row — center it */
+    .server-status {
+        margin-left: auto;
+        margin-right: auto;
+    }
+
     .admin-search-wrapper {
         order: 3;
         width: 100%;
