@@ -211,6 +211,22 @@ body {
     50%      { box-shadow: 0 0 0 4px rgba(166, 124, 82, 0.25); }
 }
 
+/* Coffee-vibe typing feedback — warm glow + steam while typing */
+.input-group input.typing {
+    animation: typingGlow 1.2s ease-in-out infinite;
+}
+
+@keyframes typingGlow {
+    0%, 100% {
+        box-shadow: 0 0 0 2px rgba(166, 124, 82, 0.12);
+        border-color: #d4b896;
+    }
+    50% {
+        box-shadow: 0 0 0 5px rgba(166, 124, 82, 0.22);
+        border-color: var(--accent-brown);
+    }
+}
+
 /* Letter-by-letter wipe when revealing/masking the password */
 .password-wrap input { --pw-wipe: #ffffff; }
 .password-wrap input.pw-reveal,
@@ -229,22 +245,6 @@ body {
 @keyframes pwHide {
     from { background-position: 0 0; }
     to   { background-position: 100% 0; }
-}
-
-/* Coffee-vibe typing feedback — warm glow + steam while typing */
-.input-group input.typing {
-    animation: typingGlow 1.2s ease-in-out infinite;
-}
-
-@keyframes typingGlow {
-    0%, 100% {
-        box-shadow: 0 0 0 3px rgba(166, 124, 82, 0.16);
-        border-color: #c9a87c;
-    }
-    50% {
-        box-shadow: 0 0 0 7px rgba(166, 124, 82, 0.32);
-        border-color: var(--accent-brown);
-    }
 }
 
 /* Transition-based flash for the show/hide toggle (works even if CSS animations are blocked) */

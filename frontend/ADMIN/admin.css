@@ -1750,6 +1750,22 @@ body.dark .password-toggle:hover {
     50%      { box-shadow: 0 0 0 4px rgba(166, 124, 82, 0.25); }
 }
 
+/* Coffee-vibe typing feedback — warm glow + steam while typing */
+.input-group input.typing {
+    animation: typingGlow 1.2s ease-in-out infinite;
+}
+
+@keyframes typingGlow {
+    0%, 100% {
+        box-shadow: 0 0 0 2px rgba(166, 124, 82, 0.12);
+        border-color: #d4b896;
+    }
+    50% {
+        box-shadow: 0 0 0 5px rgba(166, 124, 82, 0.22);
+        border-color: var(--accent-brown);
+    }
+}
+
 /* Letter-by-letter wipe when revealing/masking the password */
 .input-group input { --pw-wipe: #ffffff; }
 body.dark .input-group input { --pw-wipe: #3a2d1f; }
@@ -1771,33 +1787,17 @@ body.dark .input-group input { --pw-wipe: #3a2d1f; }
     to   { background-position: 100% 0; }
 }
 
-/* Coffee-vibe typing feedback — warm glow + steam while typing */
-.input-group input.typing {
-    animation: typingGlow 1.2s ease-in-out infinite;
-}
-
-@keyframes typingGlow {
-    0%, 100% {
-        box-shadow: 0 0 0 3px rgba(166, 124, 82, 0.16);
-        border-color: #c9a87c;
-    }
-    50% {
-        box-shadow: 0 0 0 7px rgba(166, 124, 82, 0.32);
-        border-color: var(--accent-brown);
-    }
-}
-
 body.dark .input-group input.typing {
     animation-name: typingGlowDark;
 }
 
 @keyframes typingGlowDark {
     0%, 100% {
-        box-shadow: 0 0 0 3px rgba(232, 220, 203, 0.12);
+        box-shadow: 0 0 0 2px rgba(232, 220, 203, 0.10);
         border-color: #6b5639;
     }
     50% {
-        box-shadow: 0 0 0 7px rgba(232, 220, 203, 0.24);
+        box-shadow: 0 0 0 5px rgba(232, 220, 203, 0.18);
         border-color: #b09a80;
     }
 }

@@ -30,6 +30,12 @@
                 input.type = showing ? "password" : "text";
                 if (icon) icon.className = showing ? "fa-solid fa-eye" : "fa-solid fa-eye-slash";
                 btn.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+                // Clear typing-feedback state so the wipe owns the animation slot
+                // and its animationend cleanup always fires.
+                input.classList.remove("typing", "pw-reveal", "pw-hide", "glow", "toggle-flash");
+                const wrap = input.closest(".password-wrap");
+                if (wrap) wrap.classList.remove("steam");
+                clearTimeout(input._typingTimer);
                 runAnim(btn, showing ? "hide" : "reveal");
                 runAnim(input, showing ? "pw-hide" : "pw-reveal");
                 runAnim(input, "glow");
