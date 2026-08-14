@@ -180,41 +180,12 @@ body {
     50% { opacity: 0.35; }
 }
 
-.admin-search-wrapper {
-    flex-grow: 1;
-    display: flex;
-    justify-content: center;
-}
-
-.admin-search {
-    position: relative;
-    width: 100%;
-    max-width: 500px;
-}
-
-.admin-search input {
-    width: 100%;
-    background: #f1d8c4;
-    border: 1.5px solid #d7b59a;
-    padding: 14px 20px 14px 50px;
-    border-radius: 30px;
-    outline: none;
-}
-
-.admin-search i {
-    position: absolute;
-    left: 20px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--dark-brown);
-    font-size: 1.1rem;
-}
-
 .header-right-group {
     display: flex;
     align-items: center;
     gap: 15px;
     position: relative;
+    margin-left: auto;
 }
 
 .header-icons {
@@ -977,12 +948,6 @@ tr:hover td {
         margin-right: auto;
     }
 
-    /* The header search only filters the menu table — hidden on phones so the
-       header stays thin (2 rows: pill + actions). */
-    .admin-search-wrapper {
-        display: none;
-    }
-
     .header-right-group {
         width: 100%;
         justify-content: space-between;
@@ -1120,17 +1085,14 @@ tr:hover td {
 
 /* ── Small phones (≤ 480px) ── */
 @media (max-width: 480px) {
+    /* Keep content clear of the fixed bottom tab bar on small phones too */
     .main-body {
-        padding: 0 6px 12px;
+        padding: 0 6px calc(88px + env(safe-area-inset-bottom));
     }
 
     .admin-header {
         padding-left: 6px;
         gap: 12px;
-    }
-
-    .admin-search input {
-        padding: 12px 16px 12px 42px;
     }
 
     .icon-circle {
@@ -1777,7 +1739,6 @@ body.dark .nav-btn.active {
     color: #fff;
 }
 
-body.dark .admin-search input,
 body.dark .icon-circle,
 body.dark .form-inputs input,
 body.dark .form-inputs select,
@@ -1874,8 +1835,7 @@ body.dark #monthDisplay,
 body.dark .calendar-day,
 body.dark .update-text strong,
 body.dark .notification-item strong,
-body.dark .table-container th,
-body.dark .admin-search i {
+body.dark .table-container th {
     color: #e8dccb;
 }
 
