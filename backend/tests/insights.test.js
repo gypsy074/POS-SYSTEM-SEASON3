@@ -141,6 +141,12 @@ describe('computeWasteInsights', () => {
         const out = computeWasteInsights({ A: 100 }, { A: 2 }, []);
         expect(out.items).toEqual([]);
     });
+
+    test('flags waste with zero sales as 100%, not Infinity', () => {
+        const out = computeWasteInsights({}, { 'No Sales Item': 5 }, []);
+        expect(out.items.length).toBe(1);
+        expect(out.items[0].ratio).toBe(1);
+    });
 });
 
 describe('computeInsights', () => {

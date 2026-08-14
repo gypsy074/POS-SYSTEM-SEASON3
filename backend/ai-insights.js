@@ -162,7 +162,7 @@ function computeWasteInsights(soldByItem, wastedByItem, wasteDocs) {
         const wastedQty = wastedByItem[name];
         const soldQty = soldByItem[name] || 0;
         if (wastedQty < 1) return;
-        const ratio = soldQty > 0 ? wastedQty / soldQty : Infinity;
+        const ratio = soldQty > 0 ? wastedQty / soldQty : 1; // all waste, no sales → 100%
         if (ratio > 0.15) {
             items.push({ name, soldQty, wastedQty: round1(wastedQty), ratio: round2(ratio) });
         }
