@@ -189,6 +189,28 @@ body {
     color: var(--accent-brown);
 }
 
+/* Show/hide toggle animations */
+.password-toggle.reveal i { animation: eyePop 0.3s ease; }
+.password-toggle.hide i   { animation: eyeWink 0.35s ease; }
+.password-wrap input.glow { animation: passwordGlow 0.4s ease; }
+
+@keyframes eyePop {
+    0%   { transform: scale(0.5); opacity: 0.4; }
+    60%  { transform: scale(1.2); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes eyeWink {
+    0%   { transform: scaleY(1); }
+    50%  { transform: scaleY(0.15); }
+    100% { transform: scaleY(1); }
+}
+
+@keyframes passwordGlow {
+    0%, 100% { box-shadow: 0 0 0 rgba(166, 124, 82, 0); }
+    50%      { box-shadow: 0 0 0 4px rgba(166, 124, 82, 0.25); }
+}
+
 /* Styled Action Logon Submit Trigger Button */
 .login-submit-btn {
     width: auto;
