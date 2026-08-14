@@ -2603,6 +2603,10 @@ body.dark .updates-detail-close:hover { background: #3a2d1f; }
     white-space: pre-wrap;
 }
 
+.ai-report-text[hidden] {
+    display: none;
+}
+
 .ai-report-text p {
     margin: 0;
 }
