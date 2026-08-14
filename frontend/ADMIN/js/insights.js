@@ -137,6 +137,7 @@ async function generateAiReport() {
     const btn = document.getElementById("aiReportBtn");
     if (!btn || aiReportBusy) return;
     aiReportBusy = true;
+    aiTapGuardUntil = Date.now() + 800;
     btn.setAttribute("aria-busy", "true");
     // Note: never set btn.disabled here — mobile browsers re-fire the click on
     // body when a button disables itself mid-tap, and that ghost click would
@@ -204,6 +205,10 @@ async function loadInsights() {
 }
 
 let aiPanelCloseTimer = null;
+// Suppression window after tapping Generate report: mobile browsers re-fire
+// the tap ("ghost click") onto the element now under the finger — which can be
+// the html root or the pill itself — and we must not treat that as "outside".
+let aiTapGuardUntil = 0;
 
 function setAiPanelOpen(open) {
     const pill = document.getElementById("aiHeaderPill");
@@ -235,6 +240,7 @@ function setupAiHeaderPanel() {
     const toggle = () => setAiPanelOpen(!pill.classList.contains("open"));
 
     pill.addEventListener("click", event => {
+        if (Date.now() < aiTapGuardUntil) return; // redirected ghost tap — ignore
         if (event.target.closest(".ai-header-panel-close") || event.target.closest(".ai-header-panel")) return;
         toggle();
     });
@@ -259,6 +265,7 @@ function setupAiHeaderPanel() {
     });
 
     document.addEventListener("click", event => {
+        if (Date.now() < aiTapGuardUntil) return; // redirected ghost tap — ignore
         if (!pill.classList.contains("open")) return;
         if (!event.target.isConnected) return; // stale target from a re-render — ignore
         // Mobile browsers redirect a tap onto body/document when the tapped

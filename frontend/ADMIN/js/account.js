@@ -22,9 +22,14 @@
 #accountBanner strong{font-weight:700}
 #accountBanner .banner-actions{margin-left:auto;display:flex;gap:8px}
 #accountBanner button{background:#d97706;color:#fff;border:0;border-radius:6px;
-    padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer}
+    padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;
+    transition:background .15s ease,transform .12s ease,opacity .15s ease}
+#accountBanner button:hover{background:#b45309}
+#accountBanner button:active{transform:scale(.95)}
 #accountBanner button.ghost{background:transparent;color:#6b4a12;border:1px solid #e0a74c;padding:5px 10px}
-#accountBanner button.plain{background:none;border:0;color:#999;cursor:pointer;font-size:16px;line-height:1}
+#accountBanner button.ghost:hover{background:#fdf0da}
+#accountBanner button.plain{background:none;border:0;color:#999;cursor:pointer;font-size:16px;line-height:1;transition:color .15s ease}
+#accountBanner button.plain:hover{color:#555}
 .account-modal-overlay{position:fixed;inset:0;background:rgba(10,12,20,.55);z-index:1200;
     display:none;align-items:center;justify-content:center;padding:16px}
 .account-modal-overlay.open{display:flex}
@@ -33,22 +38,35 @@
 .account-modal-head{display:flex;align-items:center;justify-content:space-between;
     padding:16px 20px;border-bottom:1px solid #eef0f4}
 .account-modal-head h3{margin:0;font-size:16px;color:#1a2233}
-.account-modal-close{background:none;border:0;font-size:20px;color:#8a93a5;cursor:pointer;line-height:1}
+.account-modal-close{background:none;border:0;font-size:20px;color:#8a93a5;cursor:pointer;line-height:1;
+    transition:color .15s ease,transform .12s ease}
+.account-modal-close:hover{color:#4b5563}
+.account-modal-close:active{transform:scale(.9)}
 .account-tabs{display:flex;gap:4px;padding:10px 20px 0;border-bottom:1px solid #eef0f4}
 .account-tabs button{background:none;border:0;padding:9px 14px;font-size:13px;font-weight:600;
-    color:#8a93a5;cursor:pointer;border-bottom:2px solid transparent}
+    color:#8a93a5;cursor:pointer;border-bottom:2px solid transparent;
+    transition:color .15s ease,border-color .15s ease,transform .12s ease}
+.account-tabs button:hover{color:#d97706}
+.account-tabs button:active{transform:scale(.95)}
 .account-tabs button.active{color:#d97706;border-bottom-color:#d97706}
 .account-tab-body{padding:18px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
 .account-tab-body[hidden]{display:none}
 .account-danger{background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;border-radius:8px;
-    padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer}
+    padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;
+    transition:background .15s ease,transform .12s ease}
 .account-danger:hover{background:#fecaca}
+.account-danger:active{transform:scale(.97)}
 .account-primary{background:#d97706;color:#fff;border:0;border-radius:8px;padding:10px 14px;
-    font-size:13px;font-weight:700;cursor:pointer}
+    font-size:13px;font-weight:700;cursor:pointer;
+    transition:background .15s ease,transform .12s ease}
 .account-primary:hover{background:#b45309}
+.account-primary:active{transform:scale(.97)}
 .account-primary:disabled{opacity:.5;cursor:not-allowed}
 .account-session-row{display:flex;align-items:center;gap:12px;padding:11px 12px;
-    border:1px solid #eef0f4;border-radius:10px}
+    border:1px solid #eef0f4;border-radius:10px;
+    transition:border-color .15s ease,box-shadow .15s ease,transform .12s ease}
+.account-session-row:hover{border-color:#e5c189;box-shadow:0 3px 10px rgba(0,0,0,.06)}
+.account-session-row:active{transform:scale(.995)}
 .account-session-row .acct-icon{width:36px;height:36px;border-radius:9px;flex:0 0 36px;
     background:#f1f5f9;color:#475569;display:flex;align-items:center;justify-content:center;font-size:15px}
 .account-session-row .acct-meta{flex:1;min-width:0}
@@ -58,8 +76,10 @@
 .account-session-row .acct-badge{font-size:10.5px;font-weight:700;color:#15803d;background:#dcfce7;
     border-radius:99px;padding:3px 8px;flex:0 0 auto}
 .account-session-row button.acct-kill{background:none;border:1px solid #fecaca;color:#b91c1c;
-    border-radius:7px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;flex:0 0 auto}
+    border-radius:7px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;flex:0 0 auto;
+    transition:background .15s ease,transform .12s ease}
 .account-session-row button.acct-kill:hover{background:#fee2e2}
+.account-session-row button.acct-kill:active{transform:scale(.94)}
 .account-empty{font-size:12.5px;color:#8a93a5;text-align:center;padding:14px 0}
 .account-field{display:flex;flex-direction:column;gap:5px}
 .account-field label{font-size:12px;font-weight:600;color:#475569}
