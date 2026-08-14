@@ -21,6 +21,7 @@ function setupSidebarNavigation() {
             }
 
             if (activePanelId === "dashboard-view") loadLiveDashboardData();
+            if (activePanelId === "sales-view")     loadLiveDashboardData();
             if (activePanelId === "menu-view")      loadLiveMenuData();
             if (activePanelId === "users-view")     loadLiveUserData();
             if (activePanelId === "inventory-view") loadLiveInventoryData();

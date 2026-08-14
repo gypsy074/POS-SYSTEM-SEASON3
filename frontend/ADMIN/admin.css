@@ -26,11 +26,24 @@ body {
 
 /* Single Page Application State Engine Utility */
 .admin-panel {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
 }
 
 .admin-panel.hidden {
     display: none !important;
+}
+
+/* Dashboard scrolls normally since it has many stacked sections */
+#dashboard-view {
+    overflow-y: auto;
+}
+
+/* Sales view scrolls normally */
+#sales-view {
+    overflow-y: auto;
 }
 
 /* ==========================================================================
@@ -45,6 +58,11 @@ body {
     padding: 30px 20px;
     border: 1px solid #d7b59a;
     align-items: center;
+    overflow-y: auto;
+    min-height: 0;
+    /* Sidebar height is governed by the grid row (100vh) */
+    height: calc(100vh - 40px);  /* 40px = top+bottom margin */
+    box-sizing: border-box;
 }
 
 .admin-logo {
@@ -107,7 +125,8 @@ body {
     padding-right: 20px;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
+    overflow: hidden;
+    min-height: 0;
 }
 
 .admin-header {
@@ -185,13 +204,18 @@ body {
 
 .admin-profile-badge {
     background: var(--header-brown);
-    padding: 6px 20px 6px 6px;
+    padding: 6px 16px 6px 6px;
     border-radius: 40px;
     display: flex;
     align-items: center;
     gap: 12px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s;
 }
+
+.admin-profile-badge:hover { background: #b8926e; }
 
 .profile-avatar {
     width: 40px;
@@ -213,6 +237,98 @@ body {
 
 .profile-name { font-size: 0.95rem; color: #111; }
 .profile-role { font-size: 0.8rem; color: #444; }
+
+/* ==========================================================================
+   Shared Reusable Profile Dropdown Styles (Admin + POS)
+   ========================================================================== */
+.user-dropdown-container {
+    position: relative;
+}
+
+.user-dropdown-chevron {
+    font-size: 0.65rem;
+    margin-left: 4px;
+    transition: transform 0.25s ease;
+    color: #444;
+}
+
+.user-dropdown-container.open .user-dropdown-chevron {
+    transform: rotate(180deg);
+}
+
+.user-dropdown-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    background: white;
+    border-radius: 14px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+    border: 1px solid #e0c9b5;
+    min-width: 160px;
+    overflow: hidden;
+    z-index: 1000;
+    animation: dropdownFadeIn 0.2s ease;
+}
+
+.user-dropdown-menu.open { display: block; }
+
+@keyframes dropdownFadeIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.user-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 18px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-dark);
+    transition: background 0.15s;
+    font-family: inherit;
+}
+
+.user-dropdown-item:hover { background: #f5e8da; }
+.user-dropdown-item.logout-item { color: #c0392b; }
+.user-dropdown-item.logout-item:hover { background: #fdecea; }
+
+/* ==========================================================================
+   Service Type Badge Styles (Recent Transactions Table)
+   ========================================================================== */
+.service-type-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+.service-badge-dine-in {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #a5d6a7;
+}
+
+.service-badge-to-go {
+    background: #fff8e1;
+    color: #e65100;
+    border: 1px solid #ffcc80;
+}
+
+.service-badge-online {
+    background: #e3f2fd;
+    color: #1565c0;
+    border: 1px solid #90caf9;
+}
+
 
 /* ==========================================================================
    4. Live Dashboard Analytics & Table Layouts
@@ -346,6 +462,21 @@ body {
     padding: 20px;
     border: 1px solid #ddd;
     box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Menu-view specific: table fills remaining height */
+#menu-view .transactions-section {
+    flex: 1;
+    min-height: 0;
+}
+
+#menu-view .table-container {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
 }
 
 .section-header {
@@ -406,9 +537,6 @@ tr:hover td {
     color: var(--dark-brown);
 }
 
-.menu-form-section {
-    margin: 0 0 20px 20px;
-}
 
 .input-group label {
     display: block;
@@ -553,6 +681,235 @@ tr:hover td {
 .table-container tbody tr {
     cursor: pointer;
 }
+
+/* ==========================================================================
+   Full-Height Panel Layouts (Users, Menu, Inventory)
+   Ensures the content area fills the remaining viewport height with
+   a scrollable table and a fixed form at the bottom.
+   ========================================================================== */
+
+/* Shared wrapper used by users-view and inventory-view */
+.content-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0 0 16px 20px;
+    gap: 16px;
+    min-height: 0;
+}
+
+/* Two-column layout for users: form on left, table on right */
+.management-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 20px;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Shared card (white rounded box) used by form-panel and table-panel */
+.card {
+    background: white;
+    border-radius: 20px;
+    border: 1px solid #e0c9b5;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    overflow: hidden;
+}
+
+/* Form card — fixed height, scrollable internally if content grows */
+.form-panel.card {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow-y: auto;
+}
+
+/* Table card — fills remaining space */
+.table-panel.card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Scrollable table wrapper used inside table-panel and inventory-table-card */
+.table-scroll {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: auto;
+    min-height: 0;
+}
+
+/* Inventory-specific vertical layout */
+.inventory-management {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow: hidden;
+    min-height: 0;
+}
+
+/* Inventory table card fills available space */
+.inventory-table-card.card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+
+/* Inventory form card — fixed height at bottom */
+.inventory-form-card.card {
+    padding: 20px;
+    flex-shrink: 0;
+}
+
+/* Users action buttons row */
+.action-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: auto;
+    padding-top: 10px;
+}
+
+/* ==========================================================================
+   Menu-View: make the whole panel a flex column so table grows
+   ========================================================================== */
+#menu-view {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-bottom: 16px;
+}
+
+/* menu-form-section stays fixed at the bottom */
+.menu-form-section {
+    flex-shrink: 0;
+    margin: 0 0 0 20px;
+}
+
+/* ==========================================================================
+   Sales Analytics View Styles
+   ========================================================================== */
+.analytics-grid {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 20px;
+    padding: 0 20px 20px;
+}
+
+.charts-column {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.analytics-card {
+    background: white;
+    border-radius: 20px;
+    padding: 20px;
+    border: 1px solid #e0c9b5;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.calendar-card {
+    background: white;
+    border-radius: 20px;
+    padding: 20px;
+    border: 1px solid #e0c9b5;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.card-header h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--dark-brown);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+
+/* Filter Tabs (Day / Week / Month / All) */
+.filter-tabs {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.filter-tabs .tab {
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1.5px solid #d7b59a;
+    background: white;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--dark-brown);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.filter-tabs .tab:hover {
+    background: #f5e8da;
+}
+
+.filter-tabs .tab.active {
+    background: var(--accent-brown);
+    color: white;
+    border-color: var(--accent-brown);
+}
+
+/* Category Pills (Cs & Fs / RMs & Ps / Snacks) */
+.category-pills {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.category-pills .pill {
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1.5px solid #d7b59a;
+    background: white;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--dark-brown);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.category-pills .pill:hover {
+    background: #f5e8da;
+}
+
+.category-pills .pill.active {
+    background: var(--accent-brown);
+    color: white;
+    border-color: var(--accent-brown);
+}
+
+/* Calendar title */
+.calendar-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.year-dropdown {
+    border: 1.5px solid #d7b59a;
+    border-radius: 8px;
+    padding: 2px 6px;
+    font-size: 0.8rem;
+    color: var(--dark-brown);
+    background: white;
+    cursor: pointer;
+}
+
 
 /* ==========================================================================
    Responsive Media Framework Breakpoints

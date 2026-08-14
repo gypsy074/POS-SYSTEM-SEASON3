@@ -117,18 +117,6 @@ function setupCashierControls() {
         });
     });
 
-    if (swipeTrack) {
-        swipeTrack.addEventListener("click", async () => {
-            if (!cart.length) {
-                alert("Add at least one item before placing an order.");
-                return;
-            }
-
-            swipeTrack.classList.add("processing");
-            await submitOrder();
-            setTimeout(() => swipeTrack.classList.remove("processing"), 400);
-        });
-    }
 
     modeButtons.forEach(button => {
         button.addEventListener("click", () => {
@@ -147,6 +135,124 @@ function setupCashierControls() {
     if (backButtons[1]) {
         backButtons[1].addEventListener("click", cancelOrder);
     }
+
+    // ── Profile Dropdown ─────────────────────────────────────────────────────
+    setupCashierDropdown();
+
+    // ── Swipe-to-Place-Order drag slider ────────────────────────────────────
+    setupSwipeSlider();
+}
+
+// ── Cashier Dropdown ─────────────────────────────────────────────────────────
+function setupCashierDropdown() {
+    const container  = document.getElementById("cashierDropdownContainer");
+    const badge      = document.getElementById("cashierBadge");
+    const menu       = document.getElementById("cashierDropdownMenu");
+    const logoutBtn  = document.getElementById("cashierLogoutBtn");
+
+    if (!container || !badge || !menu) return;
+
+    // Populate username from server login response stored in sessionStorage (if available)
+    const savedName = sessionStorage.getItem("posUsername");
+    const savedRole = sessionStorage.getItem("posRole");
+    const usernameEl = document.getElementById("cashierUsername");
+    const roleEl     = document.getElementById("cashierRole");
+    if (savedName && usernameEl) usernameEl.textContent = savedName;
+    if (savedRole && roleEl)     roleEl.textContent = savedRole;
+
+    badge.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const isOpen = container.classList.toggle("open");
+        menu.classList.toggle("open", isOpen);
+    });
+
+    document.addEventListener("click", () => {
+        container.classList.remove("open");
+        menu.classList.remove("open");
+    });
+
+    if (logoutBtn) {
+        logoutBtn.addEventListener("click", () => {
+            sessionStorage.clear();
+            window.location.href = "../login.html";
+        });
+    }
+}
+
+// ── Swipe Slider Drag Logic ───────────────────────────────────────────────────
+function setupSwipeSlider() {
+    const track = document.getElementById("swipeTrack");
+    const thumb = document.getElementById("swipeThumb");
+    if (!track || !thumb) return;
+
+    let isDragging = false;
+    let startX     = 0;
+    let currentX   = 0;
+
+    function getTrackWidth() {
+        return track.offsetWidth - thumb.offsetWidth - 10; // max travel
+    }
+
+    function setThumbPosition(px) {
+        const clamped = Math.max(0, Math.min(px, getTrackWidth()));
+        thumb.style.transform = `translateX(${clamped}px)`;
+        currentX = clamped;
+
+        // Fade out text as thumb moves right
+        const progress = clamped / getTrackWidth();
+        const textEl = document.getElementById("swipeText");
+        if (textEl) textEl.style.opacity = 1 - progress * 0.8;
+    }
+
+    function startDrag(clientX) {
+        if (!cart.length) return;
+        isDragging = true;
+        startX = clientX - currentX;
+        track.classList.add("drag-active");
+    }
+
+    async function endDrag() {
+        if (!isDragging) return;
+        isDragging = false;
+        track.classList.remove("drag-active");
+
+        const threshold = getTrackWidth() * 0.78;
+        if (currentX >= threshold) {
+            // SUCCESS — reached end
+            track.classList.add("processing");
+            setThumbPosition(getTrackWidth());
+            await submitOrder();
+            setTimeout(() => {
+                track.classList.remove("processing");
+                setThumbPosition(0);
+                const textEl = document.getElementById("swipeText");
+                if (textEl) textEl.style.opacity = 1;
+            }, 500);
+        } else {
+            // Snap back to start
+            track.classList.add("snap-back");
+            setThumbPosition(0);
+            const textEl = document.getElementById("swipeText");
+            if (textEl) textEl.style.opacity = 1;
+            setTimeout(() => track.classList.remove("snap-back"), 400);
+        }
+    }
+
+    function onMove(clientX) {
+        if (!isDragging) return;
+        const pos = clientX - startX;
+        setThumbPosition(pos);
+    }
+
+    // Mouse events
+    thumb.addEventListener("mousedown", (e) => { e.preventDefault(); startDrag(e.clientX); });
+    document.addEventListener("mousemove", (e) => onMove(e.clientX));
+    document.addEventListener("mouseup",   () => endDrag());
+
+    // Touch events
+    thumb.addEventListener("touchstart", (e) => { e.preventDefault(); startDrag(e.touches[0].clientX); }, { passive: false });
+    document.addEventListener("touchmove",  (e) => { if (isDragging) { e.preventDefault(); onMove(e.touches[0].clientX); } }, { passive: false });
+    document.addEventListener("touchend",   () => endDrag());
 }
 
 async function loadCashierMenu() {
@@ -210,15 +316,12 @@ function displayCategoryItems(category, searchTerm = "") {
 
     grid.innerHTML = products.length
         ? products.map(product => `
-            <article class="food-card ${product.status === "Out of Stock" ? "sold-out-card" : ""}">
+            <article class="food-card ${product.status === "Out of Stock" ? "sold-out-card" : ""}" data-product-id="${product._id}" ${product.status === "Out of Stock" ? "" : "role=\"button\" tabindex=\"0\""}>
                 <img src="${escapeHtml(product.image || createPlaceholderImage(product.name))}" alt="${escapeHtml(product.name)}">
                 <div class="food-info">
                     <h4>${escapeHtml(product.name)}</h4>
                     <div class="price-box">
                         <span>₱${Number(product.price || 0).toFixed(2)}</span>
-                        <button type="button" class="add-circle" data-product-id="${product._id}" ${product.status === "Out of Stock" ? "disabled" : ""}>
-                            <i class="fa-solid fa-plus"></i>
-                        </button>
                     </div>
                 </div>
                 ${product.status === "Out of Stock" ? '<div class="sold-out-overlay"><span>OUT OF STOCK</span></div>' : ""}
@@ -226,10 +329,13 @@ function displayCategoryItems(category, searchTerm = "") {
         `).join("")
         : `<div class="food-card"><div class="food-info"><h4>No items found</h4><p>Try a different category or search term.</p></div></div>`;
 
-    grid.querySelectorAll("[data-product-id]").forEach(button => {
-        button.addEventListener("click", event => {
-            event.stopPropagation();
-            addToCart(button.dataset.productId);
+    grid.querySelectorAll(".food-card[data-product-id]").forEach(card => {
+        if (card.classList.contains("sold-out-card")) return;
+        card.addEventListener("click", () => {
+            addToCart(card.dataset.productId);
+        });
+        card.addEventListener("keydown", e => {
+            if (e.key === "Enter" || e.key === " ") addToCart(card.dataset.productId);
         });
     });
 }

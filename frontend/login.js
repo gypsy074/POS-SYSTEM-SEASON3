@@ -70,6 +70,10 @@ async function handleLogin(e) {
             return;
         }
 
+        // ── Store session info for profile badges ──────────────────────────
+        sessionStorage.setItem("posUsername", data.username);
+        sessionStorage.setItem("posRole", data.role);
+
         // ── Route by role ──────────────────────────────────────────────
         if (data.role === "Admin") {
             window.location.href = `${API_BASE}/ADMIN/admin.html`;

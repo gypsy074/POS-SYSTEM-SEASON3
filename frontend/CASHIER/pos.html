@@ -28,11 +28,20 @@
                 <div class="nav-controls">
                     <!-- <button class="icon-nav menu-trigger"><i class="fa-solid fa-bars"></i></button> -->
                     <button class="icon-nav notification-trigger"><i class="fa-solid fa-bell"></i></button>
-                    <div class="user-badge">
-                        <img src="https://ui-avatars.com/api/?name=Pranselen&background=6b4f3b&color=fff" alt="User">
-                        <div class="user-meta">
-                            <span class="username">Pranselen</span>
-                            <span class="role">Cashier</span>
+                    <div class="user-dropdown-container" id="cashierDropdownContainer">
+                        <div class="user-badge" id="cashierBadge">
+                            <img src="https://ui-avatars.com/api/?name=Pranselen&background=6b4f3b&color=fff" alt="User">
+                            <div class="user-meta">
+                                <span class="username" id="cashierUsername">Pranselen</span>
+                                <span class="role" id="cashierRole">Cashier</span>
+                            </div>
+                            <i class="fa-solid fa-chevron-down user-dropdown-chevron"></i>
+                        </div>
+                        <div class="user-dropdown-menu" id="cashierDropdownMenu">
+                            <button class="user-dropdown-item logout-item" id="cashierLogoutBtn">
+                                <i class="fa-solid fa-right-from-bracket"></i>
+                                Log out
+                            </button>
                         </div>
                     </div>
                 </div>

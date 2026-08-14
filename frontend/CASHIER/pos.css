@@ -129,7 +129,12 @@ body {
     align-items: center;
     gap: 10px;
     color: var(--white);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s;
 }
+
+.user-badge:hover { background: var(--dark-brown); }
 
 .user-badge img {
     width: 36px;
@@ -145,6 +150,63 @@ body {
 
 .username { font-weight: bold; font-size: 0.85rem; }
 .role { font-size: 0.7rem; opacity: 0.8; }
+
+.user-dropdown-chevron {
+    font-size: 0.65rem;
+    margin-left: 4px;
+    transition: transform 0.25s ease;
+}
+
+/* Dropdown Container */
+.user-dropdown-container {
+    position: relative;
+}
+
+.user-dropdown-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    background: var(--white);
+    border-radius: 14px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+    border: 1px solid #e0c9b5;
+    min-width: 160px;
+    overflow: hidden;
+    z-index: 1000;
+    animation: dropdownFadeIn 0.2s ease;
+}
+
+.user-dropdown-menu.open { display: block; }
+
+.user-dropdown-container.open .user-dropdown-chevron {
+    transform: rotate(180deg);
+}
+
+@keyframes dropdownFadeIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.user-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 18px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-dark);
+    transition: background 0.15s;
+}
+
+.user-dropdown-item:hover { background: #f5e8da; }
+
+.user-dropdown-item.logout-item { color: #c0392b; }
+.user-dropdown-item.logout-item:hover { background: #fdecea; }
 
 /*3. Menu Category Selection Tabs*/
 .category-tabs {
@@ -568,12 +630,22 @@ payment-details-section h3 {
     pointer-events: none;
 }
 
-.slide-confirm-btn.processing .slider-thumb {
-    transform: translateX(315px);
+.slide-track.processing .slider-thumb {
+    transform: translateX(calc(100% - 60px));
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.slide-confirm-btn.processing .btn-text {
+.slide-track.processing .btn-text {
     opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.slide-track.drag-active .slider-thumb {
+    transition: none !important;
+}
+
+.slide-track.snap-back .slider-thumb {
+    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
 }
 
 /* Floating animation overlay when you tap a food card */
