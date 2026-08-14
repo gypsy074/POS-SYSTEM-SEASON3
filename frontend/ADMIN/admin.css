@@ -1729,6 +1729,31 @@ body.dark .password-toggle:hover {
     color: #e8dccb;
 }
 
+/* Show/hide toggle animation — the eye pops when revealing, winks when masking */
+.password-toggle.reveal i { animation: eyePop 0.3s ease; }
+.password-toggle.hide i   { animation: eyeWink 0.35s ease; }
+
+@keyframes eyePop {
+    0%   { transform: scale(0.5); opacity: 0.4; }
+    60%  { transform: scale(1.2); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes eyeWink {
+    0%   { transform: scaleY(1); }
+    50%  { transform: scaleY(0.15); }
+    100% { transform: scaleY(1); }
+}
+
+/* Soft field glow flash on toggle (transition-based, never conflicts with anything) */
+.input-group input.toggle-flash {
+    box-shadow: 0 0 0 5px rgba(166, 124, 82, 0.35);
+}
+
+body.dark .input-group input.toggle-flash {
+    box-shadow: 0 0 0 5px rgba(232, 220, 203, 0.28);
+}
+
 body.dark ::placeholder {
     color: #b09a80;
 }
@@ -2137,5 +2162,10 @@ body.dark .confirm-btn-cancel:hover { background: #46372a; }
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
+    }
+    /* The show/hide toggle stays animated — it's brief, functional feedback. */
+    .password-toggle.reveal i,
+    .password-toggle.hide i {
+        animation-duration: 0.3s !important;
     }
 }
