@@ -143,6 +143,9 @@
         const header = document.querySelector("header");
         if (header && header.parentNode) header.after(banner);
         else document.body.prepend(banner);
+        // Admin app: the banner lives in its own grid row below the header —
+        // stay there instead of sticking over the header while scrolling.
+        if (isAdminApp) banner.style.position = "relative";
         banner.querySelector("#accountBannerKill").addEventListener("click", revokeOthers);
         banner.querySelector("#accountBannerView").addEventListener("click", () => openAccountModal("sessions"));
         banner.querySelector("#accountBannerClose").addEventListener("click", () => banner.style.display = "none");

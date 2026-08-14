@@ -27,12 +27,20 @@ body {
 .admin-container {
     display: grid;
     grid-template-columns: 240px 1fr;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto auto 1fr;
     grid-template-areas:
         "sidebar header"
+        "sidebar banner"
         "sidebar content";
     height: 100vh;
     height: 100dvh;
+}
+
+/* "New sign-in detected" banner — sits in its own grid row below the header.
+   Collapses to zero height while hidden, so the layout is unchanged. */
+#accountBanner {
+    grid-area: banner;
+    position: relative;
 }
 
 /* Single Page Application State Engine Utility */
@@ -880,9 +888,10 @@ tr:hover td {
 @media (max-width: 1100px) {
     .admin-container {
         grid-template-columns: 1fr;
-        grid-template-rows: auto auto 1fr;
+        grid-template-rows: auto auto auto 1fr;
         grid-template-areas:
             "header"
+            "banner"
             "sidebar"
             "content";
         height: auto;
@@ -1177,6 +1186,19 @@ tr:hover td {
     .calendar-card {
         padding: 14px;
         border-radius: 18px;
+    }
+
+    /* New sign-in banner wraps its buttons under the text on small phones */
+    #accountBanner {
+        flex-wrap: wrap;
+        row-gap: 6px;
+    }
+
+    #accountBanner .banner-actions {
+        flex-wrap: wrap;
+        width: 100%;
+        margin-left: 0;
+        justify-content: flex-end;
     }
 
     /* Compact headers + full-width action buttons on small phones */
