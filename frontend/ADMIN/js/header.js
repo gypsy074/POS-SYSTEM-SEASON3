@@ -114,6 +114,8 @@ function setupDarkModeToggle() {
         const dark = !document.body.classList.contains("dark");
         localStorage.setItem("posDarkMode", dark ? "1" : "0");
         apply(dark);
+        // Charts paint on canvas — rebuild them so tick/label colors match the theme
+        refreshCurrentPanel();
     });
 }
 

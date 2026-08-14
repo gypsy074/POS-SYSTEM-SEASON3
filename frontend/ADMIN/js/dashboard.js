@@ -625,8 +625,22 @@ function renderTransactionTable(orders) {
     }).join("");
 }
 
+// Chart colors follow the active theme — Chart.js paints on canvas, so CSS
+// dark-mode rules cannot touch it.
+function getChartTheme() {
+    const dark = document.body.classList.contains("dark");
+    return {
+        text:    dark ? "#b09a80" : "#666",
+        strong:  dark ? "#e8dccb" : "#666",
+        grid:    dark ? "rgba(232, 220, 203, 0.12)" : "rgba(0, 0, 0, 0.08)",
+        backdrop: "transparent"
+    };
+}
+
 function renderSalesCharts(orders, products, range = activeSalesRange) {
     if (!window.Chart) return;
+
+    const theme = getChartTheme();
 
     const salesCanvas = document.getElementById("salesLineChart");
     const radarCanvas = document.getElementById("itemsRadarChart");
@@ -663,7 +677,11 @@ function renderSalesCharts(orders, products, range = activeSalesRange) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: false } }
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color: theme.text }, grid: { color: theme.grid } },
+                y: { beginAtZero: true, ticks: { color: theme.text }, grid: { color: theme.grid } }
+            }
         }
     });
 
@@ -716,8 +734,8 @@ function renderSalesCharts(orders, products, range = activeSalesRange) {
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 scales: {
-                    x: { beginAtZero: true, ticks: { precision: 0 } },
-                    y: { ticks: { autoSkip: false } }
+                    x: { beginAtZero: true, ticks: { precision: 0, color: theme.text }, grid: { color: theme.grid } },
+                    y: { ticks: { autoSkip: false, color: theme.text }, grid: { color: theme.grid } }
                 }
             }
         });
@@ -763,7 +781,15 @@ function renderSalesCharts(orders, products, range = activeSalesRange) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            scales: { r: { beginAtZero: true } }
+            scales: {
+                r: {
+                    beginAtZero: true,
+                    ticks: { color: theme.text, backdropColor: theme.backdrop },
+                    pointLabels: { color: theme.strong },
+                    grid: { color: theme.grid },
+                    angleLines: { color: theme.grid }
+                }
+            }
         }
     });
 }
@@ -772,6 +798,8 @@ function renderSalesCharts(orders, products, range = activeSalesRange) {
 
 function renderUsageChart(orders, range = activeSalesRange) {
     if (!window.Chart) return;
+
+    const theme = getChartTheme();
 
     const usageCanvas = document.getElementById("usageBarChart");
     if (!usageCanvas) return;
@@ -839,18 +867,22 @@ function renderUsageChart(orders, range = activeSalesRange) {
             maintainAspectRatio: false,
             interaction: { mode: "index", intersect: false },
             scales: {
+                x: { ticks: { color: theme.text }, grid: { color: theme.grid } },
                 y: {
                     beginAtZero: true,
-                    title: { display: true, text: "Revenue (₱)" }
+                    title: { display: true, text: "Revenue (₱)" },
+                    ticks: { color: theme.text },
+                    grid: { color: theme.grid }
                 },
                 y1: {
                     beginAtZero: true,
                     position: "right",
                     grid: { drawOnChartArea: false },
-                    title: { display: true, text: "Orders" }
+                    title: { display: true, text: "Orders" },
+                    ticks: { color: theme.text }
                 }
             },
-            plugins: { legend: { position: "top" } }
+            plugins: { legend: { position: "top", labels: { color: theme.text } } }
         }
     });
 }
