@@ -12,6 +12,11 @@
         el.addEventListener("animationend", () => el.classList.remove(cls), { once: true });
     }
 
+    function runFlash(el) {
+        el.classList.add("toggle-flash");
+        requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove("toggle-flash")));
+    }
+
     function init() {
         document.querySelectorAll(".password-wrap").forEach(wrap => {
             const input = wrap.querySelector("input[type='password'], input[type='text']");
@@ -28,6 +33,7 @@
                 runAnim(btn, showing ? "hide" : "reveal");
                 runAnim(input, showing ? "pw-hide" : "pw-reveal");
                 runAnim(input, "glow");
+                runFlash(input);
                 input.focus();
             });
         });

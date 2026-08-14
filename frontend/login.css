@@ -231,6 +231,54 @@ body {
     to   { background-position: 100% 0; }
 }
 
+/* Coffee-vibe typing feedback — warm glow + steam while typing */
+.input-group input.typing {
+    animation: typingGlow 1.2s ease-in-out infinite;
+}
+
+@keyframes typingGlow {
+    0%, 100% {
+        box-shadow: 0 0 0 3px rgba(166, 124, 82, 0.16);
+        border-color: #c9a87c;
+    }
+    50% {
+        box-shadow: 0 0 0 7px rgba(166, 124, 82, 0.32);
+        border-color: var(--accent-brown);
+    }
+}
+
+/* Transition-based flash for the show/hide toggle (works even if CSS animations are blocked) */
+.input-group input.toggle-flash {
+    box-shadow: 0 0 0 5px rgba(166, 124, 82, 0.35);
+}
+
+/* Steam wisps rising from password fields while typing */
+.password-wrap.steam::before,
+.password-wrap.steam::after {
+    content: "";
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    width: 10px;
+    height: 16px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.75);
+    filter: blur(3px);
+    opacity: 0;
+    z-index: 2;
+    pointer-events: none;
+    animation: steamRise 1.1s ease-out infinite;
+}
+
+.password-wrap.steam::before { margin-left: -16px; animation-delay: 0.2s; }
+.password-wrap.steam::after  { margin-left: 6px;   animation-delay: 0.6s; }
+
+@keyframes steamRise {
+    0%   { transform: translateY(0) scale(0.6); opacity: 0; }
+    25%  { opacity: 0.85; }
+    100% { transform: translateY(-26px) scale(1.15); opacity: 0; }
+}
+
 /* Respect users who prefer less motion */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -249,6 +297,16 @@ body {
     .password-toggle.reveal i,
     .password-toggle.hide i {
         animation-duration: 0.3s !important;
+    }
+    /* Typing feedback stays animated too — brief, functional feedback. */
+    .input-group input.typing {
+        animation-duration: 1.2s !important;
+        animation-iteration-count: infinite !important;
+    }
+    .password-wrap.steam::before,
+    .password-wrap.steam::after {
+        animation-duration: 1.1s !important;
+        animation-iteration-count: infinite !important;
     }
 }
 
