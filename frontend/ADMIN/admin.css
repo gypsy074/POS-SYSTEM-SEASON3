@@ -1242,6 +1242,11 @@ tr:hover td {
     color: white;
 }
 
+.sales-graph-card .card-header {
+    flex-wrap: wrap;
+    row-gap: 10px;
+}
+
 .calendar-card {
     background: white;
     border: 1px solid var(--header-brown);
@@ -1328,6 +1333,7 @@ tr:hover td {
     padding: 25px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
     border: 1px solid #ddd;
+    box-sizing: border-box;
 }
 
 .action-buttons {
@@ -1355,6 +1361,7 @@ tr:hover td {
 
 .table-scroll {
     overflow-y: auto;
+    overflow-x: auto;
     max-height: 65vh;
 }
 
@@ -2167,5 +2174,70 @@ body.dark .confirm-btn-cancel:hover { background: #46372a; }
     .password-toggle.reveal i,
     .password-toggle.hide i {
         animation-duration: 0.3s !important;
+    }
+}
+
+/* ==========================================================================
+   Responsive Override
+   Re-declares rules whose later base declarations (e.g. .analytics-grid,
+   .management-grid, .content-wrapper, .card) previously won the cascade by
+   source order, silently breaking the stacked layouts on narrow screens.
+   Keep this block at the very end of the file.
+   ========================================================================== */
+@media (max-width: 1100px) {
+    .analytics-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 720px) {
+    .management-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .content-wrapper {
+        padding: 14px 10px 0;
+    }
+
+    .analytics-grid {
+        margin-left: 0;
+    }
+
+    .analytics-card,
+    .calendar-card {
+        padding: 18px;
+    }
+
+    .filter-tabs {
+        justify-content: center;
+    }
+
+    .audit-filter-group {
+        width: 100%;
+        margin-left: 0;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+
+    .management-grid > *,
+    .analytics-grid > *,
+    .inventory-management > * {
+        min-width: 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .card,
+    .inventory-form-card {
+        padding: 16px;
+    }
+
+    .analytics-card,
+    .calendar-card {
+        padding: 14px;
+    }
+
+    .action-buttons {
+        grid-template-columns: 1fr;
     }
 }
