@@ -2291,6 +2291,43 @@ body.dark .server-status {
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
 }
 
+/* Dark mode - white panels + outline buttons were only having their text
+   recolored, leaving bright white surfaces with unreadable cream text. */
+body.dark .stat-card,
+body.dark .card,
+body.dark .analytics-card,
+body.dark .calendar-card,
+body.dark .transactions-section,
+body.dark .menu-form-grid,
+body.dark .inventory-table-card,
+body.dark .inventory-form-card,
+body.dark .menu-form-section,
+body.dark .updates-panel,
+body.dark .form-image-uploader {
+    background: #2e2318;
+    border-color: #4a3a2c;
+}
+
+body.dark .btn-main,
+body.dark .btn-pill,
+body.dark .pill,
+body.dark .tab,
+body.dark .action-btn-secondary,
+body.dark .action-btn-neutral,
+body.dark .import-btn {
+    background: #3a2d1f;
+    border-color: #4a3a2c;
+}
+
+body.dark .nav-btn:hover {
+    background: #3a2d1f;
+}
+
+body.dark .ai-warn {
+    background: #4a2a26;
+    color: #f5a09a;
+}
+
 /* ==========================================================================
    Confirm modal (replaces native window.confirm)
    ========================================================================== */
