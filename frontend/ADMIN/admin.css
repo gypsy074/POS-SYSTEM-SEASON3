@@ -977,14 +977,10 @@ tr:hover td {
         margin-right: auto;
     }
 
+    /* The header search only filters the menu table — hidden on phones so the
+       header stays thin (2 rows: pill + actions). */
     .admin-search-wrapper {
-        order: 3;
-        width: 100%;
-        justify-content: stretch;
-    }
-
-    .admin-search {
-        max-width: none;
+        display: none;
     }
 
     .header-right-group {
