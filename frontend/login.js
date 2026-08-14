@@ -116,20 +116,25 @@ async function handleLogin(e) {
 
 // ── Success Transition ──────────────────────────────────────────────────────
 // Shows the brand overlay briefly, then routes the user to their app.
+// The redirect is driven by the cup-pour animation (redirectAfterTransition
+// in logoutTransition.js) so the transition never drifts from its CSS.
 function redirectAfterLogin(role, username) {
     const overlay  = document.getElementById("loginTransitionOverlay");
     const welcome  = document.getElementById("transitionWelcome");
     const roleEl   = document.getElementById("transitionRole");
 
+    const go = () => {
+        window.location.href = role === "Admin" ? "ADMIN/admin.html" : "CASHIER/pos.html";
+    };
+
     if (overlay) {
         if (welcome) welcome.textContent = `Welcome, ${String(username || "").trim() || "there"}!`;
         if (roleEl)  roleEl.textContent  = role === "Admin" ? "Administrator" : "Cashier";
         overlay.classList.add("show");
+        redirectAfterTransition(overlay, go);
+    } else {
+        go();
     }
-
-    setTimeout(() => {
-        window.location.href = role === "Admin" ? "ADMIN/admin.html" : "CASHIER/pos.html";
-    }, 1800);
 }
 
 // ── Bootstrap ───────────────────────────────────────────────────────────────
