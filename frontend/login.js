@@ -3,7 +3,14 @@
    Handles: date display, form submission, API auth, role-based redirect
    ========================================================================== */
 
-const API_BASE = "http://localhost:3000";
+function getApiBaseUrl() {
+    if (window.location.protocol === "file:") {
+        return "http://localhost:3000";
+    }
+    return window.location.origin;
+}
+
+const API_BASE = getApiBaseUrl();
 
 // ── Date Badge ─────────────────────────────────────────────────────────────
 function initDateBadge() {
@@ -24,6 +31,12 @@ function showError(message) {
     if (banner && text) {
         text.textContent = message;
         banner.classList.add("visible");
+    }
+    const container = document.querySelector(".login-page-container");
+    if (container) {
+        container.classList.remove("shake");
+        void container.offsetWidth; // restart the shake animation
+        container.classList.add("shake");
     }
 }
 
@@ -73,12 +86,28 @@ async function handleLogin(e) {
         // ── Store session info for profile badges ──────────────────────────
         sessionStorage.setItem("posUsername", data.username);
         sessionStorage.setItem("posRole", data.role);
+/* BEGIN incoming (reyn/ulan)
+        // ── Store session user + token for profile widgets & API calls ──
+        // Each app keeps its own session keys (admin vs cashier) so one
+        // browser can hold both logins without them overwriting each other.
+        const isAdmin = data.role === "Admin";
+        localStorage.setItem(
+            isAdmin ? "posAdminUser" : "posUser",
+            JSON.stringify({
+                username: data.username,
+                role: data.role
+            })
+        );
+        if (data.token) {
+            localStorage.setItem(isAdmin ? "posAdminToken" : "posToken", data.token);
+        }
+END incoming (reyn/ulan) */
 
         // ── Route by role ──────────────────────────────────────────────
-        if (data.role === "Admin") {
-            window.location.href = `${API_BASE}/ADMIN/admin.html`;
-        } else if (data.role === "Cashier") {
-            window.location.href = `${API_BASE}/CASHIER/pos.html`;
+        // Relative paths so redirects also work when the frontend is opened
+        // directly via file:// (not just when served by the backend).
+        if (data.role === "Admin" || data.role === "Cashier") {
+            redirectAfterLogin(data.role, data.username);
         } else {
             showError("Unknown user role. Contact an administrator.");
         }
@@ -87,6 +116,29 @@ async function handleLogin(e) {
         showError("Cannot connect to the server. Make sure the backend is running on port 3000.");
     } finally {
         setLoading(false);
+    }
+}
+
+// ── Success Transition ──────────────────────────────────────────────────────
+// Shows the brand overlay briefly, then routes the user to their app.
+// The redirect is driven by the cup-pour animation (redirectAfterTransition
+// in logoutTransition.js) so the transition never drifts from its CSS.
+function redirectAfterLogin(role, username) {
+    const overlay  = document.getElementById("loginTransitionOverlay");
+    const welcome  = document.getElementById("transitionWelcome");
+    const roleEl   = document.getElementById("transitionRole");
+
+    const go = () => {
+        window.location.href = role === "Admin" ? "ADMIN/admin.html" : "CASHIER/pos.html";
+    };
+
+    if (overlay) {
+        if (welcome) welcome.textContent = `Welcome, ${String(username || "").trim() || "there"}!`;
+        if (roleEl)  roleEl.textContent  = role === "Admin" ? "Administrator" : "Cashier";
+        overlay.classList.add("show");
+        redirectAfterTransition(overlay, go);
+    } else {
+        go();
     }
 }
 

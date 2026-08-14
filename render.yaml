@@ -1,0 +1,28 @@
+# Render blueprint — one-click deployment for the Season 3 POS backend.
+# Connect the repo in Render → Blueprint → this file is auto-detected.
+# Alternatively create a manual "Web Service" using the settings in the comments below.
+
+services:
+  - type: web
+    name: season3-pos
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      # MONGO_URI must be provided in the Render dashboard (never commit it).
+      - key: MONGO_URI
+        sync: false
+      # Randomly generated strong secret on first provision — overridable.
+      - key: JWT_SECRET
+        generateValue: true
+      # "*" = the backend accepts requests from any origin (classroom LAN use).
+      - key: CORS_ORIGIN
+        value: '*'
+    # Manual Web Service equivalent:
+    #   Root Directory : backend
+    #   Build Command  : npm install
+    #   Start Command  : node server.js
+    #   Environment    : Node (Free tier works)

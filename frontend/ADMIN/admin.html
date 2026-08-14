@@ -1,10 +1,16 @@
 <!doctype html>
+<!-- BEGIN incoming (reyn/ulan)
+﻿<!DOCTYPE html>
+END incoming (reyn/ulan) -->
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admin Dashboard - Season 3</title>
     <link rel="stylesheet" href="admin.css" />
+<!-- BEGIN incoming (reyn/ulan)
+    <link rel="stylesheet" href="admin.css?v=36">
+END incoming (reyn/ulan) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link
       rel="stylesheet"
@@ -79,6 +85,236 @@
                 <div class="profile-info">
                   <strong class="profile-name" id="adminName">Miggie</strong>
                   <span class="profile-role" id="adminRoleLabel">Admin</span>
+<!-- BEGIN incoming (reyn/ulan)
+        <aside class="sidebar">
+            <div class="brand">
+                <img src="../assets/logo.png" alt="Season 3 POS System Logo" class="admin-logo">
+            </div>
+            <nav class="nav-links">
+                <button class="nav-btn active" data-target="dashboard-view"><i class="fas fa-gauge-high"></i> Dashboard</button>
+                <button class="nav-btn" data-target="sales-view"><i class="fas fa-chart-line"></i> Sales Analytics</button>
+                <button class="nav-btn" data-target="users-view"><i class="fas fa-user-plus"></i> Add Users</button>
+                <button class="nav-btn" data-target="menu-view"><i class="fas fa-utensils"></i> Add Menu</button>
+                <button class="nav-btn" data-target="inventory-view"><i class="fas fa-boxes-stacked"></i> Inventory</button>
+                <button class="nav-btn" data-target="waste-view"><i class="fas fa-recycle"></i> Waste Food</button>
+                <button class="nav-btn" data-target="audit-view"><i class="fas fa-scroll"></i> Audit Log</button>
+            </nav>
+        </aside>
+
+        <header class="admin-header">
+                <div class="date-chip" id="adminDate">Sunday, Jun 21</div>
+
+                <div class="server-status" id="serverStatus">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Checking...</span>
+                </div>
+
+                <div class="ai-header-pill" id="aiHeaderPill" role="button" tabindex="0"
+                    aria-haspopup="true" aria-expanded="false">
+                    <i class="fas fa-robot"></i>
+                    <span>AI</span>
+                    <span class="ai-header-count" id="aiPillCount">&ndash;</span>
+                    <div class="ai-header-panel" id="aiHeaderPanel" role="dialog" aria-label="AI Insights">
+                        <div class="ai-header-panel-head">
+                            <span><i class="fas fa-robot"></i> AI Insights</span>
+                            <button type="button" class="ai-header-panel-close" id="aiHeaderPanelClose"
+                                aria-label="Close"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="ai-header-panel-body" id="aiHeaderPanelBody"></div>
+                    </div>
+                </div>
+
+                <div class="header-center" id="headerCenter" aria-live="off">
+                    <i class="fas fa-gauge-high" id="headerCenterIcon"></i>
+                    <span class="header-center-title" id="headerCenterTitle">Dashboard</span>
+                    <span class="header-center-clock" id="headerCenterClock" aria-hidden="true">--:--:--</span>
+                </div>
+
+                <div class="header-right-group">
+                    <div class="header-icons">
+                        <button class="icon-circle white-btn" type="button" id="darkModeBtn"
+                            title="Toggle dark mode"><i class="fas fa-moon"></i></button>
+                        <button class="icon-circle white-btn" type="button" id="refreshAdminBtn"
+                            title="Refresh current view"><i class="fas fa-rotate-right"></i></button>
+                        <button class="icon-circle white-btn" type="button" id="notificationsBtn"
+                            title="Notifications">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
+                        </button>
+                    </div>
+
+                    <div class="notification-dropdown" id="notificationDropdown"></div>
+
+                    <div class="admin-profile-badge" id="adminProfileBtn" role="button" tabindex="0">
+                        <div class="profile-avatar" id="profileAvatar">MI</div>
+                        <div class="profile-info">
+                            <strong class="profile-name" id="profileName">Admin</strong>
+                            <span class="profile-role" id="profileRole">Admin</span>
+                        </div>
+                        <i class="fas fa-chevron-down profile-chevron"></i>
+                    </div>
+
+                    <div class="profile-dropdown" id="profileDropdown">
+                        <div class="profile-dropdown-header">
+                            <div class="profile-avatar" id="profileDropdownAvatar">MI</div>
+                            <div>
+                                <strong id="profileDropdownName">Admin</strong>
+                                <span id="profileDropdownRole">Admin</span>
+                            </div>
+                        </div>
+                        <button type="button" class="profile-dropdown-item" id="profileAccountBtn">
+                            <i class="fas fa-user-shield"></i> My Account & sessions
+                        </button>
+                        <button type="button" class="profile-dropdown-item" id="profileLogoutBtn">
+                            <i class="fas fa-sign-out-alt"></i> Log out
+                        </button>
+                    </div>
+                </div>
+        </header>
+
+        <main class="main-body">
+
+            <div id="dashboard-view" class="admin-panel">
+                <div class="dashboard-grid">
+                    <section class="daily-snapshot" id="dailySnapshot" aria-label="Today at a glance"></section>
+                    <section class="stats-row">
+                        <div class="stat-card revenue-main">
+                            <div class="stat-label">
+                                <i class="fas fa-database"></i>
+                                <span>Total<br>Revenue</span>
+                            </div>
+                            <h2 id="totalRevenue">â‚±0.00</h2>
+                        </div>
+
+                        <div class="stat-card performance-wide">
+                            <div class="perf-col">
+                                <div class="label-group"><i class="fas fa-server"></i><span>Performance</span></div>
+                                <div class="main-val" id="performanceValue">No Data</div>
+                            </div>
+                            <div class="perf-col">
+                                <div class="label-group"><i class="fas fa-clipboard-list"></i><span>Todays Sales</span></div>
+                                <div class="sub-val" id="todaySalesCount">0 Orders</div>
+                            </div>
+                            <div class="perf-col">
+                                <div class="label-group"><i class="fas fa-recycle"></i><span>Waste (Month)</span></div>
+                                <div class="sub-val" id="wasteCount">0 Items</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card updates-panel">
+                            <h3>Updates</h3>
+                            <div class="update-list" id="updateList"></div>
+                            <!-- Panel-anchored expander (covers only the Updates card) -->
+                            <div id="updatesDetailOverlay" class="updates-detail-overlay" role="dialog"
+                                aria-modal="true">
+                                <div class="updates-detail-panel">
+                                    <div class="updates-detail-header">
+                                        <span class="updates-detail-title" id="updatesDetailTitle"></span>
+                                        <button type="button" class="updates-detail-close" id="updatesDetailClose"
+                                            aria-label="Close"><i class="fas fa-times"></i></button>
+                                    </div>
+                                    <div class="updates-detail-body" id="updatesDetailBody"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="transactions-section">
+                        <div class="section-header"><i class="fas fa-clipboard-check"></i> Recent Transactions</div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Customer Name</th>
+                                        <th>Cashier</th>
+                                        <th>Date</th>
+                                        <th>Receipt Number</th>
+                                        <th>Items</th>
+                                        <th>Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="transactionBody"></tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <div id="sales-view" class="admin-panel hidden">
+                <div class="analytics-grid">
+                    <div class="charts-column" style="display: flex; flex-direction: column; gap: 20px;">
+                        <div class="analytics-card sales-graph-card">
+                            <div class="card-header"
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                <h3><i class="fas fa-chart-line"></i> Sales Analytics</h3>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <div class="filter-tabs">
+                                        <button class="tab active">Day</button>
+                                        <button class="tab">Week</button>
+                                        <button class="tab">Month</button>
+                                        <button class="tab">All</button>
+                                    </div>
+                                    <button type="button" class="csv-export-btn" id="exportCsvBtn"
+                                        title="Export sales as CSV"><i class="fas fa-download"></i> Export</button>
+                                </div>
+                            </div>
+                            <div style="height: 330px;">
+                                <canvas id="salesLineChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="analytics-card usage-card">
+                            <div class="card-header"
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                <h3><i class="fas fa-chart-bar"></i> Orders & Revenue</h3>
+                            </div>
+                            <div style="height: 330px;">
+                                <canvas id="usageBarChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="charts-column" style="display: flex; flex-direction: column; gap: 20px;">
+                        <div class="analytics-card radar-card">
+                            <div class="card-header"
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                <h3><i class="fas fa-layer-group"></i> <span id="radarCardTitle">Items Performance</span></h3>
+                                <div class="category-pills">
+                                    <span class="pill active">Cs & Fs</span>
+                                    <span class="pill">RMs & Ps</span>
+                                    <span class="pill">Snacks</span>
+                                </div>
+                            </div>
+                            <div style="height: 280px; display: flex; justify-content: center;">
+                                <canvas id="itemsRadarChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="analytics-card calendar-card">
+                        <div class="calendar-header"
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <button type="button" id="prevMonthBtn"
+                                style="background:none; border:none; cursor:pointer; color:inherit;"><i
+                                    class="fas fa-chevron-left"></i></button>
+                            <div class="calendar-title" style="display: flex; align-items: center; gap: 8px;">
+                                <span id="monthDisplay"
+                                    style="font-weight: bold; color: var(--dark-brown);">October</span>
+                                <select id="yearSelect" class="year-dropdown"></select>
+                            </div>
+                            <button type="button" id="nextMonthBtn"
+                                style="background:none; border:none; cursor:pointer; color:inherit;"><i
+                                    class="fas fa-chevron-right"></i></button>
+                        </div>
+                        <div class="calendar-days-header"
+                            style="display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 0.7rem; margin-bottom: 10px; color: #888; font-weight: bold;">
+                            <span>SUN</span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span>
+                        </div>
+                        <div class="calendar-grid" id="calendarGrid"
+                            style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; text-align: center;">
+                        </div>
+                    </div>
+                    </div>
+END incoming (reyn/ulan) -->
                 </div>
                 <i class="fa-solid fa-chevron-down user-dropdown-chevron"></i>
               </div>
@@ -265,6 +501,58 @@
                     >October</span
                   >
                   <select id="yearSelect" class="year-dropdown"></select>
+<!-- BEGIN incoming (reyn/ulan)
+            <div id="users-view" class="admin-panel hidden">
+                <div class="panel-header-title" style="margin-left:20px;">
+                    <h2><i class="fas fa-user-plus"></i> Manage Crew Accounts</h2>
+                </div>
+                <div class="content-wrapper">
+                    <div class="management-grid">
+                        <section class="form-panel card">
+                            <div class="input-group">
+                                <label>Username</label>
+                                <input type="text" id="usernameInput">
+                            </div>
+                            <div class="input-group">
+                                <label>Password</label>
+                                <div class="password-wrap">
+                                    <input type="password" id="passwordInput">
+                                    <button type="button" class="password-toggle" aria-label="Show password"><i class="fa-solid fa-eye"></i></button>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <label>Role</label>
+                                <select id="roleSelect">
+                                    <option value="" disabled selected>Select Role</option>
+                                    <option value="Admin">Admin</option>
+                                    <option value="Cashier">Cashier</option>
+                                </select>
+                            </div>
+                            <div class="action-buttons">
+                                <button class="btn-main" type="button" id="addUserBtn">Add</button>
+                                <button class="btn-main" type="button" id="updateUserBtn">Update</button>
+                                <button class="btn-main" type="button" id="removeUserBtn">Remove</button>
+                                <button class="btn-main" type="button" id="clearUserBtn">Clear</button>
+                            </div>
+                        </section>
+                        <section class="table-panel card">
+                            <div class="table-scroll">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Username</th>
+                                            <th>Role</th>
+                                            <th>Status</th>
+                                            <th>Date</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="userTableBody"></tbody>
+                                </table>
+                            </div>
+                        </section>
+                    </div>
+END incoming (reyn/ulan) -->
                 </div>
                 <button
                   type="button"
@@ -318,6 +606,92 @@
                 <div class="input-group">
                   <label>Username</label>
                   <input type="text" id="usernameInput" />
+<!-- BEGIN incoming (reyn/ulan)
+            <div id="menu-view" class="admin-panel hidden">
+                <section class="transactions-section" style="margin-bottom: 25px;">
+                    <div class="section-header"><i class="fas fa-utensils"></i> Current Live Menu Items</div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Product Name</th>
+                                    <th>Category</th>
+                                    <th>Price</th>
+                                    <th>Stock</th>
+                                    <th>Status</th>
+                                    <th>Date Added</th>
+                                </tr>
+                            </thead>
+                            <tbody id="menuItemsTableBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="menu-form-section">
+                    <div class="menu-form-grid">
+                        <div class="form-inputs">
+                            <div class="input-group">
+                                <label>Product Name:</label>
+                                <input type="text" id="productNameInput" placeholder="Enter name...">
+                            </div>
+                            <div class="input-group">
+                                <label>Price:</label>
+                                <input type="number" id="priceInput" step="0.01" placeholder="0.00">
+                            </div>
+                            <div class="input-group">
+                                <label>Stock:</label>
+                                <input type="number" id="stockInput" min="0" step="1" placeholder="999">
+                            </div>
+                            <div class="input-group" style="grid-column: span 2;">
+                                <label>Low Stock Threshold:</label>
+                                <input type="number" id="lowStockInput" min="0" step="1" placeholder="10">
+                            </div>
+                            <div class="input-group" style="grid-column: span 2;">
+                                <label>Category:</label>
+                                <select id="categorySelect">
+                                    <option value="Coffee">Coffee</option>
+                                    <option value="Frappe">Frappe</option>
+                                    <option value="Rice Meals">Rice Meals</option>
+                                    <option value="Pasta">Pasta</option>
+                                    <option value="Snacks">Snacks</option>
+                                </select>
+                            </div>
+                            <div class="input-group" style="grid-column: span 2;">
+                                <label>Status Availability:</label>
+                                <select id="statusSelect">
+                                    <option value="Available">Available</option>
+                                    <option value="Out of Stock">Out of Stock</option>
+                                </select>
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="action-btn action-btn-primary"
+                                    data-menu-action="add">Add</button>
+                                <button type="button" class="action-btn action-btn-secondary"
+                                    data-menu-action="update">Update</button>
+                                <button type="button" class="action-btn action-btn-danger"
+                                    data-menu-action="delete">Remove</button>
+                                <button type="button" class="action-btn action-btn-neutral"
+                                    data-menu-action="clear">Clear</button>
+                            </div>
+
+                        </div>
+
+                        <div class="form-image-uploader">
+                            <input type="file" id="menuImageInput" accept="image/*" style="display: none;">
+                            <div id="imagePreviewBox">
+                                <i id="previewIcon" class="fas fa-image"></i>
+                                <p id="previewText">No Image Uploaded</p>
+                            </div>
+                            <button type="button" id="importBtn" class="import-btn">Import</button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div id="inventory-view" class="admin-panel hidden">
+                <div class="panel-header-title" style="margin-left:20px;">
+                    <h2><i class="fas fa-boxes"></i> Stock & Supply Inventory</h2>
+END incoming (reyn/ulan) -->
                 </div>
                 <div class="input-group">
                   <label>Password</label>
@@ -563,22 +937,102 @@
           </div>
         </div>
       </main>
+<!-- BEGIN incoming (reyn/ulan)
+            <div id="waste-view" class="admin-panel hidden">
+                <div class="panel-header-title" style="margin-left:20px;">
+                    <h2><i class="fas fa-recycle"></i> Waste Food</h2>
+                </div>
+                <div class="content-wrapper">
+                    <section class="transactions-section">
+                        <div class="section-header">
+                            <i class="fas fa-clipboard-list"></i> Discarded Items
+                            <span class="waste-total" id="wasteTotalCost">Total Waste: â‚±0.00</span>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Product</th>
+                                        <th>Cashier</th>
+                                        <th>Quantity</th>
+                                        <th>Unit Price</th>
+                                        <th>Cost</th>
+                                        <th>Reason</th>
+                                        <th>Date</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="wasteTableBody"></tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <div id="audit-view" class="admin-panel hidden">
+                <div class="panel-header-title" style="margin-left:20px;">
+                    <h2><i class="fas fa-scroll"></i> Audit Log</h2>
+                </div>
+                <div class="content-wrapper">
+                    <section class="transactions-section">
+                        <div class="section-header">
+                            <i class="fas fa-clipboard-list"></i> System Activity
+                            <div class="audit-filter-group" style="display: flex; gap: 10px; align-items: center; margin-left: auto;">
+                                <input type="date" id="auditFrom" class="audit-date-filter" title="From date">
+                                <input type="date" id="auditTo" class="audit-date-filter" title="To date">
+                                <button type="button" class="csv-export-btn" id="exportAuditCsvBtn"
+                                    title="Export audit log as CSV"><i class="fas fa-download"></i> Export</button>
+                            </div>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Action</th>
+                                        <th>Actor</th>
+                                        <th>Detail</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="auditTableBody"></tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+</main>
+END incoming (reyn/ulan) -->
     </div>
+
     <!-- Utilities -->
     <script src="js/api.js"></script>
+    <script src="js/toast.js"></script>
+    <script src="js/confirm.js"></script>
+    <script src="../js/passwordToggle.js?v=12"></script>
+    <script src="../js/logoutTransition.js"></script>
     <script src="js/imageCompressor.js"></script>
 
     <!-- Reusable Components -->
-    <script src="js/sidebar.js"></script>
-    <script src="js/header.js"></script>
+    <script src="js/sidebar.js?v=28"></script>
+    <script src="js/header.js?v=37"></script>
 
     <!-- Feature Modules -->
-    <script src="js/dashboard.js"></script>
+    <script src="js/dashboard.js?v=35"></script>
+    <script src="js/insights.js?v=37"></script>
     <script src="js/menu.js"></script>
     <script src="js/users.js"></script>
     <script src="js/inventory.js"></script>
+    <script src="js/audit.js"></script>
 
     <!-- Main Entry Point (runs last) -->
     <script src="admin.js"></script>
   </body>
+<!-- BEGIN incoming (reyn/ulan)
+    <script src="admin.js?v=35"></script>
+
+    <!-- Shared account/session panel -->
+    <script src="js/account.js?v=37"></script>
+</body>
+END incoming (reyn/ulan) -->
 </html>

@@ -60,7 +60,7 @@ function clearUserForm() {
 
 // ── Payload Builder ────────────────────────────────────────────────────────
 
-function getUserPayload() {
+function getUserPayload(requirePassword) {
     const usernameInput = document.getElementById("usernameInput");
     const passwordInput = document.getElementById("passwordInput");
     const roleSelect    = document.getElementById("roleSelect");
@@ -69,24 +69,32 @@ function getUserPayload() {
     const password = passwordInput ? passwordInput.value        : "";
     const role     = roleSelect    ? roleSelect.value           : "Admin";
 
-    if (!username || !password || !role) {
-        alert("Please complete username, password, and role before saving.");
+    if (!username || !role) {
+        showToast("Please complete username and role before saving.", "warning");
         return null;
     }
 
-    return {
+    if (requirePassword && !password) {
+        showToast("Please enter a password before saving.", "warning");
+        return null;
+    }
+
+    const payload = {
         username,
-        password,
         role,
         status: "Active",
         date: new Date().toLocaleDateString()
     };
+
+    if (password) payload.password = password;
+
+    return payload;
 }
 
 // ── CRUD Operations ────────────────────────────────────────────────────────
 
 async function addUser() {
-    const payload = getUserPayload();
+    const payload = getUserPayload(true);
     if (!payload) return;
 
     try {
@@ -97,7 +105,7 @@ async function addUser() {
         });
 
         if (response.ok) {
-            alert("✅ New user added successfully!");
+            showToast("New user added successfully!");
             clearUserForm();
             loadLiveUserData();
             return;
@@ -107,17 +115,17 @@ async function addUser() {
         throw new Error(errorPayload?.error || "Failed to create user.");
     } catch (err) {
         console.error("❌ User creation pipeline error:", err);
-        alert("Failed to save user to database server.");
+        showToast("Failed to save user to database server.", "error");
     }
 }
 
 async function updateUser() {
     if (!selectedUserId) {
-        alert("Please select a user row from the table first before updating.");
+        showToast("Please select a user row from the table first before updating.", "warning");
         return;
     }
 
-    const payload = getUserPayload();
+    const payload = getUserPayload(false);
     if (!payload) return;
 
     try {
@@ -128,7 +136,7 @@ async function updateUser() {
         });
 
         if (response.ok) {
-            alert("✅ User updated successfully!");
+            showToast("User updated successfully!");
             clearUserForm();
             loadLiveUserData();
             return;
@@ -138,17 +146,26 @@ async function updateUser() {
         throw new Error(errorPayload?.error || "Failed to update user.");
     } catch (err) {
         console.error("❌ User update pipeline error:", err);
-        alert("Failed to update user.");
+        showToast("Failed to update user.", "error");
     }
 }
 
 async function deleteUser() {
     if (!selectedUserId) {
-        alert("Please select a user row from the table first to delete.");
+        showToast("Please select a user row from the table first to delete.", "warning");
         return;
     }
 
-    if (!confirm("Are you sure you want to delete this user?")) return;
+    const user = (allUsers || []).find(u => u._id === selectedUserId);
+    const confirmed = await showConfirmModal({
+        title: "Delete user?",
+        message: user
+            ? `Account "${user.username}" will be permanently removed. This cannot be undone.`
+            : "This user account will be permanently removed. This cannot be undone.",
+        confirmLabel: "Delete",
+        danger: true
+    });
+    if (!confirmed) return;
 
     try {
         const response = await apiFetch(`/api/users/${selectedUserId}`, {
@@ -156,7 +173,7 @@ async function deleteUser() {
         });
 
         if (response.ok) {
-            alert("🗑️ User deleted successfully.");
+            showToast("User deleted successfully.");
             clearUserForm();
             loadLiveUserData();
             return;
@@ -166,7 +183,7 @@ async function deleteUser() {
         throw new Error(errorPayload?.error || "Failed to delete user.");
     } catch (err) {
         console.error("❌ User deletion pipeline error:", err);
-        alert("Failed to delete user.");
+        showToast("Failed to delete user.", "error");
     }
 }
 
@@ -193,7 +210,6 @@ function renderUserTable(users) {
         <tr data-user-id="${user._id}">
             <td>${escapeHtml(user._id)}</td>
             <td>${escapeHtml(user.username)}</td>
-            <td>${escapeHtml(user.password)}</td>
             <td>${escapeHtml(user.role)}</td>
             <td>${escapeHtml(user.status)}</td>
             <td>${escapeHtml(user.date)}</td>

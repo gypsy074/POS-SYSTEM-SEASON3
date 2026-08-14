@@ -103,11 +103,15 @@ function selectMenuRow(product) {
     const priceInput       = document.getElementById("priceInput");
     const categorySelect   = document.getElementById("categorySelect");
     const statusSelect     = document.getElementById("statusSelect");
+    const stockInput       = document.getElementById("stockInput");
+    const lowStockInput    = document.getElementById("lowStockInput");
 
     if (productNameInput) productNameInput.value = product.name || "";
     if (priceInput)       priceInput.value       = product.price ?? "";
     if (categorySelect)   categorySelect.value   = product.category || "Coffee";
     if (statusSelect)     statusSelect.value     = product.status   || "Available";
+    if (stockInput)       stockInput.value       = product.stock ?? "";
+    if (lowStockInput)    lowStockInput.value    = product.lowStockThreshold ?? "";
 
     renderImagePreview(selectedImageData);
     updateMenuButtonStates(true); // ← grey out Add, enable Update/Remove
@@ -151,12 +155,16 @@ function clearMenuForm() {
     const priceInput       = document.getElementById("priceInput");
     const categorySelect   = document.getElementById("categorySelect");
     const statusSelect     = document.getElementById("statusSelect");
+    const stockInput       = document.getElementById("stockInput");
+    const lowStockInput    = document.getElementById("lowStockInput");
     const fileInput        = document.getElementById("menuImageInput");
 
     if (productNameInput) productNameInput.value = "";
     if (priceInput)       priceInput.value       = "";
     if (categorySelect)   categorySelect.value   = "Coffee";
     if (statusSelect)     statusSelect.value     = "Available";
+    if (stockInput)       stockInput.value       = "";
+    if (lowStockInput)    lowStockInput.value    = "";
     if (fileInput)        fileInput.value        = "";
 
     renderImagePreview("");
@@ -172,14 +180,18 @@ function getMenuPayload() {
     const priceInput     = document.getElementById("priceInput");
     const categorySelect = document.getElementById("categorySelect");
     const statusSelect   = document.getElementById("statusSelect");
+    const stockInput     = document.getElementById("stockInput");
+    const lowStockInput  = document.getElementById("lowStockInput");
 
     const name     = nameInput      ? nameInput.value.trim()  : "";
     const price    = priceInput     ? Number(priceInput.value) : NaN;
     const category = categorySelect ? categorySelect.value     : "";
     const status   = statusSelect   ? statusSelect.value       : "Available";
+    const stock    = stockInput     ? Number(stockInput.value) : NaN;
+    const lowStockThreshold = lowStockInput ? Number(lowStockInput.value) : NaN;
 
     if (!name || !Number.isFinite(price) || price < 0) {
-        alert("Please complete the product name and a valid price before saving.");
+        showToast("Please complete the product name and a valid price before saving.", "warning");
         return null;
     }
 
@@ -188,6 +200,8 @@ function getMenuPayload() {
         price,
         category,
         status,
+        stock: Number.isFinite(stock) ? Math.max(0, stock) : 999,
+        lowStockThreshold: Number.isFinite(lowStockThreshold) ? Math.max(0, lowStockThreshold) : 10,
         image: selectedImageData ||
             (selectedProductId
                 ? (allProducts.find(p => p._id === selectedProductId)?.image || "")
@@ -209,7 +223,7 @@ async function addMenuItem() {
         });
 
         if (response.ok) {
-            alert("✅ New menu item uploaded to MongoDB!");
+            showToast("New menu item uploaded to MongoDB!");
             clearMenuForm();
             loadLiveMenuData();
             return;
@@ -217,16 +231,16 @@ async function addMenuItem() {
 
         const errorPayload = await response.json().catch(() => null);
         const reason = errorPayload?.error || `HTTP ${response.status}`;
-        alert(`❌ Failed to save product.\n\nReason: ${reason}`);
+        showToast(`Failed to save product. ${reason}`, "error");
     } catch (err) {
         console.error("❌ Product creation pipeline error:", err);
-        alert(`❌ Failed to save product.\n\nReason: ${err.message}`);
+        showToast(`Failed to save product. ${err.message}`, "error");
     }
 }
 
 async function updateMenuItem() {
     if (!selectedProductId) {
-        alert("Please select a menu product row from the table first before updating.");
+        showToast("Please select a menu product row from the table first before updating.", "warning");
         return;
     }
 
@@ -241,7 +255,7 @@ async function updateMenuItem() {
         });
 
         if (response.ok) {
-            alert("✅ Menu item configuration updated on MongoDB!");
+            showToast("Menu item configuration updated on MongoDB!");
             clearMenuForm();
             loadLiveMenuData();
             return;
@@ -249,20 +263,29 @@ async function updateMenuItem() {
 
         const errorPayload = await response.json().catch(() => null);
         const reason = errorPayload?.error || `HTTP ${response.status}`;
-        alert(`❌ Failed to update product.\n\nReason: ${reason}`);
+        showToast(`Failed to update product. ${reason}`, "error");
     } catch (err) {
         console.error("❌ Update communication fault:", err);
-        alert(`❌ Failed to update product.\n\nReason: ${err.message}`);
+        showToast(`Failed to update product. ${err.message}`, "error");
     }
 }
 
 async function deleteMenuItem() {
     if (!selectedProductId) {
-        alert("Please select a menu product row from the table first to delete.");
+        showToast("Please select a menu product row from the table first to delete.", "warning");
         return;
     }
 
-    if (!confirm("Are you completely sure you want to permanently delete this menu item?")) return;
+    const product = allProducts.find(p => p._id === selectedProductId);
+    const confirmed = await showConfirmModal({
+        title: "Delete menu item?",
+        message: product
+            ? `"${product.name}" will be permanently removed from the menu. This cannot be undone.`
+            : "This menu item will be permanently removed. This cannot be undone.",
+        confirmLabel: "Delete",
+        danger: true
+    });
+    if (!confirmed) return;
 
     try {
         const response = await apiFetch(`/api/products/${selectedProductId}`, {
@@ -270,7 +293,7 @@ async function deleteMenuItem() {
         });
 
         if (response.ok) {
-            alert("🗑️ Menu item completely deleted from the system.");
+            showToast("Menu item completely deleted from the system.");
             clearMenuForm();         // ← clears form AND re-enables Add
             loadLiveMenuData();
             return;
@@ -280,7 +303,7 @@ async function deleteMenuItem() {
         throw new Error(errorPayload?.error || "Failed to delete product");
     } catch (err) {
         console.error("❌ Delete database pipeline fault:", err);
-        alert("Failed to delete product.");
+        showToast("Failed to delete product.", "error");
     }
 }
 
@@ -314,6 +337,9 @@ function renderMenuTable(products) {
             <td>${escapeHtml(product.name)}</td>
             <td>${escapeHtml(product.category)}</td>
             <td>₱${Number(product.price).toFixed(2)}</td>
+            <td class="${Number(product.stock ?? 0) <= Number(product.lowStockThreshold ?? 10) ? "low-stock-cell" : ""}">
+                ${Number(product.stock ?? 0)}
+            </td>
             <td>${escapeHtml(product.status)}</td>
             <td>${escapeHtml(product.date)}</td>
         </tr>
