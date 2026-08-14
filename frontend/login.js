@@ -129,7 +129,7 @@ function redirectAfterLogin(role, username) {
 
     setTimeout(() => {
         window.location.href = role === "Admin" ? "ADMIN/admin.html" : "CASHIER/pos.html";
-    }, 1000);
+    }, 1800);
 }
 
 // ── Bootstrap ───────────────────────────────────────────────────────────────
