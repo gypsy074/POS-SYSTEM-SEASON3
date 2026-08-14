@@ -138,7 +138,10 @@ async function generateAiReport() {
     if (!btn || aiReportBusy) return;
     aiReportBusy = true;
     btn.setAttribute("aria-busy", "true");
-    btn.disabled = true;
+    // Note: never set btn.disabled here — mobile browsers re-fire the click on
+    // body when a button disables itself mid-tap, and that ghost click would
+    // close the panel via the outside-click handler.
+    btn.classList.add("busy");
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Writing report…';
     let report;
     try {
@@ -161,7 +164,7 @@ async function generateAiReport() {
     aiReportBusy = false;
     if (btn.isConnected) {
         btn.setAttribute("aria-busy", "false");
-        btn.disabled = false;
+        btn.classList.remove("busy");
         btn.innerHTML = '<i class="fas fa-file-lines"></i> Generate report';
     }
     fillAiReportCard(report);
@@ -200,11 +203,28 @@ async function loadInsights() {
     }
 }
 
+let aiPanelCloseTimer = null;
+
 function setAiPanelOpen(open) {
     const pill = document.getElementById("aiHeaderPill");
     if (!pill) return;
-    pill.classList.toggle("open", open);
-    pill.setAttribute("aria-expanded", open ? "true" : "false");
+    if (aiPanelCloseTimer) {
+        clearTimeout(aiPanelCloseTimer);
+        aiPanelCloseTimer = null;
+    }
+    pill.classList.remove("closing");
+    if (open) {
+        pill.classList.add("open");
+        pill.setAttribute("aria-expanded", "true");
+    } else if (pill.classList.contains("open")) {
+        // Play the exit animation, then really hide
+        pill.classList.add("closing");
+        aiPanelCloseTimer = setTimeout(() => {
+            aiPanelCloseTimer = null;
+            pill.classList.remove("closing", "open");
+            pill.setAttribute("aria-expanded", "false");
+        }, 230);
+    }
 }
 
 function setupAiHeaderPanel() {
@@ -241,6 +261,9 @@ function setupAiHeaderPanel() {
     document.addEventListener("click", event => {
         if (!pill.classList.contains("open")) return;
         if (!event.target.isConnected) return; // stale target from a re-render — ignore
+        // Mobile browsers redirect a tap onto body/document when the tapped
+        // element changes mid-tap — never treat that as an outside click.
+        if (event.target === document || event.target === document.body) return;
         if (!pill.contains(event.target)) setAiPanelOpen(false);
     });
 

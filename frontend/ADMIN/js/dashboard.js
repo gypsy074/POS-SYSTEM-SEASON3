@@ -393,7 +393,7 @@ function renderNotifications() {
         panel.addEventListener("click", event => {
             const item = event.target.closest(".notification-item[data-nav]");
             if (!item) return;
-            panel.classList.remove("show");
+            if (typeof closeNotificationDropdown === "function") closeNotificationDropdown();
             const navBtn = document.querySelector(`.nav-btn[data-target="${item.getAttribute("data-nav")}"]`);
             if (navBtn) navBtn.click();
         });

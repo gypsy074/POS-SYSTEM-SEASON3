@@ -271,8 +271,7 @@
     }
 
     function openAccountModal(tab) {
-        const dd = document.querySelector(".profile-dropdown");
-        if (dd) dd.classList.remove("show");
+        if (typeof closeProfileDropdown === "function") closeProfileDropdown();
         switchTab(tab || "sessions");
         overlay.classList.add("open");
         loadSessions();

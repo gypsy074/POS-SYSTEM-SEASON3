@@ -1798,6 +1798,54 @@ tr:hover td {
     transform-origin: top right;
 }
 
+/* ── Close animations — dynamic dip/lift/fade (dropdowns) and slide-down
+   exit (mobile AI bottom sheet). The .closing class delays display:none
+   until the animation finishes. ── */
+@keyframes dropdownOut {
+    0%   { opacity: 1; transform: translateY(0) scale(1); }
+    55%  { opacity: 1; transform: translateY(6px) scale(0.98); }
+    100% { opacity: 0; transform: translateY(-10px) scale(0.94); }
+}
+
+@keyframes aiDropdownOut {
+    0%   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+    60%  { opacity: 1; transform: translateX(-50%) translateY(8px) scale(0.98); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(48px) scale(0.96); }
+}
+
+.notification-dropdown.closing,
+.profile-dropdown.closing {
+    animation: dropdownOut 0.22s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards;
+}
+
+.ai-header-pill.closing .ai-header-panel {
+    animation: dropdownOut 0.22s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards;
+}
+
+/* ── Close animations — dynamic dip/lift/fade (dropdowns) and slide-down
+   exit (mobile AI bottom sheet). The .closing class delays display:none
+   until the animation ends. ── */
+@keyframes dropdownOut {
+    0%   { opacity: 1; transform: translateY(0) scale(1); }
+    55%  { opacity: 1; transform: translateY(6px) scale(0.98); }
+    100% { opacity: 0; transform: translateY(-10px) scale(0.94); }
+}
+
+@keyframes aiDropdownOut {
+    0%   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+    60%  { opacity: 1; transform: translateX(-50%) translateY(8px) scale(0.98); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(48px) scale(0.96); }
+}
+
+.notification-dropdown.closing,
+.profile-dropdown.closing {
+    animation: dropdownOut 0.22s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards;
+}
+
+.ai-header-pill.closing .ai-header-panel {
+    animation: dropdownOut 0.22s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards;
+}
+
 /* ==========================================================================
    Audit Log view
    ========================================================================== */
@@ -3016,6 +3064,15 @@ body.dark .ai-skeleton-line { background: #3a2d1f; }
        the centering translateX(-50%) — use a variant that keeps it. */
     .ai-header-pill.open .ai-header-panel {
         animation-name: aiDropdownIn;
+    }
+
+    .ai-header-pill.closing .ai-header-panel {
+        animation-name: aiDropdownOut;
+    }
+
+    /* ...and the closing animation slides the sheet down off-screen the same way */
+    .ai-header-pill.closing .ai-header-panel {
+        animation-name: aiDropdownOut;
     }
 
     .ai-header-panel-body {

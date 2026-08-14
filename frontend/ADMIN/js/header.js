@@ -24,7 +24,9 @@ function setupHeaderActions() {
         notificationsButton.addEventListener("click", event => {
             event.stopPropagation();
             const dropdown = document.getElementById("notificationDropdown");
-            if (dropdown) dropdown.classList.toggle("show");
+            if (!dropdown) return;
+            if (dropdown.classList.contains("show")) closeNotificationDropdown();
+            else openNotificationDropdown();
         });
     }
 
@@ -32,9 +34,36 @@ function setupHeaderActions() {
     document.addEventListener("click", event => {
         const dropdown = document.getElementById("notificationDropdown");
         if (dropdown && dropdown.classList.contains("show") && !dropdown.contains(event.target)) {
-            dropdown.classList.remove("show");
+            closeNotificationDropdown();
         }
     });
+}
+
+let notifCloseTimer = null;
+
+function openNotificationDropdown() {
+    const dropdown = document.getElementById("notificationDropdown");
+    if (!dropdown) return;
+    if (notifCloseTimer) {
+        clearTimeout(notifCloseTimer);
+        notifCloseTimer = null;
+    }
+    dropdown.classList.remove("closing");
+    dropdown.classList.add("show");
+}
+
+function closeNotificationDropdown() {
+    const dropdown = document.getElementById("notificationDropdown");
+    if (!dropdown || !dropdown.classList.contains("show")) return;
+    if (notifCloseTimer) {
+        clearTimeout(notifCloseTimer);
+        notifCloseTimer = null;
+    }
+    dropdown.classList.add("closing");
+    notifCloseTimer = setTimeout(() => {
+        notifCloseTimer = null;
+        dropdown.classList.remove("closing", "show");
+    }, 230);
 }
 
 function setupGlobalSearch() {    const searchInput = document.getElementById("globalSearch");

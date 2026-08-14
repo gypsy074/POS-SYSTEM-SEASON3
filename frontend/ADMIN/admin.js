@@ -31,6 +31,35 @@ let itemsRadarChart = null;
 let usageBarChart  = null;
 let activePanelId  = "dashboard-view";
 
+// ── Profile Dropdown (animated open/close) ─────────────────────────────────
+
+let profileCloseTimer = null;
+
+function openProfileDropdown() {
+    const dropdown = document.getElementById("profileDropdown");
+    if (!dropdown) return;
+    if (profileCloseTimer) {
+        clearTimeout(profileCloseTimer);
+        profileCloseTimer = null;
+    }
+    dropdown.classList.remove("closing");
+    dropdown.classList.add("show");
+}
+
+function closeProfileDropdown() {
+    const dropdown = document.getElementById("profileDropdown");
+    if (!dropdown || !dropdown.classList.contains("show")) return;
+    if (profileCloseTimer) {
+        clearTimeout(profileCloseTimer);
+        profileCloseTimer = null;
+    }
+    dropdown.classList.add("closing");
+    profileCloseTimer = setTimeout(() => {
+        profileCloseTimer = null;
+        dropdown.classList.remove("closing", "show");
+    }, 230);
+}
+
 // ── Profile Badge ──────────────────────────────────────────────────────────
 
 function setupProfileBadge() {
@@ -57,12 +86,13 @@ function setupProfileBadge() {
 
     toggleBtn.addEventListener("click", event => {
         event.stopPropagation();
-        dropdown.classList.toggle("show");
+        if (dropdown.classList.contains("show")) closeProfileDropdown();
+        else openProfileDropdown();
     });
 
     document.addEventListener("click", event => {
         if (dropdown.classList.contains("show") && !dropdown.contains(event.target)) {
-            dropdown.classList.remove("show");
+            closeProfileDropdown();
         }
     });
 
