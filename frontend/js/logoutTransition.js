@@ -18,7 +18,7 @@
         const link = document.createElement("link");
         link.id = "cupTransitionCss";
         link.rel = "stylesheet";
-        link.href = "../css/cup-transition.css";
+        link.href = "../css/cup-transition.css?v=3";
         document.head.appendChild(link);
     }
 
