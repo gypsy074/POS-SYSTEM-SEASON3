@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Season 3</title>
-    <link rel="stylesheet" href="admin.css?v=14">
+    <link rel="stylesheet" href="admin.css?v=15">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -485,8 +485,21 @@
                 </div>
             </div>
 
-        </main>
+</main>
     </div>
+
+    <!-- Full-screen section expander for the Updates card -->
+    <div id="updatesDetailOverlay" class="updates-detail-overlay" role="dialog" aria-modal="true">
+        <div class="updates-detail-panel">
+            <div class="updates-detail-header">
+                <span class="updates-detail-title" id="updatesDetailTitle"></span>
+                <button type="button" class="updates-detail-close" id="updatesDetailClose" aria-label="Close"><i
+                        class="fas fa-times"></i></button>
+            </div>
+            <div class="updates-detail-body" id="updatesDetailBody"></div>
+        </div>
+    </div>
+
     <!-- Utilities -->
     <script src="js/api.js"></script>
     <script src="js/toast.js"></script>

@@ -125,6 +125,9 @@ document.addEventListener("DOMContentLoaded", () => {
     setupSalesFilterTabs();
     setupCalendarControls();
 
+    // Updates card — tap a section header to expand it full-screen
+    setupUpdateSectionExpand();
+
     // Audit log module
     setupAuditFilters();
 

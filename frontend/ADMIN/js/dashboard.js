@@ -199,6 +199,7 @@ function renderUpdates() {
     const items = buildUpdates();
     let html = "";
     let listOpen = false;
+    let groupOpen = false;
 
     items.forEach(update => {
         if (update.section) {
@@ -206,7 +207,12 @@ function renderUpdates() {
                 html += "</div>";
                 listOpen = false;
             }
+            if (groupOpen) {
+                html += "</div>";
+                groupOpen = false;
+            }
             html += `<div class="update-section-group"><div class="update-section">${escapeHtml(update.section)}</div>`;
+            groupOpen = true;
         } else {
             if (!listOpen) {
                 html += '<div class="update-section-list">';
@@ -226,8 +232,61 @@ function renderUpdates() {
     });
 
     if (listOpen) html += "</div>";
+    if (groupOpen) html += "</div>";
 
     updateList.innerHTML = html;
+}
+
+// ── Updates section full-screen expander ───────────────────────────────────
+
+function setupUpdateSectionExpand() {
+    const updateList = document.getElementById("updateList");
+    if (!updateList || updateList.dataset.expandBound) return;
+    updateList.dataset.expandBound = "1";
+
+    // Delegated — survives renderUpdates() re-rendering the list every refresh.
+    updateList.addEventListener("click", e => {
+        const header = e.target.closest(".update-section");
+        if (header) openUpdatesSection(header);
+    });
+
+    const overlay = document.getElementById("updatesDetailOverlay");
+    if (overlay) {
+        const closeBtn = document.getElementById("updatesDetailClose");
+        if (closeBtn) closeBtn.addEventListener("click", closeUpdatesSection);
+        overlay.addEventListener("click", e => {
+            if (e.target === overlay) closeUpdatesSection();
+        });
+    }
+}
+
+function openUpdatesSection(header) {
+    const overlay = document.getElementById("updatesDetailOverlay");
+    const titleEl = document.getElementById("updatesDetailTitle");
+    const body = document.getElementById("updatesDetailBody");
+    if (!overlay || !header) return;
+
+    titleEl.textContent = header.textContent.trim();
+    const group = header.closest(".update-section-group");
+    const items = group ? group.querySelectorAll(".update-item") : [];
+
+    const frag = document.createDocumentFragment();
+    items.forEach(item => frag.appendChild(item.cloneNode(true)));
+    body.innerHTML = "";
+    body.appendChild(frag);
+
+    overlay.classList.add("open");
+    document.addEventListener("keydown", closeUpdatesSectionOnEsc);
+}
+
+function closeUpdatesSection() {
+    const overlay = document.getElementById("updatesDetailOverlay");
+    if (overlay) overlay.classList.remove("open");
+    document.removeEventListener("keydown", closeUpdatesSectionOnEsc);
+}
+
+function closeUpdatesSectionOnEsc(e) {
+    if (e.key === "Escape") closeUpdatesSection();
 }
 
 function renderNotifications() {
