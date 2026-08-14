@@ -2176,4 +2176,16 @@ body.dark .confirm-btn-cancel:hover { background: #46372a; }
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
     }
+    /* The show/hide password feedback stays animated — it's brief, functional feedback. */
+    .input-group input.pw-reveal,
+    .input-group input.pw-hide {
+        animation-duration: 0.35s !important;
+    }
+    .input-group input.glow {
+        animation-duration: 0.4s !important;
+    }
+    .password-toggle.reveal i,
+    .password-toggle.hide i {
+        animation-duration: 0.3s !important;
+    }
 }

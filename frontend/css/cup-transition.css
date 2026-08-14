@@ -173,7 +173,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .login-transition-overlay.show .cup-fill { animation-duration: 0.4s; }
     .steam { display: none; }
     .login-transition-title,
     .login-transition-sub {

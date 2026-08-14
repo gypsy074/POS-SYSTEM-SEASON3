@@ -238,6 +238,18 @@ body {
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
     }
+    /* The show/hide password feedback stays animated — it's brief, functional feedback. */
+    .password-wrap input.pw-reveal,
+    .password-wrap input.pw-hide {
+        animation-duration: 0.35s !important;
+    }
+    .password-wrap input.glow {
+        animation-duration: 0.4s !important;
+    }
+    .password-toggle.reveal i,
+    .password-toggle.hide i {
+        animation-duration: 0.3s !important;
+    }
 }
 
 /* Styled Action Logon Submit Trigger Button */
