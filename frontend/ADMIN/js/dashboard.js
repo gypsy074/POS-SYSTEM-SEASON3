@@ -61,6 +61,7 @@ async function loadLiveDashboardData() {
         await loadActivityFeed();
         renderUpdates();
         renderNotifications();
+        renderDailySnapshot();
 
         renderSalesCharts(orders, allProducts);
         setupCategoryPills();
@@ -301,35 +302,173 @@ function closeUpdatesSectionOnEsc(e) {
     if (e.key === "Escape") closeUpdatesSection();
 }
 
+function buildNotificationItems() {
+    const items = [];
+    const ai = window.__aiInsightsData || {};
+
+    (ai.restock || []).slice(0, 3).forEach(r => {
+        items.push({
+            icon: "fa-boxes-stacked",
+            flagged: true,
+            nav: "menu-view",
+            title: `Restock — ${r.name}`,
+            sub: `${r.stock} left${r.daysLeft !== null ? ` · ~${r.daysLeft} day${r.daysLeft === 1 ? "" : "s"}` : ""} · order ${r.suggestedOrder}`
+        });
+    });
+
+    ((ai.wasteInsights && ai.wasteInsights.items) || []).slice(0, 3).forEach(w => {
+        items.push({
+            icon: "fa-recycle",
+            flagged: true,
+            nav: "waste-view",
+            title: `Over-preparing — ${w.name}`,
+            sub: `${w.wastedQty} wasted vs ${w.soldQty} sold (${Math.round(w.ratio * 100)}%)`
+        });
+    });
+
+    (ai.anomalies || []).slice(0, 3).forEach(a => {
+        items.push({
+            icon: "fa-exclamation-triangle",
+            flagged: true,
+            nav: "dashboard-view",
+            title: a.label,
+            sub: a.detail
+        });
+    });
+
+    (allProducts || [])
+        .filter(product => Number(product.stock ?? 0) <= Number(product.lowStockThreshold ?? 10))
+        .slice(0, 3)
+        .forEach(product => {
+            items.push({
+                icon: "fa-box-open",
+                flagged: true,
+                nav: "menu-view",
+                title: `${product.status === "Out of Stock" ? "OUT OF STOCK" : "Low stock"} — ${product.name}`,
+                sub: `${Number(product.stock ?? 0)} left · threshold ${Number(product.lowStockThreshold ?? 10)}`
+            });
+        });
+
+    (latestWaste || []).slice(0, 2).forEach(waste => {
+        items.push({
+            icon: "fa-trash-can",
+            flagged: true,
+            nav: "waste-view",
+            title: `Waste logged — ${waste.productName}`,
+            sub: `${waste.reason || "Other"} · Qty ${waste.quantity} · ₱${Number(waste.totalCost || 0).toFixed(2)}`
+        });
+    });
+
+    (latestOrders || []).slice(0, 3).forEach(order => {
+        items.push({
+            icon: "fa-clipboard-check",
+            flagged: false,
+            nav: "dashboard-view",
+            title: `${order.customer} placed an order`,
+            sub: `${order.cashier || "—"} · ${order.receiptId} · ₱${Number(order.total || 0).toFixed(2)}`
+        });
+    });
+
+    return items;
+}
+
 function renderNotifications() {
     const panel = document.getElementById("notificationDropdown");
     if (!panel) return;
 
-    panel.innerHTML = buildUpdates()
-        .filter(update => !update.section && update.kind !== "activity")
-        .slice(0, 6)
-        .map(update => `
-        <div class="notification-item${update.flagged ? " notification-item-danger" : ""}">
-            <i class="fas ${update.icon}"></i>
-            <div>
-                <strong>${escapeHtml(update.title)}</strong>
-                <span>${escapeHtml(update.sub)}</span>
-            </div>
-        </div>
-    `).join("");
+    const items = buildNotificationItems();
+    panel.innerHTML = items.length
+        ? items.map(item => `
+            <button type="button" class="notification-item${item.flagged ? " notification-item-danger" : ""}" data-nav="${item.nav}">
+                <i class="fas ${item.icon}"></i>
+                <div>
+                    <strong>${escapeHtml(item.title)}</strong>
+                    <span>${escapeHtml(item.sub)}</span>
+                </div>
+            </button>`).join("")
+        : `<div class="notification-item"><i class="fas fa-circle-check"></i><div><strong>All clear</strong><span>No alerts right now</span></div></div>`;
+
+    if (!window.__notifBound) {
+        window.__notifBound = true;
+        panel.addEventListener("click", event => {
+            const item = event.target.closest(".notification-item[data-nav]");
+            if (!item) return;
+            panel.classList.remove("show");
+            const navBtn = document.querySelector(`.nav-btn[data-target="${item.getAttribute("data-nav")}"]`);
+            if (navBtn) navBtn.click();
+        });
+    }
 
     const badge = document.getElementById("notificationBadge");
     if (badge) {
+        const ai = window.__aiInsightsData || {};
         const lowStockCount = (allProducts || []).filter(product =>
             Number(product.stock ?? 0) <= Number(product.lowStockThreshold ?? 10)
         ).length;
-        if (lowStockCount > 0) {
-            badge.textContent = lowStockCount;
+        const aiCount = (ai.restock || []).length
+            + ((ai.wasteInsights && ai.wasteInsights.items) || []).length
+            + (ai.anomalies || []).length;
+        const count = lowStockCount + aiCount;
+        if (count > 0) {
+            badge.textContent = count;
             badge.style.display = "flex";
         } else {
             badge.style.display = "none";
         }
     }
+}
+
+// ── Today at a Glance ──────────────────────────────────────────────────────
+
+function renderDailySnapshot() {
+    const el = document.getElementById("dailySnapshot");
+    if (!el) return;
+
+    const today = new Date();
+    const isSameDay = d => {
+        const t = new Date(d);
+        return t.getFullYear() === today.getFullYear() &&
+            t.getMonth() === today.getMonth() &&
+            t.getDate() === today.getDate();
+    };
+
+    const todayOrders = (latestOrders || []).filter(o => isSameDay(o.date) && o.status !== "Voided");
+    const revenue = todayOrders.reduce((s, o) => s + Number(o.total || 0), 0);
+
+    const qtyByItem = {};
+    todayOrders.forEach(o => (o.items || []).forEach(it => {
+        qtyByItem[it.name] = (qtyByItem[it.name] || 0) + Number(it.quantity || 0);
+    }));
+    const topItem = Object.entries(qtyByItem).sort((a, b) => b[1] - a[1])[0] || null;
+
+    const wasteToday = (latestWaste || [])
+        .filter(w => isSameDay(w.date))
+        .reduce((s, w) => s + Number(w.totalCost || 0), 0);
+
+    const lowStock = (allProducts || [])
+        .filter(p => Number(p.stock ?? 0) <= Number(p.lowStockThreshold ?? 10)).length;
+
+    const ai = window.__aiInsightsData || {};
+    const restock = (ai.restock || [])[0] || null;
+
+    const money = n => `₱${Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const chip = (icon, label, value) => `
+        <div class="snapshot-chip">
+            <i class="fas ${icon}"></i>
+            <span class="snapshot-chip-label">${label}</span>
+            <strong>${value}</strong>
+        </div>`;
+
+    el.innerHTML = `
+        <div class="snapshot-head"><i class="fas fa-sun"></i> Today at a Glance</div>
+        <div class="snapshot-chips">
+            ${chip("fa-peso-sign", "Revenue", money(revenue))}
+            ${chip("fa-receipt", "Orders", String(todayOrders.length))}
+            ${chip("fa-trophy", "Top item", topItem ? `${escapeHtml(topItem[0])} ×${topItem[1]}` : "—")}
+            ${chip("fa-recycle", "Waste today", money(wasteToday))}
+            ${chip("fa-box-open", "Low stock", String(lowStock))}
+            ${chip("fa-boxes-stacked", "Restock soon", restock ? `${escapeHtml(restock.name)} · order ${restock.suggestedOrder}` : "—")}
+        </div>`;
 }
 
 // ── CSV Export (Sales Analytics) ───────────────────────────────────────────

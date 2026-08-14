@@ -282,6 +282,97 @@ body {
     color: #e74c3c;
 }
 
+button.notification-item {
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+body.dark button.notification-item:hover {
+    background: #3a2d1f;
+}
+
+/* ── Today at a Glance ─────────────────────────────────────────────────── */
+
+.daily-snapshot {
+    grid-column: 1 / -1;
+    background: white;
+    border: 1px solid var(--header-brown);
+    border-radius: 25px;
+    padding: 16px 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+}
+
+.snapshot-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    color: var(--dark-brown);
+    font-size: 0.95rem;
+    margin-bottom: 12px;
+}
+
+.snapshot-head i {
+    color: var(--accent-brown);
+}
+
+.snapshot-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.snapshot-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #faf3ec;
+    border: 1px solid #f0e2d4;
+    padding: 8px 14px;
+    border-radius: 16px;
+}
+
+.snapshot-chip i {
+    color: var(--accent-brown);
+    font-size: 0.9rem;
+}
+
+.snapshot-chip-label {
+    color: #999;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.snapshot-chip strong {
+    color: var(--dark-brown);
+    font-size: 0.9rem;
+}
+
+body.dark .daily-snapshot {
+    background: #2e2318;
+    border-color: #4a3a2c;
+}
+
+body.dark .snapshot-head {
+    color: #e8dccb;
+}
+
+body.dark .snapshot-chip {
+    background: #241a12;
+    border-color: #4a3a2c;
+}
+
+body.dark .snapshot-chip strong {
+    color: #e8dccb;
+}
+
 .admin-profile-badge {
     background: var(--header-brown);
     padding: 6px 20px 6px 6px;

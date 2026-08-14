@@ -191,6 +191,8 @@ async function loadInsights() {
         window.__aiInsightsData = data;
         renderInsights(data);
         updateAiPillCount(data);
+        if (typeof renderNotifications === "function") renderNotifications();
+        if (typeof renderDailySnapshot === "function") renderDailySnapshot();
     } catch (err) {
         body.innerHTML = AI_ERROR_HTML;
         countEl.textContent = "–";
