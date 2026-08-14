@@ -1746,6 +1746,27 @@ body.dark .password-toggle:hover {
     50%      { box-shadow: 0 0 0 4px rgba(166, 124, 82, 0.25); }
 }
 
+/* Letter-by-letter wipe when revealing/masking the password */
+.input-group input { --pw-wipe: #ffffff; }
+body.dark .input-group input { --pw-wipe: #3a2d1f; }
+.input-group input.pw-reveal,
+.input-group input.pw-hide {
+    background-image: linear-gradient(to right, transparent 50%, var(--pw-wipe) 50%);
+    background-size: 200% 100%;
+}
+.input-group input.pw-reveal { animation: pwReveal 0.35s ease both; }
+.input-group input.pw-hide   { animation: pwHide   0.35s ease both; }
+
+@keyframes pwReveal {
+    from { background-position: 100% 0; }
+    to   { background-position: 0 0; }
+}
+
+@keyframes pwHide {
+    from { background-position: 0 0; }
+    to   { background-position: 100% 0; }
+}
+
 body.dark ::placeholder {
     color: #b09a80;
 }

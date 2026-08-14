@@ -211,6 +211,35 @@ body {
     50%      { box-shadow: 0 0 0 4px rgba(166, 124, 82, 0.25); }
 }
 
+/* Letter-by-letter wipe when revealing/masking the password */
+.password-wrap input { --pw-wipe: #ffffff; }
+.password-wrap input.pw-reveal,
+.password-wrap input.pw-hide {
+    background-image: linear-gradient(to right, transparent 50%, var(--pw-wipe) 50%);
+    background-size: 200% 100%;
+}
+.password-wrap input.pw-reveal { animation: pwReveal 0.35s ease both; }
+.password-wrap input.pw-hide   { animation: pwHide   0.35s ease both; }
+
+@keyframes pwReveal {
+    from { background-position: 100% 0; }
+    to   { background-position: 0 0; }
+}
+
+@keyframes pwHide {
+    from { background-position: 0 0; }
+    to   { background-position: 100% 0; }
+}
+
+/* Respect users who prefer less motion */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
 /* Styled Action Logon Submit Trigger Button */
 .login-submit-btn {
     width: auto;

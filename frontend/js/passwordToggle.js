@@ -26,6 +26,7 @@
                 if (icon) icon.className = showing ? "fa-solid fa-eye" : "fa-solid fa-eye-slash";
                 btn.setAttribute("aria-label", showing ? "Show password" : "Hide password");
                 runAnim(btn, showing ? "hide" : "reveal");
+                runAnim(input, showing ? "pw-hide" : "pw-reveal");
                 runAnim(input, "glow");
                 input.focus();
             });
