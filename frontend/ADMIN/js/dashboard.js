@@ -211,7 +211,7 @@ function renderUpdates() {
                 html += "</div>";
                 groupOpen = false;
             }
-            html += `<div class="update-section-group"><div class="update-section">${escapeHtml(update.section)}</div>`;
+            html += `<div class="update-section-group"><div class="update-section">${escapeHtml(update.section)}<button type="button" class="update-section-toggle" aria-label="Expand section"><span class="update-section-count"></span><i class="fas fa-chevron-down"></i></button></div>`;
             groupOpen = true;
         } else {
             if (!listOpen) {
@@ -235,9 +235,17 @@ function renderUpdates() {
     if (groupOpen) html += "</div>";
 
     updateList.innerHTML = html;
+
+    // Fill each section's toggle button with its item count.
+    updateList.querySelectorAll(".update-section-group").forEach(group => {
+        const list = group.querySelector(".update-section-list");
+        const count = list ? list.querySelectorAll(".update-item").length : 0;
+        const countEl = group.querySelector(".update-section-count");
+        if (countEl) countEl.textContent = count;
+    });
 }
 
-// ── Updates section full-screen expander ───────────────────────────────────
+// ── Updates section expander (opens the list over the Updates card) ────────
 
 function setupUpdateSectionExpand() {
     const updateList = document.getElementById("updateList");
@@ -245,8 +253,11 @@ function setupUpdateSectionExpand() {
     updateList.dataset.expandBound = "1";
 
     // Delegated — survives renderUpdates() re-rendering the list every refresh.
+    // The right-side button (count + chevron) is the trigger.
     updateList.addEventListener("click", e => {
-        const header = e.target.closest(".update-section");
+        const toggle = e.target.closest(".update-section-toggle");
+        if (!toggle) return;
+        const header = toggle.closest(".update-section");
         if (header) openUpdatesSection(header);
     });
 
@@ -266,7 +277,7 @@ function openUpdatesSection(header) {
     const body = document.getElementById("updatesDetailBody");
     if (!overlay || !header) return;
 
-    titleEl.textContent = header.textContent.trim();
+    titleEl.textContent = (header.firstChild ? header.firstChild.textContent : header.textContent).trim();
     const group = header.closest(".update-section-group");
     const items = group ? group.querySelectorAll(".update-item") : [];
 

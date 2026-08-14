@@ -487,6 +487,10 @@ body {
 .sub-val#wasteCount { font-size: 0.95rem; color: #c0392b; }
 
 /* Updates Ledger Panel */
+.updates-panel {
+    position: relative;
+}
+
 .updates-panel h3 {
     font-size: 1.1rem;
     color: #8e6a46;
@@ -567,13 +571,48 @@ body.dark .update-section-list::-webkit-scrollbar-thumb { background: #4a3a2c; }
     color: var(--accent-brown);
 }
 
-.update-section::after {
-    content: "\f078";
-    font-family: "Font Awesome 6 Free";
-    font-weight: 900;
-    font-size: 0.58rem;
-    opacity: 0.45;
+/* Right-side expand button (count + chevron) */
+.update-section-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px;
     margin-left: 8px;
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: #fff;
+    background: linear-gradient(135deg, #8e6a46, #b3895a);
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(142, 106, 70, 0.25);
+    transition: background 0.2s ease, transform 0.1s ease;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.update-section-toggle:hover {
+    background: linear-gradient(135deg, #7d5d3d, #a2764c);
+}
+
+.update-section-toggle:active {
+    transform: scale(0.94);
+}
+
+.update-section-toggle .update-section-count {
+    min-width: 15px;
+    text-align: center;
+}
+
+body.dark .update-section-toggle {
+    color: #2a2118;
+    background: linear-gradient(135deg, #b89a74, #d8be96);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
+}
+
+body.dark .update-section-toggle:hover {
+    background: linear-gradient(135deg, #a88963, #c9ad84);
 }
 
 body.dark .update-section {
@@ -2193,12 +2232,14 @@ body.dark .confirm-modal-message { color: #b09a80; }
 body.dark .confirm-btn-cancel { background: #3a2d1f; color: #d8c4a8; }
 body.dark .confirm-btn-cancel:hover { background: #46372a; }
 
-/* Full-screen section expander for the Updates card */
+/* Panel-anchored expander for the Updates card (covers only the card) */
 .updates-detail-overlay {
-    position: fixed;
+    position: absolute;
     inset: 0;
-    z-index: 1900;
+    z-index: 5;
     display: none;
+    border-radius: 25px;
+    overflow: hidden;
 }
 
 .updates-detail-overlay.open {
@@ -2206,7 +2247,7 @@ body.dark .confirm-btn-cancel:hover { background: #46372a; }
 }
 
 .updates-detail-panel {
-    position: fixed;
+    position: absolute;
     inset: 0;
     background: #fff;
     display: flex;
@@ -2218,12 +2259,12 @@ body.dark .confirm-btn-cancel:hover { background: #46372a; }
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 18px;
+    padding: 14px 16px;
     border-bottom: 1px solid #eee;
 }
 
 .updates-detail-title {
-    font-size: 1.05rem;
+    font-size: 0.92rem;
     font-weight: 800;
     letter-spacing: 0.08em;
     color: #8e6a46;
