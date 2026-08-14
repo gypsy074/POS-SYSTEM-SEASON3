@@ -1883,6 +1883,19 @@ body.dark .profile-dropdown-header {
     border-bottom-color: #4a3a2c;
 }
 
+/* Avatars + hover surfaces used var(--dark-brown), which flips to light cream
+   in dark mode — pin them to fixed dark tones instead. */
+body.dark .profile-avatar,
+body.dark .update-avatar {
+    background: #4a3a2c;
+    color: #e8dccb;
+    border-color: #2e2318;
+}
+
+body.dark .ai-report-btn:hover {
+    background: var(--header-brown);
+}
+
 body.dark .nav-btn {
     background: #2e2318;
     color: #d8c4a8;
