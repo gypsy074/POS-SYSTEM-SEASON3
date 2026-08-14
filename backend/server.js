@@ -961,24 +961,43 @@ app.get('/api/audit', authRequired(['Admin']), async (req, res) => {
 // In-house statistical forecasts & alerts — computed from the last 30 days of
 // orders/products/inventory/waste. Result is cached for 5 minutes.
 const { computeInsights } = require('./ai-insights');
+const { buildReportPrompt, buildStatsReport, fetchAiReport } = require('./ai-report');
 let insightsCache = { data: null, at: 0 };
 const INSIGHTS_TTL_MS = 5 * 60 * 1000;
 
+async function getInsights() {
+    if (insightsCache.data && Date.now() - insightsCache.at < INSIGHTS_TTL_MS) {
+        return insightsCache.data;
+    }
+    const since = new Date(Date.now() - 30 * 86400000);
+    const [orders, products, inventory, waste] = await Promise.all([
+        Order.find({ date: { $gte: since } }).lean(),
+        Product.find().lean(),
+        InventoryItem.find().lean(),
+        WasteItem.find({ date: { $gte: since } }).lean()
+    ]);
+    const data = computeInsights({ orders, products, inventory, waste });
+    insightsCache = { data, at: Date.now() };
+    return data;
+}
+
 app.get('/api/insights', authRequired(['Admin']), async (req, res) => {
     try {
-        if (insightsCache.data && Date.now() - insightsCache.at < INSIGHTS_TTL_MS) {
-            return res.json(insightsCache.data);
-        }
-        const since = new Date(Date.now() - 30 * 86400000);
-        const [orders, products, inventory, waste] = await Promise.all([
-            Order.find({ date: { $gte: since } }).lean(),
-            Product.find().lean(),
-            InventoryItem.find().lean(),
-            WasteItem.find({ date: { $gte: since } }).lean()
-        ]);
-        const data = computeInsights({ orders, products, inventory, waste });
-        insightsCache = { data, at: Date.now() };
-        res.json(data);
+        res.json(await getInsights());
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Optional LLM weekly report (free Gemini tier). Falls back to a statistics
+// summary when AI_API_KEY is missing or the API call fails — never errors.
+app.post('/api/ai/report', authRequired(['Admin']), async (req, res) => {
+    try {
+        const data = await getInsights();
+        const report = await fetchAiReport(buildReportPrompt(data));
+        res.json({
+            report: report || buildStatsReport(data),
+            source: report ? 'ai' : 'stats',
+            generatedAt: new Date().toISOString()
+        });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

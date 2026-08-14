@@ -2561,6 +2561,64 @@ body.dark .updates-detail-close:hover { background: #3a2d1f; }
     margin: 6px 0 2px;
 }
 
+.ai-report-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--accent-brown);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 22px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+}
+
+.ai-report-btn:hover {
+    background: var(--dark-brown);
+}
+
+.ai-report-btn:active {
+    transform: scale(0.97);
+}
+
+.ai-report-btn:disabled {
+    opacity: 0.7;
+    cursor: wait;
+}
+
+.ai-report-text {
+    margin-top: 12px;
+    padding: 12px 14px;
+    background: #f9f2ea;
+    border: 1px solid #f0e2d4;
+    border-radius: 14px;
+    font-size: 0.83rem;
+    line-height: 1.55;
+    color: var(--dark-brown);
+    max-height: 220px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+}
+
+.ai-report-text p {
+    margin: 0;
+}
+
+.ai-report-source {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--accent-brown);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px !important;
+}
+
 .ai-skeleton-line {
     height: 12px;
     border-radius: 6px;
@@ -2577,6 +2635,16 @@ body.dark .updates-detail-close:hover { background: #3a2d1f; }
 body.dark .ai-card {
     background: #2e2318;
     border-color: #4a3a2c;
+}
+
+body.dark .ai-report-text {
+    background: #241a12;
+    border-color: #4a3a2c;
+    color: #e8dccb;
+}
+
+body.dark .ai-report-source {
+    color: #e8b98a;
 }
 
 body.dark .ai-header-pill {
