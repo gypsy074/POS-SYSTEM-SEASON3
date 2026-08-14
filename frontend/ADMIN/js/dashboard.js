@@ -66,6 +66,7 @@ async function loadLiveDashboardData() {
         setupCategoryPills();
         renderUsageChart(orders);
         renderCalendar();
+        loadInsights();
     } catch (err) {
         console.error("❌ Dashboard sync pipeline broken:", err);
     }

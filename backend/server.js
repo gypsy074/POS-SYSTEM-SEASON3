@@ -957,6 +957,31 @@ app.get('/api/audit', authRequired(['Admin']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ---------------------- AI INSIGHTS ENDPOINT (ADMIN) ----------------------
+// In-house statistical forecasts & alerts — computed from the last 30 days of
+// orders/products/inventory/waste. Result is cached for 5 minutes.
+const { computeInsights } = require('./ai-insights');
+let insightsCache = { data: null, at: 0 };
+const INSIGHTS_TTL_MS = 5 * 60 * 1000;
+
+app.get('/api/insights', authRequired(['Admin']), async (req, res) => {
+    try {
+        if (insightsCache.data && Date.now() - insightsCache.at < INSIGHTS_TTL_MS) {
+            return res.json(insightsCache.data);
+        }
+        const since = new Date(Date.now() - 30 * 86400000);
+        const [orders, products, inventory, waste] = await Promise.all([
+            Order.find({ date: { $gte: since } }).lean(),
+            Product.find().lean(),
+            InventoryItem.find().lean(),
+            WasteItem.find({ date: { $gte: since } }).lean()
+        ]);
+        const data = computeInsights({ orders, products, inventory, waste });
+        insightsCache = { data, at: Date.now() };
+        res.json(data);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ---------------------- SEED DEFAULT ADMIN ----------------------
 // Creates a default admin account on first boot when no users exist.
 // Override credentials with SEED_ADMIN_USERNAME / SEED_ADMIN_PASSWORD in .env

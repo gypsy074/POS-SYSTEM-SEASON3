@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Season 3</title>
-    <link rel="stylesheet" href="admin.css?v=22">
+    <link rel="stylesheet" href="admin.css?v=23">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -122,6 +122,11 @@
                                 </div>
                             </div>
                         </div>
+                    </section>
+
+                    <section class="ai-insights-section">
+                        <div class="section-header"><i class="fas fa-robot"></i> AI Insights</div>
+                        <div class="ai-insights-grid" id="aiInsightsGrid"></div>
                     </section>
 
                     <section class="transactions-section">
@@ -507,6 +512,7 @@
 
     <!-- Feature Modules -->
     <script src="js/dashboard.js"></script>
+    <script src="js/insights.js?v=23"></script>
     <script src="js/menu.js"></script>
     <script src="js/users.js"></script>
     <script src="js/inventory.js"></script>
