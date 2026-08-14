@@ -80,6 +80,23 @@
     transition:background .15s ease,transform .12s ease}
 .account-session-row button.acct-kill:hover{background:#fee2e2}
 .account-session-row button.acct-kill:active{transform:scale(.94)}
+.acct-age{font-size:10px;font-weight:700;border-radius:99px;padding:2px 7px;margin-left:6px;flex:0 0 auto}
+.acct-age.today{color:#15803d;background:#dcfce7}
+.acct-age.week{color:#b45309;background:#fef3c7}
+.acct-age.old{color:#6b7280;background:#f1f5f9}
+.acct-retry{display:block;margin:10px auto 0;background:#d97706;color:#fff;border:0;border-radius:7px;
+    padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;
+    transition:background .15s ease,transform .12s ease}
+.acct-retry:hover{background:#b45309}
+.acct-retry:active{transform:scale(.95)}
+.account-modal-overlay{animation:accountModalFade .18s ease-out}
+@keyframes accountModalFade{from{opacity:0}to{opacity:1}}
+.account-modal-overlay.closing{animation:accountModalFadeOut .16s ease-in forwards}
+@keyframes accountModalFadeOut{to{opacity:0}}
+.account-modal{animation:accountModalPop .22s cubic-bezier(.34,1.56,.64,1)}
+@keyframes accountModalPop{from{transform:translateY(18px) scale(.96);opacity:.5}to{transform:none;opacity:1}}
+.account-modal-overlay.closing .account-modal{animation:accountModalPopOut .16s ease-in forwards}
+@keyframes accountModalPopOut{to{transform:translateY(12px) scale(.97);opacity:0}}
 .account-empty{font-size:12.5px;color:#8a93a5;text-align:center;padding:14px 0}
 .account-field{display:flex;flex-direction:column;gap:5px}
 .account-field label{font-size:12px;font-weight:600;color:#475569}
@@ -122,6 +139,45 @@
         return browser ? `${browser} · ${os}` : os;
     }
 
+    function deviceIcon(ua) {
+        const s = String(ua || "").toLowerCase();
+        if (s.includes("ipad")) return "fa-tablet-screen-button";
+        if (s.includes("iphone") || s.includes("ios") || s.includes("android")) return "fa-mobile-screen";
+        return "fa-laptop";
+    }
+
+    function relTime(d) {
+        const t = new Date(d);
+        if (isNaN(t.getTime())) return "";
+        const diff = Date.now() - t.getTime();
+        const min = Math.floor(diff / 60000);
+        if (min < 1) return "just now";
+        if (min < 60) return `${min}m ago`;
+        const hr = Math.floor(min / 60);
+        if (hr < 24) return `${hr}h ago`;
+        const day = Math.floor(hr / 24);
+        if (day < 7) return `${day}d ago`;
+        const wk = Math.floor(day / 7);
+        if (wk < 5) return `${wk}w ago`;
+        return t.toLocaleDateString();
+    }
+
+    function sessionAgeInfo(d) {
+        const t = new Date(d);
+        if (isNaN(t.getTime())) return { cls: "old", label: "unknown age" };
+        const diff = Date.now() - t.getTime();
+        if (diff < 24 * 3600 * 1000) return { cls: "today", label: "today" };
+        if (diff < 7 * 24 * 3600 * 1000) return { cls: "week", label: `${Math.floor(diff / (24 * 3600 * 1000))}d old` };
+        return { cls: "old", label: `${Math.floor(diff / (7 * 24 * 3600 * 1000))}w old` };
+    }
+
+    function confirmDialog(title, message, confirmLabel) {
+        if (typeof showConfirmModal === "function") {
+            return showConfirmModal({ title, message, confirmLabel, cancelLabel: "Cancel", danger: true });
+        }
+        return Promise.resolve(window.confirm(`${title} ${message}`));
+    }
+
     // account.js runs on both apps — each stores its own session keys.
     const isAdminApp = window.location.pathname.includes("/ADMIN/");
     const tokenKey = isAdminApp ? "posAdminToken" : "posToken";
@@ -147,6 +203,7 @@
 
     // ── State ────────────────────────────────────────────────────────────
     let sessions = [];
+    let sessionsFailed = false;
     let lastAlertedJti = null;
 
     // ── Alert sound (browser-generated tones — no audio files needed) ────
@@ -290,14 +347,31 @@
         overlay.querySelector("#accountTabPassword").hidden = tab !== "password";
     }
 
+    let modalCloseTimer = null;
+
     function openAccountModal(tab) {
         if (typeof closeProfileDropdown === "function") closeProfileDropdown();
+        if (modalCloseTimer) {
+            clearTimeout(modalCloseTimer);
+            modalCloseTimer = null;
+        }
+        overlay.classList.remove("closing");
         switchTab(tab || "sessions");
         overlay.classList.add("open");
         loadSessions();
     }
 
-    function closeAccountModal() { overlay.classList.remove("open"); }
+    function closeAccountModal() {
+        if (modalCloseTimer) {
+            clearTimeout(modalCloseTimer);
+            modalCloseTimer = null;
+        }
+        overlay.classList.add("closing");
+        modalCloseTimer = setTimeout(() => {
+            modalCloseTimer = null;
+            overlay.classList.remove("closing", "open");
+        }, 170);
+    }
 
     function showMsg(text, isError) {
         const el = overlay.querySelector("#accountPwMsg");
@@ -309,38 +383,58 @@
     async function loadSessions() {
         try {
             const res = await api("/api/auth/sessions");
-            if (!res.ok) return;
+            if (!res.ok) throw new Error("bad status");
             const data = await res.json();
             sessions = (data.sessions || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            sessionsFailed = false;
             renderSessions();
             evaluateBanner();
-        } catch (e) { /* offline — ignore */ }
+        } catch (e) {
+            sessionsFailed = true;
+            renderSessions();
+        }
     }
 
     function renderSessions() {
         const list = overlay.querySelector("#accountSessionList");
+        if (sessionsFailed) {
+            list.innerHTML = `<div class="account-empty">Couldn't load your sessions right now.
+                <button type="button" class="acct-retry" id="acctRetryBtn">Retry</button></div>`;
+            const retry = list.querySelector("#acctRetryBtn");
+            if (retry) retry.addEventListener("click", loadSessions);
+            return;
+        }
         if (!sessions.length) {
-            list.innerHTML = `<div class="account-empty">No active sessions.</div>`;
+            list.innerHTML = `<div class="account-empty"><i class="fa-solid fa-shield-halved"></i> No active sessions.</div>`;
             return;
         }
         list.innerHTML = sessions.map(s => {
+            const age = sessionAgeInfo(s.createdAt);
+            const device = deviceLabel(s.userAgent);
             const meta = `
-                <div class="acct-icon"><i class="fa-solid fa-laptop"></i></div>
+                <div class="acct-icon"><i class="fa-solid ${deviceIcon(s.userAgent)}"></i></div>
                 <div class="acct-meta">
-                    <div class="acct-device">${deviceLabel(s.userAgent)}</div>
-                    <div class="acct-sub">${s.ip || "unknown IP"} · ${fmtTime(s.createdAt)}</div>
+                    <div class="acct-device">${device}</div>
+                    <div class="acct-sub">${s.ip || "unknown IP"} · ${relTime(s.createdAt)}
+                        <span class="acct-age ${age.cls}">${age.label}</span></div>
                 </div>`;
             if (s.isCurrent) {
                 return `<div class="account-session-row">${meta}<span class="acct-badge">● This device</span></div>`;
             }
             return `<div class="account-session-row">${meta}
-                <button type="button" class="acct-kill" data-jti="${s.jti}">Log out</button></div>`;
+                <button type="button" class="acct-kill" data-jti="${s.jti}" data-device="${device.replace(/"/g, "&quot;")}">Log out</button></div>`;
         }).join("");
         list.querySelectorAll(".acct-kill").forEach(btn =>
-            btn.addEventListener("click", () => killSession(btn.dataset.jti)));
+            btn.addEventListener("click", () => killSession(btn.dataset.jti, btn.dataset.device)));
     }
 
-    async function killSession(jti) {
+    async function killSession(jti, device) {
+        const confirmed = await confirmDialog(
+            "Log out this device?",
+            `"${device || "This device"}" will be signed out and must log in again.`,
+            "Log out"
+        );
+        if (!confirmed) return;
         try {
             const res = await api(`/api/auth/sessions/${encodeURIComponent(jti)}`, { method: "DELETE" });
             if (res.ok) loadSessions();
@@ -348,6 +442,12 @@
     }
 
     async function revokeOthers() {
+        const confirmed = await confirmDialog(
+            "Log out all other sessions?",
+            "Every other device will be signed out immediately. This device stays signed in.",
+            "Log them out"
+        );
+        if (!confirmed) return;
         try {
             const res = await api("/api/auth/sessions/revoke-others", { method: "POST" });
             if (!res.ok) return;

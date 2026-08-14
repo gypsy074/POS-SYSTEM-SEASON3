@@ -137,7 +137,7 @@ async function generateAiReport() {
     const btn = document.getElementById("aiReportBtn");
     if (!btn || aiReportBusy) return;
     aiReportBusy = true;
-    aiTapGuardUntil = Date.now() + 800;
+    aiTapGuardUntil = Date.now() + 1200;
     btn.setAttribute("aria-busy", "true");
     // Note: never set btn.disabled here — mobile browsers re-fire the click on
     // body when a button disables itself mid-tap, and that ghost click would
@@ -210,6 +210,12 @@ let aiPanelCloseTimer = null;
 // the html root or the pill itself — and we must not treat that as "outside".
 let aiTapGuardUntil = 0;
 
+function aiTapGuarded() {
+    // While the report is generating (or just finished) no tap may close the
+    // panel — covers delayed/late ghost clicks and stray touches.
+    return aiReportBusy || Date.now() < aiTapGuardUntil;
+}
+
 function setAiPanelOpen(open) {
     const pill = document.getElementById("aiHeaderPill");
     if (!pill) return;
@@ -221,6 +227,10 @@ function setAiPanelOpen(open) {
     if (open) {
         pill.classList.add("open");
         pill.setAttribute("aria-expanded", "true");
+        // The header's hide-transform re-anchors the fixed panel offscreen —
+        // make sure it's visible whenever the panel is open.
+        const header = document.querySelector(".admin-header");
+        if (header) header.classList.remove("header-hidden");
     } else if (pill.classList.contains("open")) {
         // Play the exit animation, then really hide
         pill.classList.add("closing");
@@ -240,13 +250,14 @@ function setupAiHeaderPanel() {
     const toggle = () => setAiPanelOpen(!pill.classList.contains("open"));
 
     pill.addEventListener("click", event => {
-        if (Date.now() < aiTapGuardUntil) return; // redirected ghost tap — ignore
+        if (aiTapGuarded()) return; // redirected ghost tap — ignore
         if (event.target.closest(".ai-header-panel-close") || event.target.closest(".ai-header-panel")) return;
         toggle();
     });
 
     if (closeBtn) closeBtn.addEventListener("click", event => {
         event.stopPropagation();
+        if (aiTapGuarded()) return; // ghost tap landing on the close button — ignore
         setAiPanelOpen(false);
     });
 
@@ -265,7 +276,7 @@ function setupAiHeaderPanel() {
     });
 
     document.addEventListener("click", event => {
-        if (Date.now() < aiTapGuardUntil) return; // redirected ghost tap — ignore
+        if (aiTapGuarded()) return; // redirected ghost tap — ignore
         if (!pill.classList.contains("open")) return;
         if (!event.target.isConnected) return; // stale target from a re-render — ignore
         // Mobile browsers redirect a tap onto body/document when the tapped
