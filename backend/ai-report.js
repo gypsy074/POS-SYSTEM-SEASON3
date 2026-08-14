@@ -9,11 +9,63 @@
    fetchAiReport so callers can fall back to buildStatsReport.
    ========================================================================== */
 
-const AI_MODEL = "gemini-2.0-flash";
+const DEFAULT_MODELS = {
+    gemini: "gemini-2.0-flash",
+    groq: "llama-3.3-70b-versatile"
+};
 const AI_TIMEOUT_MS = 20000;
 
 function currency(n) {
     return `₱${Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+}
+
+function aiProvider() {
+    return String(process.env.AI_PROVIDER || "gemini").trim().toLowerCase();
+}
+
+function aiModel(provider) {
+    return String(process.env.AI_MODEL || "").trim() || DEFAULT_MODELS[provider] || DEFAULT_MODELS.gemini;
+}
+
+function aiKey(provider) {
+    const k = provider === "groq"
+        ? (process.env.GROQ_API_KEY || process.env.AI_API_KEY)
+        : process.env.AI_API_KEY;
+    return k ? String(k).trim() : null;
+}
+
+/**
+ * Builds the request descriptor for a provider — pure and testable.
+ * Providers: groq (OpenAI-compatible) and gemini (REST). Both receive the
+ * same anonymized prompt; response text extraction differs per provider.
+ */
+function buildAiRequest(provider, prompt) {
+    if (provider === "groq") {
+        return {
+            url: "https://api.groq.com/openai/v1/chat/completions",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${aiKey("groq")}`
+            },
+            body: {
+                model: aiModel("groq"),
+                messages: [
+                    { role: "system", content: "You are a friendly business analyst for a small restaurant. Write short plain-text reports with no markdown headers." },
+                    { role: "user", content: prompt }
+                ],
+                temperature: 0.7,
+                max_tokens: 700
+            }
+        };
+    }
+    return {
+        url: `https://generativelanguage.googleapis.com/v1beta/models/${aiModel("gemini")}:generateContent?key=${encodeURIComponent(aiKey("gemini"))}`,
+        headers: { "Content-Type": "application/json" },
+        body: {
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.7, maxOutputTokens: 700 }
+        }
+    };
 }
 
 /**
@@ -90,35 +142,40 @@ function buildStatsReport(insights) {
 }
 
 /**
- * Server-side call to Google's free Gemini REST API.
+ * Server-side call to the configured AI provider (default: Google's free
+ * Gemini REST API; optional: Groq's OpenAI-compatible API).
  * Returns the trimmed text or null on any failure (no key, HTTP error,
  * empty response, timeout).
  */
 async function fetchAiReport(prompt) {
-    const key = process.env.AI_API_KEY;
+    const provider = aiProvider();
+    const key = aiKey(provider);
     if (!key) return null;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL}:generateContent?key=${encodeURIComponent(key)}`;
+    const { url, headers, body } = buildAiRequest(provider, prompt);
     try {
         const response = await fetch(url, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ role: "user", parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.7, maxOutputTokens: 700 }
-            }),
+            headers,
+            body: JSON.stringify(body),
             signal: AbortSignal.timeout(AI_TIMEOUT_MS)
         });
         if (!response.ok) return null;
         const payload = await response.json();
-        const parts = payload && payload.candidates && payload.candidates[0]
-            && payload.candidates[0].content && payload.candidates[0].content.parts;
-        const text = Array.isArray(parts)
-            ? parts.map(p => p.text || "").join("")
-            : "";
+        let text = "";
+        if (provider === "groq") {
+            text = (payload && payload.choices && payload.choices[0]
+                && payload.choices[0].message && payload.choices[0].message.content) || "";
+        } else {
+            const parts = payload && payload.candidates && payload.candidates[0]
+                && payload.candidates[0].content && payload.candidates[0].content.parts;
+            text = Array.isArray(parts)
+                ? parts.map(p => p.text || "").join("")
+                : "";
+        }
         return text.trim() ? text.trim() : null;
     } catch (err) {
         return null;
     }
 }
 
-module.exports = { buildReportPrompt, buildStatsReport, fetchAiReport };
+module.exports = { buildReportPrompt, buildStatsReport, buildAiRequest, fetchAiReport };

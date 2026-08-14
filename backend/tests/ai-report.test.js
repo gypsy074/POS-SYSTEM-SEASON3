@@ -12,7 +12,8 @@ const mongoose = require('mongoose');
 const request = require('supertest');
 const {
     buildReportPrompt,
-    buildStatsReport
+    buildStatsReport,
+    buildAiRequest
 } = require('../ai-report');
 
 let mongod;
@@ -109,6 +110,51 @@ describe('buildStatsReport', () => {
         const report = buildStatsReport({});
         expect(report).toContain('not enough sales history');
         expect(report).toContain('none detected');
+    });
+});
+
+describe('buildAiRequest', () => {
+    const originalEnv = { ...process.env };
+    const prompt = 'Write a report.';
+
+    afterEach(() => {
+        process.env = { ...originalEnv };
+    });
+
+    test('builds the Groq request (OpenAI-compatible shape)', () => {
+        process.env.AI_PROVIDER = 'groq';
+        process.env.GROQ_API_KEY = 'gsk_test';
+        const req = buildAiRequest('groq', prompt);
+        expect(req.url).toBe('https://api.groq.com/openai/v1/chat/completions');
+        expect(req.headers.Authorization).toBe('Bearer gsk_test');
+        expect(req.body.model).toBe('llama-3.3-70b-versatile');
+        expect(req.body.messages[0].role).toBe('system');
+        expect(req.body.messages[1]).toEqual({ role: 'user', content: prompt });
+        expect(req.body.max_tokens).toBe(700);
+    });
+
+    test('falls back to AI_API_KEY for groq when GROQ_API_KEY is unset', () => {
+        process.env.AI_PROVIDER = 'groq';
+        process.env.AI_API_KEY = 'gsk_fallback';
+        const req = buildAiRequest('groq', prompt);
+        expect(req.headers.Authorization).toBe('Bearer gsk_fallback');
+    });
+
+    test('honors the AI_MODEL override', () => {
+        process.env.AI_PROVIDER = 'groq';
+        process.env.GROQ_API_KEY = 'gsk_test';
+        process.env.AI_MODEL = 'llama-3.1-8b-instant';
+        const req = buildAiRequest('groq', prompt);
+        expect(req.body.model).toBe('llama-3.1-8b-instant');
+    });
+
+    test('builds the Gemini request by default', () => {
+        process.env.AI_API_KEY = 'gAIza_test';
+        const req = buildAiRequest('gemini', prompt);
+        expect(req.url).toContain('generativelanguage.googleapis.com');
+        expect(req.url).toContain('gAIza_test');
+        expect(req.body.contents[0].parts[0].text).toBe(prompt);
+        expect(req.body.generationConfig.maxOutputTokens).toBe(700);
     });
 });
 
