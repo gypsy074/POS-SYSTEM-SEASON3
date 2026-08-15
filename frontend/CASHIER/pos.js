@@ -870,7 +870,11 @@ function productStock(product) {
 }
 
 function productIsSoldOut(product) {
-    return !product || productStock(product) <= 0;
+    if (!product) return true;
+    // Admin can flag an item as sold out in the Menu Manager even when it
+    // still has stock — honor that, not just the numeric stock count.
+    if (String(product.status || "").toLowerCase() === "out of stock") return true;
+    return productStock(product) <= 0;
 }
 
 function productIsLowStock(product) {
@@ -896,6 +900,9 @@ function displayCategoryItems(category, searchTerm = "") {
 
         return matchesCategory && matchesSearch;
     });
+
+    // Sold-out items go last so the cashier sees available items first.
+    products.sort((a, b) => (productIsSoldOut(a) ? 1 : 0) - (productIsSoldOut(b) ? 1 : 0));
 
     grid.innerHTML = products.length
         ? products.map(product => {
@@ -955,7 +962,7 @@ function addToCart(productId) {
     }
 
     const available = productStock(product);
-    if (available <= 0) {
+    if (productIsSoldOut(product)) {
         showPosAlert({
             title: "Out of Stock",
             icon: "fa-circle-exclamation",
