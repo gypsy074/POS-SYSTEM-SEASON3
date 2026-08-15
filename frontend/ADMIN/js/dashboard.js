@@ -25,7 +25,7 @@ async function loadLiveDashboardData(force) {
         dashboardFetching = true;
         let orders;
         if (force || !dashboardOrdersCache || Date.now() - dashboardOrdersAt > DASHBOARD_CACHE_MS) {
-            const response = await apiFetch("/api/orders");
+            const response = await apiFetch("/api/orders?days=90&limit=5000");
             if (!response.ok) throw new Error("Network payload reading failed");
             orders = await response.json();
             dashboardOrdersCache = orders;
@@ -491,6 +491,13 @@ function renderDailySnapshot() {
 
 // ── CSV Export (Sales Analytics) ───────────────────────────────────────────
 
+// Local (Philippine) date stamp for export filenames — toISOString() is UTC,
+// which is off by one day for exports made between midnight and 8 AM.
+function localDateStamp() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function exportSalesCsv() {
     const orders = latestOrders || [];
     if (!orders.length) {
@@ -530,7 +537,7 @@ function exportSalesCsv() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `season3-sales-${activeSalesRange}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `season3-sales-${activeSalesRange}-${localDateStamp()}.csv`;
     document.body.appendChild(link);
     link.click();
     link.remove();

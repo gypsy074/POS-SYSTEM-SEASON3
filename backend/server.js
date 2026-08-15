@@ -1,3 +1,8 @@
+// The canteen runs on Philippine time. Render containers default to UTC, so
+// without this the server-side "today" groupings (insights, forecast, anomaly
+// days) drift 8 hours away from what the dashboard shows in Manila.
+process.env.TZ = 'Asia/Manila';
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -613,8 +618,20 @@ app.get('/api/health', (req, res) => {
 // ---------------------- ORDER ENDPOINTS (CASHIER / ADMIN) ----------------------
 app.get('/api/orders', authRequired(), async (req, res) => {
     try {
-        const orders = await Order.find().sort({ _id: -1 });
-        res.json(orders);
+        // Optional bounded fetch: ?days=90&limit=5000 keeps the dashboard fast
+        // as the canteen grows; omitted params keep the original full-fetch
+        // behavior for any other caller.
+        const query = {};
+        const days = parseInt(req.query.days, 10);
+        if (Number.isInteger(days) && days > 0 && days <= 365) {
+            query.date = { $gte: new Date(Date.now() - days * 86400000) };
+        }
+        let find = Order.find(query).sort({ _id: -1 });
+        const limit = parseInt(req.query.limit, 10);
+        if (Number.isInteger(limit) && limit > 0 && limit <= 5000) {
+            find = find.limit(limit);
+        }
+        res.json(await find);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -688,8 +705,20 @@ app.post('/api/orders', authRequired(), async (req, res) => {
 app.delete('/api/orders/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order id' });
+
+        const order = await Order.findById(req.params.id);
+        if (!order) return res.status(404).json({ error: 'Order not found' });
+
+        // Paid orders must be voided first: hard-deleting them would silently
+        // rewrite yesterday's revenue, charts, insights, and CSV exports.
+        // Voiding keeps the row visible (status: Voided) and excludes it from
+        // stats — the transparent way to remove an order from the numbers.
+        if (order.status !== 'Voided') {
+            return res.status(409).json({ error: 'Void the order first. Deleting a paid order would corrupt sales history.' });
+        }
+
         await Order.findByIdAndDelete(req.params.id);
-        writeLog('order.delete', req.user.username, req.params.id, `Order ${req.params.id} hard-deleted`);
+        writeLog('order.delete', req.user.username, req.params.id, `Order ${req.params.id} hard-deleted (was voided)`);
         res.json({ message: 'Order successfully deleted' });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -721,7 +750,7 @@ app.patch('/api/orders/:id/void', authRequired(), async (req, res) => {
         order.status = "Voided";
         order.voidedBy = req.user.username || "";
         order.voidedAt = new Date();
-        order.voidReason = String(req.body.reason || "").trim().slice(0, 300);
+        order.voidReason = String((req.body && req.body.reason) || "").trim().slice(0, 300);
 
         const savedOrder = await order.save();
         writeLog('order.void', req.user.username, String(order._id),

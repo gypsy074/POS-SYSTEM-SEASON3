@@ -248,6 +248,88 @@ describe('Order void', () => {
     });
 });
 
+describe('Order delete guard', () => {
+    test('admin cannot hard-delete a paid (non-voided) order → 409', async () => {
+        await createProduct('TestDeleteGuard', 80, 3);
+
+        const created = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                cashier: 'tester',
+                items: [{ name: 'TestDeleteGuard', quantity: 1, price: 80 }],
+                total: 80
+            });
+        expect(created.status).toBe(201);
+
+        const del = await request(app)
+            .delete(`/api/orders/${created.body._id}`)
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(del.status).toBe(409);
+
+        const stillThere = await request(app)
+            .get('/api/orders?limit=5000')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect((stillThere.body || []).some(o => String(o._id) === String(created.body._id))).toBe(true);
+    });
+
+    test('admin can hard-delete an already-voided order → 200', async () => {
+        await createProduct('TestDeleteVoided', 70, 3);
+
+        const created = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                cashier: 'tester',
+                items: [{ name: 'TestDeleteVoided', quantity: 1, price: 70 }],
+                total: 70
+            });
+        expect(created.status).toBe(201);
+
+        const voidRes = await request(app)
+            .patch(`/api/orders/${created.body._id}/void`)
+            .set('Authorization', `Bearer ${cashierToken}`);
+        expect(voidRes.status).toBe(200);
+
+        const del = await request(app)
+            .delete(`/api/orders/${created.body._id}`)
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(del.status).toBe(200);
+
+        const gone = await request(app)
+            .delete(`/api/orders/${created.body._id}`)
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(gone.status).toBe(404);
+    });
+});
+
+describe('Orders fetch bounds', () => {
+    test('?limit= caps the number of orders returned', async () => {
+        await createProduct('TestCapper', 30, 20);
+        for (let i = 0; i < 3; i++) {
+            await request(app)
+                .post('/api/orders')
+                .set('Authorization', `Bearer ${cashierToken}`)
+                .send({ cashier: 'tester', items: [{ name: 'TestCapper', quantity: 1, price: 30 }] });
+        }
+
+        const res = await request(app)
+            .get('/api/orders?limit=2')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(res.status).toBe(200);
+        expect(Array.isArray(res.body)).toBe(true);
+        expect(res.body.length).toBeLessThanOrEqual(2);
+    });
+
+    test('out-of-range params are ignored (no 500, no filtering)', async () => {
+        const res = await request(app)
+            .get('/api/orders?days=9999&limit=-5')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(res.status).toBe(200);
+        expect(Array.isArray(res.body)).toBe(true);
+    });
+});
+
 describe('Security hardening', () => {
     test('password change rejects <8 characters → 400', async () => {
         const res = await request(app)

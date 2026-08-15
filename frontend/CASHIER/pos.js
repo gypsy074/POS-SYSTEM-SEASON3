@@ -634,7 +634,7 @@ let historySearchTerm = "";
 
 async function loadCashierHistory() {
     try {
-        const response = await apiFetch("/api/orders");
+        const response = await apiFetch("/api/orders?days=7");
         if (!response.ok) {
             return;
         }
