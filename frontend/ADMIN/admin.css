@@ -2935,6 +2935,12 @@ body.dark .updates-detail-close:hover { background: #3a2d1f; }
     cursor: wait;
 }
 
+.ai-report-btn.busy {
+    opacity: 0.75;
+    cursor: wait;
+    pointer-events: none;
+}
+
 .ai-report-text {
     margin-top: 12px;
     padding: 12px 14px;

@@ -108,14 +108,21 @@ function renderInsights(data) {
 
 let aiLastReport = null;
 let aiReportBusy = false;
+// The panel must NOT close while the report is generating — the AI call can
+// take up to 20s, far beyond the 1.2s ghost-tap window, so a delayed ghost
+// click on the pill would otherwise close the panel mid-generation.
+let aiPanelLock = false;
 
 function renderAiReportCard() {
+    const busy = aiReportBusy;
     return `
         <div class="ai-card">
             <div class="ai-card-header"><i class="fas fa-wand-magic-sparkles"></i> Weekly AI Report</div>
             <div class="ai-card-body">
-                <button type="button" class="ai-report-btn" id="aiReportBtn" aria-busy="false">
-                    <i class="fas fa-file-lines"></i> Generate report
+                <button type="button" class="ai-report-btn${busy ? " busy" : ""}" id="aiReportBtn" aria-busy="${busy}" ${busy ? "disabled" : ""}>
+                    ${busy
+                        ? '<i class="fas fa-spinner fa-spin"></i> Writing report…'
+                        : '<i class="fas fa-file-lines"></i> Generate report'}
                 </button>
                 <div class="ai-report-text" id="aiReportText" hidden></div>
             </div>
@@ -137,6 +144,9 @@ async function generateAiReport() {
     const btn = document.getElementById("aiReportBtn");
     if (!btn || aiReportBusy) return;
     aiReportBusy = true;
+    // Lock the panel open for the entire generation — even if the AI call
+    // takes the full 20s timeout, no tap may close it.
+    aiPanelLock = true;
     aiTapGuardUntil = Date.now() + 1200;
     btn.setAttribute("aria-busy", "true");
     // Note: never set btn.disabled here — mobile browsers re-fire the click on
@@ -169,6 +179,10 @@ async function generateAiReport() {
         btn.innerHTML = '<i class="fas fa-file-lines"></i> Generate report';
     }
     fillAiReportCard(report);
+    // Trailing grace: stay locked briefly so delayed ghost clicks from the
+    // original tap can't slam the panel shut right after the report lands.
+    aiTapGuardUntil = Date.now() + 1500;
+    setTimeout(() => { aiPanelLock = false; }, 1500);
 }
 
 function updateAiPillCount(data) {
@@ -213,7 +227,7 @@ let aiTapGuardUntil = 0;
 function aiTapGuarded() {
     // While the report is generating (or just finished) no tap may close the
     // panel — covers delayed/late ghost clicks and stray touches.
-    return aiReportBusy || Date.now() < aiTapGuardUntil;
+    return aiPanelLock || aiReportBusy || Date.now() < aiTapGuardUntil;
 }
 
 function setAiPanelOpen(open) {
