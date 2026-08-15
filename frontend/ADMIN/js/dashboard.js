@@ -11,12 +11,28 @@ let latestUsers = [];
 let latestLogins = [];
 let latestLogouts = [];
 
-async function loadLiveDashboardData() {
-    try {
-        const response = await apiFetch("/api/orders");
-        if (!response.ok) throw new Error("Network payload reading failed");
+// Orders payload cache — view switches reuse it for 30s; the manual refresh
+// button passes force=true to bypass. Rendering always runs, so the row/card
+// animations replay identically on every load.
+let dashboardOrdersCache = null;
+let dashboardOrdersAt = 0;
+let dashboardFetching = false;
+const DASHBOARD_CACHE_MS = 30000;
 
-        const orders = await response.json();
+async function loadLiveDashboardData(force) {
+    try {
+        if (dashboardFetching) return;
+        dashboardFetching = true;
+        let orders;
+        if (force || !dashboardOrdersCache || Date.now() - dashboardOrdersAt > DASHBOARD_CACHE_MS) {
+            const response = await apiFetch("/api/orders");
+            if (!response.ok) throw new Error("Network payload reading failed");
+            orders = await response.json();
+            dashboardOrdersCache = orders;
+            dashboardOrdersAt = Date.now();
+        } else {
+            orders = dashboardOrdersCache;
+        }
         latestOrders = orders;
 
         const tableBody        = document.getElementById("transactionBody");
@@ -70,6 +86,8 @@ async function loadLiveDashboardData() {
         loadInsights();
     } catch (err) {
         console.error("❌ Dashboard sync pipeline broken:", err);
+    } finally {
+        dashboardFetching = false;
     }
 }
 

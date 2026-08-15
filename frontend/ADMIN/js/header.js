@@ -120,7 +120,7 @@ function refreshCurrentPanel() {
         if (activePanelId === "inventory-view") return loadLiveInventoryData();
         if (activePanelId === "waste-view")     return loadWasteData();
         if (activePanelId === "audit-view")     return loadAuditData();
-        return loadLiveDashboardData();
+        return loadLiveDashboardData(true); // force — bypass the 30s orders cache
     })();
     return Promise.resolve(job).finally(() => {
         if (btn) btn.classList.remove("spinning");

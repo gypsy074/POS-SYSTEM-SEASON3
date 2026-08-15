@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const dns = require('dns');
 const helmet = require('helmet');
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
@@ -35,6 +36,9 @@ app.use(helmet({
     contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false
 }));
+// gzip all JSON + static responses — the orders payload alone is 5-10x
+// smaller on the wire with it.
+app.use(compression());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -131,6 +135,8 @@ const orderSchema = new mongoose.Schema({
     clientOrderId: { type: String, trim: true }
 });
 orderSchema.index({ clientOrderId: 1 }, { unique: true, sparse: true });
+// Insights queries orders by date range — keep the scan on an index.
+orderSchema.index({ date: 1 });
 const Order = mongoose.model('Order', orderSchema);
 
 // --- Menu Management Schema Configuration ---
@@ -144,6 +150,7 @@ const productSchema = new mongoose.Schema({
     lowStockThreshold: { type: Number, default: 10, min: 0 },
     date: { type: String, default: () => new Date().toLocaleDateString() }
 });
+productSchema.index({ stock: 1 });
 const Product = mongoose.model('Product', productSchema);
 
 // --- Crew User Account Schema Configuration ---
@@ -206,6 +213,7 @@ const logSchema = new mongoose.Schema({
     detail: { type: String, default: "", trim: true },
     date: { type: Date, default: Date.now }
 });
+logSchema.index({ action: 1, date: -1 });
 const AuditLog = mongoose.model('AuditLog', logSchema);
 
 /* ==========================================================================
