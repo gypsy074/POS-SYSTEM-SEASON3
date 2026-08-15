@@ -9,12 +9,33 @@ let selectedMode = "Dine In";
 let selectedPayment = "cash";
 let currentOrderId = generateOrderId();
 
+// ── Receipt printer settings ─────────────────────────────────────────────
+// mode: "dialog" = browser print dialog (default), "bridge" = silent print
+// via a local Bluetooth-thermal helper app (the app exposes an HTTP endpoint
+// on the phone, e.g. http://127.0.0.1:8080).
+// width: "80" or "58" (mm) — 58 adds the narrow .thermal-58 layout.
+const PRINT_SETTINGS_KEY = "posPrintSettings";
+const DEFAULT_PRINT_SETTINGS = { mode: "dialog", width: "80", url: "http://127.0.0.1:8080" };
+
+function getPrintSettings() {
+    try {
+        return Object.assign({}, DEFAULT_PRINT_SETTINGS, JSON.parse(localStorage.getItem(PRINT_SETTINGS_KEY) || "{}"));
+    } catch (err) {
+        return Object.assign({}, DEFAULT_PRINT_SETTINGS);
+    }
+}
+
+function savePrintSettings(settings) {
+    localStorage.setItem(PRINT_SETTINGS_KEY, JSON.stringify(settings));
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     guardCashierPage();
     setupOfflineSupport();
     setupCashierControls();
     setupWasteLogForm();
     setupCashierProfile();
+    setupPrinterSettings();
     loadCashierMenu();
     loadCashierHistory();
     updateDateLabel();
@@ -1520,6 +1541,14 @@ async function submitOrder() {
 
 function printReceipt(order) {
     if (!order) return;
+    const settings = getPrintSettings();
+
+    // Silent path: send the receipt to the local Bluetooth-printer helper app.
+    if (settings.mode === "bridge") {
+        sendToThermalBridge(order, settings);
+        return;
+    }
+
     let host = document.getElementById("printReceiptHost");
     if (!host) {
         host = document.createElement("div");
@@ -1532,7 +1561,7 @@ function printReceipt(order) {
     `).join("");
 
     host.innerHTML = `
-        <div class="print-receipt">
+        <div class="print-receipt${settings.width === "58" ? " thermal-58" : ""}">
             <div class="print-head">
                 <img src="../assets/logo.png" alt="logo">
                 <strong class="print-shop">Season 3 Kitchen &amp; Cafe</strong>
@@ -1555,11 +1584,147 @@ function printReceipt(order) {
             <div class="print-foot">Thank you for your order!<br>Please come again.</div>
         </div>`;
 
-    window.print();
+window.print();
+}
+
+// ── Thermal bridge (silent printing via a Bluetooth-printer helper app) ──
+// A small free app on the Android phone exposes an HTTP endpoint
+// (e.g. http://127.0.0.1:8080) and forwards the text to the paired
+// Bluetooth thermal printer. Plain text is used because 58 mm thermal
+// printers commonly garble unicode symbols, so prices use the "P" prefix.
+
+function buildReceiptText(order) {
+    const line = "--------------------------------";
+    const head = [
+        "   Season 3 Kitchen & Cafe",
+        "   " + new Date(order.date || Date.now()).toLocaleString()
+    ];
+    const meta = [
+        "Receipt: " + (order.receiptId || ""),
+        "Cashier: " + (order.cashier || ""),
+        "Customer: " + (order.customer || "Walk-in Customer"),
+        "Mode: " + (order.mode || "Dine In") + "  Payment: " + (order.paymentMethod || "Cash")
+    ];
+    const items = (order.items || []).map(it => {
+        const name = String(it.name || "");
+        const qty = Number(it.quantity || 0);
+        const amt = (Number(it.price || 0) * qty).toFixed(2);
+        const left = name.length > 22 ? name.slice(0, 21) + "." : name;
+        const right = qty + "x  P" + amt;
+        const pad = Math.max(2, 30 - left.length - right.length);
+        return left + " ".repeat(pad) + right;
+    });
+    const total = [
+        "",
+        line,
+        "TOTAL                  P" + Number(order.total || 0).toFixed(2)
+    ];
+    if (String(order.paymentMethod || "").toLowerCase().includes("cash")) {
+        total.push("Tendered               P" + Number(order.tendered ?? 0).toFixed(2));
+        total.push("Change                 P" + Number(order.change ?? 0).toFixed(2));
+    }
+    total.push(line, "  Thank you! Please come again.", "");
+    return head.concat(line, meta, line, items, total).join("\n");
+}
+
+async function sendToThermalBridge(order, settings) {
+    const url = String(settings.url || "").trim();
+    if (!/^https?:\/\/.+/i.test(url)) {
+        playSound("error");
+        showPosAlert({
+            title: "Printer not set up",
+            icon: "fa-print",
+            iconClass: "danger",
+            bodyHtml: '<p class="pos-modal-note">Open the profile menu, then Receipt printer, and enter the printer app address.</p>'
+        });
+        return;
+    }
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: buildReceiptText(order)
+        });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        playSound("success");
+    } catch (err) {
+        playSound("error");
+        showPosAlert({
+            title: "Printer offline",
+            icon: "fa-print",
+            iconClass: "danger",
+            bodyHtml: '<p class="pos-modal-note">Could not reach the printer app at ' + escapeHtml(url) + '. Open the app, pair the printer, and try again.</p>'
+        });
+    }
+}
+
+// ── Printer settings UI (profile dropdown) ────────────────────────────────
+
+function setupPrinterSettings() {
+    const widthSel = document.getElementById("printWidthSel");
+    const modeSel = document.getElementById("printModeSel");
+    const urlInput = document.getElementById("printBridgeUrl");
+    const urlRow = document.getElementById("printBridgeRow");
+    const saveBtn = document.getElementById("printSettingsSave");
+    const testBtn = document.getElementById("printSettingsTest");
+    const statusEl = document.getElementById("printSettingsStatus");
+    if (!widthSel || !modeSel || !saveBtn) return;
+
+    const settings = getPrintSettings();
+    widthSel.value = settings.width === "58" ? "58" : "80";
+    modeSel.value = settings.mode === "bridge" ? "bridge" : "dialog";
+    if (urlInput) urlInput.value = settings.url || "";
+    if (urlRow) urlRow.hidden = modeSel.value !== "bridge";
+
+    modeSel.addEventListener("change", () => {
+        if (urlRow) urlRow.hidden = modeSel.value !== "bridge";
+    });
+
+    const flash = (text, ok) => {
+        if (!statusEl) return;
+        statusEl.textContent = text;
+        statusEl.classList.toggle("ok", !!ok);
+        statusEl.classList.toggle("err", !ok);
+        setTimeout(() => { statusEl.textContent = ""; }, 4000);
+    };
+
+    const collect = () => ({
+        mode: modeSel.value,
+        width: widthSel.value,
+        url: modeSel.value === "bridge" ? String(urlInput ? urlInput.value : "").trim() : DEFAULT_PRINT_SETTINGS.url
+    });
+
+    saveBtn.addEventListener("click", () => {
+        savePrintSettings(collect());
+        flash(modeSel.value === "bridge" ? "Saved - receipts will print silently" : "Saved - receipts use the browser dialog", true);
+    });
+
+    if (testBtn) {
+        testBtn.addEventListener("click", () => {
+            savePrintSettings(collect());
+            const sample = {
+                receiptId: "TEST-PRINT",
+                cashier: "Cashier",
+                customer: "Test",
+                mode: "Dine In",
+                paymentMethod: "Cash",
+                total: 123.45,
+                tendered: 200,
+                change: 76.55,
+                items: [{ name: "Chicken Rice", quantity: 1, price: 60 }],
+                date: Date.now()
+            };
+            if (collect().mode === "bridge") {
+                sendToThermalBridge(sample, collect());
+            } else {
+                printReceipt(sample);
+            }
+        });
+    }
 }
 
 /* ==========================================================================
-   Keyboard shortcuts — Enter = exact cash (cash mode), Esc = close overlays
+   Keyboard shortcuts - Enter = exact cash (cash mode), Esc = close overlays
    ========================================================================== */
 
 function setupKeyboardShortcuts() {

@@ -168,6 +168,69 @@ body {
 }
 .profile-dropdown-item:hover { background: #fdf0ee; }
 
+/* Receipt printer settings inside the cashier profile dropdown */
+.printer-settings {
+    margin: 8px 0;
+    padding: 10px 12px;
+    border-top: 1px solid #f0e6dc;
+    border-bottom: 1px solid #f0e6dc;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.printer-settings-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--accent-brown);
+}
+.printer-settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: var(--text-dark);
+}
+.printer-settings-row select,
+.printer-settings-row input {
+    min-width: 0;
+    width: 148px;
+    padding: 5px 8px;
+    border: 1px solid #e5d9cc;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-family: inherit;
+    background: #fff;
+    color: var(--text-dark);
+}
+.printer-settings-save,
+.printer-settings-test {
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 9px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+}
+.printer-settings-save { background: var(--accent-brown); color: #fff; }
+.printer-settings-save:hover { filter: brightness(1.08); }
+.printer-settings-test { background: #fdf0ee; color: #c0392b; }
+.printer-settings-test:hover { background: #fbe3e0; }
+.printer-settings-status {
+    font-size: 0.74rem;
+    min-height: 1em;
+    text-align: center;
+}
+.printer-settings-status.ok { color: #2e7d32; }
+.printer-settings-status.err { color: #c0392b; }
+
 .icon-nav {
     width: 48px;
     height: 48px;
@@ -2091,6 +2154,25 @@ payment-details-section h3 {
     text-align: center;
     font-size: 0.72rem;
 }
+
+/* 58mm thermal receipt variant (Bluetooth thermal printers).
+   The cashier picks "58mm" in the printer settings; printReceipt() adds the
+   class so the same markup prints narrow without re-layout. */
+.print-receipt.thermal-58 {
+    width: 58mm;
+    padding: 4px 2px;
+}
+.print-receipt.thermal-58 .print-head img {
+    width: 28px;
+    height: 28px;
+    border-radius: 5px;
+}
+.print-receipt.thermal-58 .print-shop { font-size: 0.82rem; }
+.print-receipt.thermal-58 .print-head span { font-size: 0.62rem; }
+.print-receipt.thermal-58 .print-meta { font-size: 0.68rem; gap: 1px; }
+.print-receipt.thermal-58 .print-line { font-size: 0.68rem; padding: 1px 0; }
+.print-receipt.thermal-58 .print-total { font-size: 0.74rem; }
+.print-receipt.thermal-58 .print-foot { font-size: 0.62rem; }
 
 @media print {
     body { background: #fff !important; }

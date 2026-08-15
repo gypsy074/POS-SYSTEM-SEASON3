@@ -72,6 +72,30 @@
                             <button type="button" class="profile-dropdown-item" id="cashierAccountBtn">
                                 <i class="fa-solid fa-user-shield"></i> My Account & sessions
                             </button>
+                            <div class="printer-settings" id="printerSettings">
+                                <div class="printer-settings-title"><i class="fa-solid fa-print"></i> Receipt printer</div>
+                                <label class="printer-settings-row">
+                                    <span>Paper width</span>
+                                    <select id="printWidthSel">
+                                        <option value="80">80 mm</option>
+                                        <option value="58">58 mm</option>
+                                    </select>
+                                </label>
+                                <label class="printer-settings-row">
+                                    <span>Printing mode</span>
+                                    <select id="printModeSel">
+                                        <option value="dialog">Browser dialog</option>
+                                        <option value="bridge">Bluetooth app (silent)</option>
+                                    </select>
+                                </label>
+                                <label class="printer-settings-row printer-settings-url" id="printBridgeRow" hidden>
+                                    <span>App address</span>
+                                    <input type="url" id="printBridgeUrl" placeholder="http://127.0.0.1:8080" spellcheck="false">
+                                </label>
+                                <button type="button" class="printer-settings-save" id="printSettingsSave">Save printer settings</button>
+                                <button type="button" class="printer-settings-test" id="printSettingsTest">Test print</button>
+                                <span class="printer-settings-status" id="printSettingsStatus"></span>
+                            </div>
                             <button type="button" class="profile-dropdown-item" id="cashierLogoutBtn">
                                 <i class="fa-solid fa-sign-out-alt"></i> Log out
                             </button>
