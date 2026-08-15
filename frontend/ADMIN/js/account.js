@@ -415,7 +415,7 @@
                 <div class="acct-icon"><i class="fa-solid ${deviceIcon(s.userAgent)}"></i></div>
                 <div class="acct-meta">
                     <div class="acct-device">${device}</div>
-                    <div class="acct-sub">${s.ip || "unknown IP"} · ${relTime(s.createdAt)}
+                    <div class="acct-sub">${escapeHtml(s.ip || "unknown IP")} · ${relTime(s.createdAt)}
                         <span class="acct-age ${age.cls}">${age.label}</span></div>
                 </div>`;
             if (s.isCurrent) {

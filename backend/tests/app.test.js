@@ -247,3 +247,58 @@ describe('Order void', () => {
         expect(noAuth.status).toBe(401);
     });
 });
+
+describe('Security hardening', () => {
+    test('password change rejects <8 characters → 400', async () => {
+        const res = await request(app)
+            .put('/api/auth/password')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ currentPassword: 'admin123', newPassword: 'short' });
+        expect(res.status).toBe(400);
+    });
+
+    test('user create rejects <8 character passwords → 400', async () => {
+        const res = await request(app)
+            .post('/api/users')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ username: 'weakuser', password: 'tiny', role: 'Cashier' });
+        expect(res.status).toBe(400);
+    });
+
+    test('user password reset rejects <8 characters → 400', async () => {
+        const created = await request(app)
+            .post('/api/users')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ username: 'pwresetuser', password: 'strongpass1', role: 'Cashier' });
+        expect(created.status).toBe(201);
+
+        const res = await request(app)
+            .put(`/api/users/${created.body._id}`)
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ password: 'tiny' });
+        expect(res.status).toBe(400);
+    });
+
+    test('oversized JSON body → 413', async () => {
+        const res = await request(app)
+            .post('/api/orders')
+            .send({ padding: 'x'.repeat(300000) });
+        expect(res.status).toBe(413);
+    });
+
+    test('product route still accepts a large image payload', async () => {
+        const res = await request(app)
+            .post('/api/products')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ name: 'BigImageDish', category: 'Test', price: 50, image: `data:image/png;base64,${'A'.repeat(200000)}` });
+        expect(res.status).toBe(201);
+    });
+
+    test('no CORS header on API responses', async () => {
+        const res = await request(app)
+            .get('/api/health')
+            .set('Origin', 'https://evil.example');
+        expect(res.status).toBe(200);
+        expect(res.headers['access-control-allow-origin']).toBeUndefined();
+    });
+});

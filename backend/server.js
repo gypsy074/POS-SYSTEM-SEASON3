@@ -17,19 +17,24 @@ dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 
-// JWT signing secret — set JWT_SECRET in .env for production use.
-const JWT_SECRET = process.env.JWT_SECRET || 'season3-pos-dev-secret';
-if (!process.env.JWT_SECRET) {
-    console.warn('⚠️  JWT_SECRET not set in .env — using a development secret. Set it before going live.');
+// JWT signing secret — never run on Render with the public dev fallback.
+// Render services always set RENDER=true, so a missing JWT_SECRET there is
+// a fatal misconfiguration, not a local convenience.
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.RENDER ? null : 'season3-pos-dev-secret');
+if (!JWT_SECRET) {
+    console.error('❌ FATAL: JWT_SECRET is not set on this Render service.');
+    console.error('   Add it under Render → Environment (e.g. from "node -e ' + "'console.log(require('crypto').randomBytes(32).toString('hex')))" + '" ), then redeploy.');
+    process.exit(1);
 }
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
 
 // Middleware Engine Configuration
-const corsOrigin = process.env.CORS_ORIGIN === '*'
-    ? true
-    : process.env.CORS_ORIGIN
-        ? process.env.CORS_ORIGIN.split(',').map(s => s.trim())
-        : true;
+// The frontend is served same-origin by this Express app, so CORS is not
+// needed at all — default to no cross-origin access. Override via the
+// CORS_ORIGIN env var (comma-separated list) if a real client ever needs it.
+const corsOrigin = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map(s => s.trim())
+    : false;
 
 app.use(cors({ origin: corsOrigin }));
 app.use(helmet({
@@ -39,8 +44,17 @@ app.use(helmet({
 // gzip all JSON + static responses — the orders payload alone is 5-10x
 // smaller on the wire with it.
 app.use(compression());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// Tight global body limit — product routes opt into a larger payload
+// (image data-URLs) via a path-dispatched parser, everything else keeps
+// the default ~100kb cap.
+app.use((req, res, next) => {
+    if (req.path.startsWith('/api/products')) {
+        express.json({ limit: '10mb' })(req, res, next);
+    } else {
+        express.json()(req, res, next);
+    }
+});
+app.use(express.urlencoded({ extended: true }));
 
 // Realtime visit logging — prints who accesses the POS to the terminal
 // (and streams to Render dashboard logs in production). Only meaningful
@@ -74,6 +88,10 @@ const loginLimiter = rateLimit({
     legacyHeaders: false,
     message: { error: 'Too many login attempts. Please try again in 15 minutes.' }
 });
+
+// Valid bcrypt hash of a random throwaway string — burned once when a login
+// hits an unknown username so timing doesn't leak account existence.
+const DUMMY_BCRYPT_HASH = '$2b$10$ar11.Gs8ucHBPvwSbx/DIOCAxZ4jmsGIqh6Zi/oI0in4E9nLBeVs.';
 
 // Strict Database Connection Token Processing
 const mongoUri = process.env.MONGO_URI;
@@ -430,6 +448,10 @@ app.post('/api/login', loginLimiter, async (req, res) => {
 
         const user = await User.findOne({ username: String(username).trim().toLowerCase() });
         if (!user) {
+            // Burn a bcrypt round so unknown usernames answer in the same
+            // time as a real password check — otherwise the response time
+            // reveals which usernames exist.
+            await bcrypt.compare(String(password), DUMMY_BCRYPT_HASH);
             return res.status(401).json({ error: 'Invalid username or password.' });
         }
 
@@ -555,8 +577,8 @@ app.put('/api/auth/password', authRequired(), async (req, res) => {
         if (!currentPassword || !newPassword) {
             return res.status(400).json({ error: 'Current and new password are required.' });
         }
-        if (String(newPassword).length < 4) {
-            return res.status(400).json({ error: 'New password must be at least 4 characters.' });
+        if (String(newPassword).length < 8) {
+            return res.status(400).json({ error: 'New password must be at least 8 characters.' });
         }
         const user = await User.findById(req.user.id);
         if (!user) return res.status(404).json({ error: 'User not found' });
@@ -791,6 +813,9 @@ app.post('/api/users', authRequired(['Admin']), async (req, res) => {
         if (!username || !password) {
             return res.status(400).json({ error: 'Username and password are required.' });
         }
+        if (String(password).length < 8) {
+            return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+        }
         if (!['Admin', 'Cashier'].includes(role)) {
             return res.status(400).json({ error: 'Role must be Admin or Cashier.' });
         }
@@ -829,6 +854,9 @@ app.put('/api/users/:id', authRequired(['Admin']), async (req, res) => {
 
         // Only re-hash when the password actually changed.
         if (update.password && update.password !== existing.password) {
+            if (String(update.password).length < 8) {
+                return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+            }
             update.password = await bcrypt.hash(String(update.password), 10);
         } else {
             delete update.password;
@@ -997,7 +1025,15 @@ app.get('/api/insights', authRequired(['Admin']), async (req, res) => {
 
 // Optional LLM weekly report (free Gemini tier). Falls back to a statistics
 // summary when AI_API_KEY is missing or the API call fails — never errors.
-app.post('/api/ai/report', authRequired(['Admin']), async (req, res) => {
+// Rate-limited per IP so a stuck script can't burn the free AI quota.
+const aiReportLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many report requests. Try again in a minute.' }
+});
+app.post('/api/ai/report', aiReportLimiter, authRequired(['Admin']), async (req, res) => {
     try {
         const data = await getInsights();
         const report = await fetchAiReport(buildReportPrompt(data));
@@ -1017,7 +1053,10 @@ async function seedDefaultAdmin() {
         const count = await User.countDocuments();
         if (count === 0) {
             const username = (process.env.SEED_ADMIN_USERNAME || 'admin').trim().toLowerCase();
-            const password = process.env.SEED_ADMIN_PASSWORD || 'admin123';
+            // Never ship the well-known default password in production — a
+            // random one is generated and printed to the logs once instead.
+            const password = process.env.SEED_ADMIN_PASSWORD
+                || (process.env.RENDER ? require('crypto').randomBytes(8).toString('hex') : 'admin123');
             const hashed = await bcrypt.hash(password, 10);
             await User.create({ username, password: hashed, role: 'Admin', status: 'Active' });
             console.log(`👤 Seeded default Admin account → username: "${username}", password: "${password}"`);
@@ -1034,6 +1073,10 @@ app.use((req, res) => {
 });
 
 app.use((err, req, res, next) => {
+    // Body-parser caps payloads with a typed error — answer 413, not 500.
+    if (err.type === 'entity.too.large' || err.status === 413) {
+        return res.status(413).json({ error: 'Request body too large.' });
+    }
     console.error('❌ Unhandled server error:', err);
     res.status(500).json({ error: 'Internal server error.' });
 });
