@@ -148,6 +148,14 @@
 
                     <section class="transactions-section">
                         <div class="section-header"><i class="fas fa-clipboard-check"></i> Recent Transactions</div>
+                        <div class="transactions-toolbar">
+                            <div class="tx-search-wrap">
+                                <i class="fas fa-magnifying-glass tx-search-icon"></i>
+                                <input type="search" id="transactionSearch" class="tx-search-input"
+                                    placeholder="Search customer, receipt, or item…" autocomplete="off">
+                            </div>
+                            <span class="tx-count" id="transactionCount"></span>
+                        </div>
                         <div class="table-container">
                             <table>
                                 <thead>
@@ -528,7 +536,7 @@
     <script src="js/header.js?v=38"></script>
 
     <!-- Feature Modules -->
-    <script src="js/dashboard.js?v=38"></script>
+    <script src="js/dashboard.js?v=40"></script>
     <script src="js/insights.js?v=39"></script>
     <script src="js/menu.js"></script>
     <script src="js/users.js"></script>

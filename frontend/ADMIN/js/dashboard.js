@@ -521,7 +521,11 @@ function exportSalesCsv() {
             new Date(order.date).toLocaleString()
         ]));
 
-    const csv = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+    // Neutralize spreadsheet formula injection: cells starting with =, +, -,
+    // or @ would execute as a formula when the CSV is opened in Excel/Sheets.
+    const csv = rows.map(row => row.map(cell =>
+        `"${String(cell).replace(/^[=+\-@]/, "'$&").replace(/"/g, '""')}"`
+    ).join(",")).join("\r\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -628,7 +632,36 @@ function renderTransactionTable(orders) {
     const tbody = document.getElementById("transactionBody");
     if (!tbody) return;
 
-    tbody.innerHTML = orders.map(order => {
+    const search = String(transactionSearch || "").trim().toLowerCase();
+    const filtered = search
+        ? orders.filter(order => {
+            const haystack = [
+                order.customer, order.receiptId,
+                ...(order.items || []).map(item => item.name)
+            ].join(" ").toLowerCase();
+            return haystack.includes(search);
+        })
+        : orders;
+
+    // Cap the rendered rows — the table is a glance at the latest activity.
+    const visible = filtered.slice(0, TRANSACTION_ROW_CAP);
+    const countEl = document.getElementById("transactionCount");
+    if (countEl) {
+        countEl.textContent = search
+            ? `${visible.length} of ${filtered.length} matching`
+            : filtered.length > TRANSACTION_ROW_CAP
+                ? `Showing ${visible.length} of ${filtered.length}`
+                : `${filtered.length} order${filtered.length === 1 ? "" : "s"}`;
+    }
+
+    if (!visible.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="tx-empty">${
+            search ? "No transactions match your search." : "No transactions yet."
+        }</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = visible.map(order => {
         const isVoided = order.status === "Voided";
         return `
         <tr class="${isVoided ? "voided-row" : ""}">
@@ -641,6 +674,20 @@ function renderTransactionTable(orders) {
         </tr>
     `;
     }).join("");
+}
+
+// ── Recent Transactions search ─────────────────────────────────────────────
+let transactionSearch = "";
+const TRANSACTION_ROW_CAP = 100;
+
+function setupTransactionSearch() {
+    const input = document.getElementById("transactionSearch");
+    if (!input) return;
+    input.addEventListener("input", () => {
+        transactionSearch = input.value;
+        clearTimeout(setupTransactionSearch._t);
+        setupTransactionSearch._t = setTimeout(() => renderTransactionTable(latestOrders || []), 150);
+    });
 }
 
 // Chart colors follow the active theme — Chart.js paints on canvas, so CSS

@@ -155,6 +155,9 @@ document.addEventListener("DOMContentLoaded", () => {
     setupSalesFilterTabs();
     setupCalendarControls();
 
+    // Dashboard — recent transactions search
+    setupTransactionSearch();
+
     // Updates card — tap a section header to expand it full-screen
     setupUpdateSectionExpand();
 

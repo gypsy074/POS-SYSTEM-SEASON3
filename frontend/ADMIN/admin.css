@@ -800,6 +800,63 @@ body.dark .update-section:hover {
     color: var(--dark-brown);
 }
 
+.transactions-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.tx-search-wrap {
+    position: relative;
+    flex: 1 1 240px;
+    max-width: 340px;
+}
+
+.tx-search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.85rem;
+    color: #9a8a70;
+    pointer-events: none;
+}
+
+.tx-search-input {
+    width: 100%;
+    padding: 9px 12px 9px 34px;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-family: inherit;
+    background: #faf7f2;
+    color: var(--dark-brown);
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.tx-search-input:focus {
+    border-color: var(--accent-brown);
+    box-shadow: 0 0 0 3px rgba(150, 112, 60, 0.15);
+    background: white;
+}
+
+.tx-count {
+    font-size: 0.85rem;
+    color: #9a8a70;
+    white-space: nowrap;
+}
+
+.tx-empty {
+    text-align: center;
+    color: #9a8a70;
+    padding: 22px 16px !important;
+    font-style: italic;
+}
+
 .table-container {
     width: 100%;
     overflow-x: auto;
@@ -2395,6 +2452,22 @@ body.dark .updates-panel,
 body.dark .form-image-uploader {
     background: #2e2318;
     border-color: #4a3a2c;
+}
+
+body.dark .tx-search-input {
+    background: #241b12;
+    border-color: #4a3a2c;
+    color: #e8dccb;
+}
+
+body.dark .tx-search-input:focus {
+    background: #2e2318;
+    border-color: #8a6a3f;
+}
+
+body.dark .tx-search-icon,
+body.dark .tx-count {
+    color: #a08a6a;
 }
 
 body.dark .btn-main,
