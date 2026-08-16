@@ -219,7 +219,7 @@ body {
 .peek-arm {
     position: absolute;
     width: 3px;
-    height: 14px;
+    height: 20px;
     background: #3a2417;
     border-radius: 2px;
     z-index: 3;
@@ -247,20 +247,30 @@ body {
     50% { transform: translateY(-2px); }
 }
 
-/* Boot stubs peeking below the cup base */
+/* Long stick legs with round feet, dangling below the cup base */
 .peek-foot {
     position: absolute;
-    bottom: -8px;
-    width: 15px;
-    height: 11px;
-    background: #f5ede3;
-    border: 3px solid #d8c4a8;
-    border-top: 2px solid #f5ede3; /* merges into the body */
-    border-radius: 0 0 9px 9px;
+    top: 74px;
+    width: 3px;
+    height: 12px;
+    background: #3a2417;
+    border-radius: 2px;
     z-index: 1;
+    transform-origin: 50% 0;
 }
-.peek-foot-l { left: 16px; }
-.peek-foot-r { right: 16px; }
+.peek-foot::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -4px;
+    width: 9px;
+    height: 9px;
+    margin-left: -4.5px;
+    background: #3a2417;
+    border-radius: 50%;
+}
+.peek-foot-l { left: 22px; }
+.peek-foot-r { right: 22px; }
 
 /* Body language: the cup gently sways and breathes while waiting… */
 @keyframes cupSway {
@@ -330,8 +340,8 @@ body {
     animation: sneakTilt 2.4s ease-in-out infinite;
     transform-origin: 50% 100%;
 }
-.peek-away .peek-arm-l { transform: rotate(69deg); }
-.peek-away .peek-arm-r { transform: rotate(-80deg); }
+.peek-away .peek-arm-l { transform: rotate(55deg); }
+.peek-away .peek-arm-r { transform: rotate(-65deg); }
 .peek-away .peek-arm::after { animation: none; }
 .peek-away .peek-foot { animation: none; }
 .peek-away .peek-mouth {
