@@ -14,6 +14,7 @@
     if (!pupils.length) return;
 
     var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var coarsePointer = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
 
     var RANGE = 5;            // max pupil travel in px (inner eye 16px - 6px pupil / 2)
     var away = false;         // looking away (password revealed)
@@ -36,8 +37,10 @@
     refreshCupRect();
 
     function apply() {
-        var dx = away ? RANGE : px;
-        var dy = away ? 0 : py;
+        // While the password is revealed the cup refuses to peek: the pupils
+        // point the opposite way of the cursor (cursor bottom -> eyes look up).
+        var dx = away ? -px : px;
+        var dy = away ? -py : py;
         var t = "translate(" + dx.toFixed(2) + "px," + dy.toFixed(2) + "px)";
         for (var i = 0; i < pupils.length; i++) {
             pupils[i].style.transform = t;
@@ -46,7 +49,7 @@
     }
 
     function schedule() {
-        if (rafPending || reduceMotion || away) return;
+        if (rafPending || reduceMotion) return;
         rafPending = true;
         requestAnimationFrame(apply);
     }
@@ -62,7 +65,7 @@
     }
 
     function onMouse(e) {
-        if (away || reduceMotion) return;
+        if (reduceMotion) return;
         // Direction relative to the cup itself, so the pupils point exactly
         // at the cursor no matter where the cup sits on the screen.
         var cx = cupRect ? cupRect.left + cupRect.width / 2 : window.innerWidth / 2;
@@ -73,7 +76,7 @@
     // Touch: the cup follows the finger like it would a cursor. Uses the
     // visual viewport when the keyboard shrinks the screen.
     function onTouch(e) {
-        if (away || reduceMotion) return;
+        if (reduceMotion) return;
         var touch = e.touches && e.touches[0];
         if (!touch) return;
         var vw = (window.visualViewport && window.visualViewport.width) || window.innerWidth;
@@ -84,8 +87,11 @@
     }
 
     // Touch fallback: watch the focused field instead of a cursor.
+    // Only for coarse pointers — on desktop the cursor is the source of truth
+    // (focusing the password field while clicking the toggle must not move
+    // the pupils off their cursor-based direction).
     function onFocusIn(e) {
-        if (away || reduceMotion) return;
+        if (away || reduceMotion || !coarsePointer) return;
         var target = e.target;
         if (!target || typeof target.getBoundingClientRect !== "function") return;
         if (!/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;

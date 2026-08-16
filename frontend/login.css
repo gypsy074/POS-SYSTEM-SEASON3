@@ -191,20 +191,6 @@ body {
     transition: transform 0.08s linear;
 }
 
-/* Eyelid that drops when the password is revealed (looks away, doesn't peek) */
-.peek-eye::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 58%;
-    background: #f5ede3; /* same as the cup body */
-    border-radius: 50% 50% 0 0;
-    transform: translateY(-108%);
-    transition: transform 0.22s ease;
-}
-
 .peek-mouth {
     position: absolute;
     top: 66px;
@@ -227,10 +213,8 @@ body {
 .peek-blush-l { left: 17px; }
 .peek-blush-r { right: 17px; }
 
-/* Looking away when the password is revealed: eyelids drop over the eyes,
-   the pupils stay slid to the side, and the cup gives a shy tilt. */
-.peek-away .peek-eye::after { transform: translateY(0); }
-
+/* Password revealed: the pupils point the opposite way of the cursor and
+   the cup gives a shy tilt — it refuses to peek. */
 .peek-away .peek-cup-body {
     transform: rotate(6deg);
     transition: transform 0.22s ease;
