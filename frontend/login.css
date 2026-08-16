@@ -18,16 +18,56 @@
 }
 
 body {
-    background-color: white;
+    /* Deep espresso base with warm coffee glows — the card floats on top */
+    background:
+        radial-gradient(1100px 700px at 12% 8%, rgba(166, 124, 82, 0.28) 0%, rgba(166, 124, 82, 0) 60%),
+        radial-gradient(900px 650px at 88% 92%, rgba(96, 60, 34, 0.55) 0%, rgba(96, 60, 34, 0) 55%),
+        linear-gradient(165deg, #3a2417 0%, #241510 55%, #17100b 100%);
+    background-attachment: fixed;
     min-height: 100vh;
     padding: 20px;
 }
 
 /* ==========================================================================
-   2. Card Component Geometry
+   2a. Cafe Wall — blurred product-photo backdrop behind the login card
+   ========================================================================== */
+.cafe-wall {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 18px;
+    padding: 22px;
+    opacity: 0.3;
+    filter: blur(7px) saturate(0.85) brightness(0.9);
+    transform: scale(1.08); /* hide blur edge bleed */
+}
+
+.cafe-wall img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 22px;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5);
+    transform: rotate(-2deg);
+}
+
+.cafe-wall img:nth-child(even) { transform: rotate(2deg); }
+.cafe-wall img:nth-child(3)    { transform: rotate(-1.5deg); }
+.cafe-wall img:nth-child(5)    { transform: rotate(1.5deg); }
+
+/* ==========================================================================
+   2b. Card Component Geometry
    ========================================================================== */
 .login-page-container {
-    background: white;
+    /* Frosted glass over the cafe wall */
+    background: rgba(255, 251, 246, 0.88);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
     width: 100vw;
     min-height: 55vh;
     display: flex;
@@ -37,22 +77,24 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.35);
     justify-content: center;
     position: relative;
+    z-index: 1;
     margin: 7vh auto 0;
 }
 
 /* Dynamic Date Tag Floating At Top Center */
 .date-badge {
-    border: 1px solid var(--border-beige);
-    border-radius: 8px;
-    padding: 6px 16px;
+    border: 1px solid rgba(215, 181, 154, 0.8);
+    background-color: rgba(255, 253, 249, 0.75);
+    border-radius: 30px;
+    padding: 6px 18px;
     font-size: 0.8rem;
     font-weight: 600;
     color: var(--text-dark);
     margin-bottom: 25px;
-    background-color: var(--card-white);
 }
 
 .logo-container {
@@ -67,6 +109,29 @@ body {
     width: 100%;
     height: auto;
     object-fit: contain;
+}
+
+/* Brand name + tagline under the logo */
+.brand-block {
+    text-align: center;
+    margin: -12px 0 26px;
+}
+
+.brand-title {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: var(--text-dark);
+    letter-spacing: 0.3px;
+    line-height: 1.2;
+}
+
+.brand-sub {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--accent-brown);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-top: 4px;
 }
 
 /* ==========================================================================
@@ -97,16 +162,20 @@ body {
     animation: logoPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.12s backwards;
 }
 
+.brand-block {
+    animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.28s backwards;
+}
+
 .login-form .input-group:nth-of-type(1) {
-    animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.2s backwards;
+    animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.38s backwards;
 }
 
 .login-form .input-group:nth-of-type(2) {
-    animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.3s backwards;
+    animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.48s backwards;
 }
 
 .login-submit-btn {
-    animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.4s backwards;
+    animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.58s backwards;
 }
 
 /* Card shake on failed login */
@@ -148,14 +217,14 @@ body {
     outline: none;
     font-size: 0.95rem;
     color: var(--text-dark);
-    background-color: var(--card-white);
+    background-color: #fffdf9;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
     scroll-margin-top: 24px;
 }
 
 .input-group input:focus {
     border-color: var(--accent-brown);
-    box-shadow: 0 0 6px rgba(166, 124, 82, 0.2);
+    box-shadow: 0 0 0 4px rgba(166, 124, 82, 0.18);
 }
 
 /* Show/hide password toggle */
@@ -226,24 +295,43 @@ body {
 /* Styled Action Logon Submit Trigger Button */
 .login-submit-btn {
     width: auto;
-    min-width: 120px;
-    background-color: var(--accent-brown);
+    min-width: 140px;
+    background: linear-gradient(135deg, #b5855a 0%, #a67c52 55%, #916943 100%);
     color: var(--card-white);
     border: none;
-    padding: 10px 30px;
-    border-radius: 20px;
+    padding: 11px 34px;
+    border-radius: 30px;
     font-size: 0.95rem;
     font-weight: bold;
     cursor: pointer;
     margin-top: 10px;
-    transition: transform 0.1s ease, background-color 0.2s ease;
-    box-shadow: 0 4px 10px rgba(166, 124, 82, 0.2);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.1s ease, box-shadow 0.2s ease;
+    box-shadow: 0 4px 12px rgba(145, 105, 67, 0.35);
+}
+
+/* Soft shine sweep on hover */
+.login-submit-btn::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -80%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(100deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.35) 50%, rgba(255, 255, 255, 0) 100%);
+    transform: skewX(-20deg);
+    transition: left 0.45s ease;
 }
 
 .login-submit-btn:hover {
-    background-color: #916943;
+    background: linear-gradient(135deg, #c08f62 0%, #b5855a 55%, #9a7248 100%);
     transform: translateY(-2px);
-    box-shadow: 0 8px 18px rgba(166, 124, 82, 0.35);
+    box-shadow: 0 10px 22px rgba(145, 105, 67, 0.45);
+}
+
+.login-submit-btn:hover::after {
+    left: 130%;
 }
 
 .login-submit-btn:active {
@@ -255,4 +343,10 @@ body {
     .login-page-container {
         padding: 30px 20px;
     }
+    .cafe-wall {
+        gap: 8px;
+        padding: 10px;
+        opacity: 0.24;
+    }
+    .brand-title { font-size: 1.15rem; }
 }

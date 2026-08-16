@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Season 3 - Login</title>
-    <link rel="stylesheet" href="login.css?v=11">
+    <link rel="stylesheet" href="login.css?v=12">
     <link rel="stylesheet" href="css/cup-transition.css?v=3">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -54,12 +54,26 @@
 </head>
 <body>
 
+    <!-- Warm blurred cafe photo wall behind the login card -->
+    <div class="cafe-wall" aria-hidden="true">
+        <img src="assets/coffee_biscoff.jpg" alt="">
+        <img src="assets/frappe_matcha.jpg" alt="">
+        <img src="assets/pasta_truffle.jpg" alt="">
+        <img src="assets/rm_chickten.jpg" alt="">
+        <img src="assets/coffee_spanlatte.jpg" alt="">
+    </div>
+
     <div class="login-page-container">
         
         <div class="date-badge" id="loginDateDisplay">Loading date...</div>
 
         <div class="logo-container">
             <img src="assets/logo.png" alt="Season 3 Kitchen and Cafe Logo" class="brand-logo">
+        </div>
+
+        <div class="brand-block">
+            <h1 class="brand-title">Season 3 Kitchen &amp; Cafe</h1>
+            <p class="brand-sub">Point of Sale</p>
         </div>
 
         <form id="loginForm" class="login-form" novalidate>
