@@ -2,9 +2,9 @@
    peekCup.js — Peek-a-boo coffee cup character for the login page.
    Idle: the pupils follow the cursor (finger on touch screens). The moment
    a field is focused the eyes lock onto it and track the caret while the
-   user types. While the password is revealed the cup refuses to peek and
-   points the opposite way of the caret. Reduced-motion users get a still,
-   polite cup.
+   user types. While the password is revealed the cup gets sneaky: hands
+   cover the eyes, but it tilts sideways and keeps watching through the gap.
+   Reduced-motion users get a still, polite cup.
    ========================================================================== */
 
 (function () {
@@ -40,11 +40,9 @@
     refreshCupRect();
 
     function apply() {
-        // While the password is revealed the cup refuses to peek: the pupils
-        // point the opposite way of the cursor (cursor bottom -> eyes look up).
-        var dx = away ? -px : px;
-        var dy = away ? -py : py;
-        var t = "translate(" + dx.toFixed(2) + "px," + dy.toFixed(2) + "px)";
+        // While the password is revealed the cup is sneaky: the hands cover
+        // the eyes, but the pupils keep tracking the caret through the gap.
+        var t = "translate(" + px.toFixed(2) + "px," + py.toFixed(2) + "px)";
         for (var i = 0; i < pupils.length; i++) {
             pupils[i].style.transform = t;
         }
