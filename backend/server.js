@@ -267,7 +267,7 @@ function normalizeWastePayload(input) {
     return {
         productName: String(input.productName || "").trim() || "Unknown Item",
         category: String(input.category || "Uncategorized").trim() || "Uncategorized",
-        cashier: String(input.cashier || "Pranselen").trim() || "Pranselen",
+cashier: String(input.cashier || "").trim(),
         quantity,
         price,
         totalCost: Number((quantity * price).toFixed(2)),
@@ -344,8 +344,8 @@ function normalizeOrderPayload(input) {
     const computedTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
     const payload = {
-        customer: String(input.customer || "Walk-in Customer").trim() || "Walk-in Customer",
-        cashier: String(input.cashier || "Pranselen").trim() || "Pranselen",
+customer: String(input.customer || "Walk-in Customer").trim() || "Walk-in Customer",
+        cashier: String(input.cashier || "").trim(),
         tableNo: String(input.tableNo || "").trim(),
         mode: ["Dine In", "To Go", "Online Order"].includes(input.mode) ? input.mode : "Dine In",
         paymentMethod: normalizePaymentMethod(input.paymentMethod),
@@ -699,10 +699,12 @@ app.get('/api/orders', authRequired(), async (req, res) => {
 // order instead of creating a duplicate (offline-queue retries).
 app.post('/api/orders', authRequired(), async (req, res) => {
     try {
-        const payload = normalizeOrderPayload(req.body);
+const payload = normalizeOrderPayload(req.body);
         if (!Array.isArray(payload.items) || !payload.items.length) {
             return res.status(400).json({ error: 'Order must include at least one item.' });
         }
+        // The cashier is whoever is authenticated — never a client default.
+        if (!payload.cashier) payload.cashier = req.user.username;
 
         // 0) Idempotency guard — a retried offline order must not double-save.
         if (payload.clientOrderId) {
@@ -1132,10 +1134,12 @@ app.get('/api/waste', authRequired(), async (req, res) => {
 
 app.post('/api/waste', authRequired(), async (req, res) => {
     try {
-        const payload = normalizeWastePayload(req.body);
+const payload = normalizeWastePayload(req.body);
         if (!payload.productName || !Number.isFinite(payload.quantity) || payload.quantity <= 0) {
             return res.status(400).json({ error: 'Product name and a quantity above zero are required.' });
         }
+        // The cashier is whoever is authenticated — never a client default.
+        if (!payload.cashier) payload.cashier = req.user.username;
         // Wasted food leaves the inventory — deduct stock when the item is on the menu.
         await Product.updateOne(
             { name: payload.productName },

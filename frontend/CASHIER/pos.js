@@ -1855,7 +1855,9 @@ function cancelOrder(silent = false) {
 
 function getCashierName() {
     const saved = JSON.parse(localStorage.getItem("posUser") || "null");
-    return (saved && saved.username) || "Pranselen";
+    if (saved && saved.username) return saved.username;
+    const admin = JSON.parse(localStorage.getItem("posAdminUser") || "null");
+    return (admin && admin.username) || "Pranselen";
 }
 
 // ── Waste Food Logging ────────────────────────────────────────────────────
@@ -2101,7 +2103,7 @@ function setupCashierProfile() {
     if (!badge || !wrap) return;
 
     const saved = JSON.parse(localStorage.getItem("posUser") || "null");
-    const username = (saved && saved.username) || "Pranselen";
+    const username = getCashierName();
     const role = (saved && saved.role) || "Cashier";
     const initials = username.slice(0, 2).toUpperCase();
 

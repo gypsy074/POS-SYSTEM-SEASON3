@@ -1659,8 +1659,13 @@ tr:hover td {
 
 .design-table td {
     border: 1px solid #d7b59a;
-    padding: 14px;
+    padding: 10px 12px;
     text-align: center;
+}
+
+.design-table td:first-child {
+    text-align: left;
+    white-space: nowrap;
 }
 
 .voided-row td {
@@ -1706,25 +1711,28 @@ tr:hover td {
 }
 
 .inventory-form-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 30px;
-    align-items: center;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px 30px;
+    align-items: start;
 }
 
 .form-row-group {
-    flex: 1;
-    min-width: 240px;
     display: flex;
     flex-direction: column;
     gap: 15px;
+    min-width: 0;
+}
+
+.form-row-wide {
+    grid-column: 1 / -1;
 }
 
 .inline-input {
     display: flex;
     align-items: center;
     gap: 15px;
+    min-width: 0;
 }
 
 .inline-input label {
@@ -1732,13 +1740,14 @@ tr:hover td {
     color: var(--text-dark);
     font-weight: 600;
     white-space: nowrap;
-    width: 100px;
+    width: 140px;
     text-align: right;
 }
 
 .inline-input input, 
 .inline-input select {
     flex: 1;
+    min-width: 0;
     padding: 10px 12px;
     border: 1px solid #c8a281;
     border-radius: 8px;
@@ -3414,13 +3423,13 @@ body.dark .ai-skeleton-line { background: #3a2d1f; }
 }
 
 .inventory-hint {
-    margin: -6px 0 14px;
+    margin: 0;
     font-size: 0.78rem;
-    line-height: 1.45;
+    line-height: 1.5;
     color: #7c6a55;
     background: #f9f0e7;
     border: 1px solid #e7d6c3;
-    padding: 9px 12px;
+    padding: 10px 14px;
     border-radius: 10px;
 }
 
@@ -3535,9 +3544,18 @@ body.dark .inv-stat-chip strong { color: #f0e6d5; }
 
 body.dark .inv-filter-input,
 body.dark .inv-filter-select {
-    background: #2e2417;
+    background: #3a2d1f;
     border-color: #57432c;
     color: #f0e6d5;
+}
+
+@media (max-width: 640px) {
+    .inventory-form-grid {
+        grid-template-columns: 1fr;
+    }
+    .inline-input label {
+        width: 120px;
+    }
 }
 
 body.dark .inv-row-selected td {

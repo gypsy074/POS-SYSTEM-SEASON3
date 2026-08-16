@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Season 3</title>
-    <link rel="stylesheet" href="admin.css?v=37">
+    <link rel="stylesheet" href="admin.css?v=38">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -436,8 +436,8 @@
 
                     <section class="inventory-form-card card">
                         <div class="inventory-form-grid">
-                            <div class="form-row-group">
-                                <div class="inline-input" style="flex: 2;">
+                            <div class="form-row-group form-row-wide">
+                                <div class="inline-input">
                                     <label>Link to Menu Product:</label>
                                     <select id="invLinkedProduct">
                                         <option value="">— None (standalone supply) —</option>
@@ -481,7 +481,7 @@
                                 </div>
                             </div>
                             <p class="inventory-hint"><i class="fas fa-circle-info"></i> "Units per Sale" is deducted from this supply every time the linked menu product is sold or wasted. 1 = one unit per sale, 2 = two units, 0 = tracked but never consumed. Restocks are always separate.</p>
-                            <div class="form-row-group">
+                            <div class="form-row-group form-row-wide">
                                 <div class="inline-input">
                                     <label>Status:</label>
                                     <select id="invStatus">
