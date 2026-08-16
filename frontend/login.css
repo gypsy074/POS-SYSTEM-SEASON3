@@ -518,6 +518,15 @@ body {
 }
 
 /* Responsive Media Viewport Breaks */
+@media (max-width: 768px) {
+    .peek-cup {
+        top: -48px;
+        transform: translateX(-50%) scale(0.85);
+        transform-origin: top center;
+    }
+    .date-badge { margin-top: 40px; }
+}
+
 @media (max-width: 480px) {
     .login-page-container {
         padding: 30px 20px;
@@ -529,9 +538,9 @@ body {
     }
     .brand-title { font-size: 1.15rem; }
     .peek-cup {
-        top: -44px;
-        transform: translateX(-50%) scale(0.78);
+        top: -42px;
+        transform: translateX(-50%) scale(0.72);
         transform-origin: top center;
     }
-    .date-badge { margin-top: 34px; }
+    .date-badge { margin-top: 32px; }
 }

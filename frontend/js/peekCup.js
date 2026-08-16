@@ -70,6 +70,19 @@
         setLook((e.clientX - cx) / (window.innerWidth / 2), (e.clientY - cy) / (window.innerHeight / 2));
     }
 
+    // Touch: the cup follows the finger like it would a cursor. Uses the
+    // visual viewport when the keyboard shrinks the screen.
+    function onTouch(e) {
+        if (away || reduceMotion) return;
+        var touch = e.touches && e.touches[0];
+        if (!touch) return;
+        var vw = (window.visualViewport && window.visualViewport.width) || window.innerWidth;
+        var vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+        var cx = cupRect ? cupRect.left + cupRect.width / 2 : vw / 2;
+        var cy = cupRect ? cupRect.top + cupRect.height / 2 : vh / 2;
+        setLook((touch.clientX - cx) / (vw / 2), (touch.clientY - cy) / (vh / 2));
+    }
+
     // Touch fallback: watch the focused field instead of a cursor.
     function onFocusIn(e) {
         if (away || reduceMotion) return;
@@ -122,6 +135,8 @@
     }
 
     document.addEventListener("mousemove", onMouse);
+    document.addEventListener("touchstart", onTouch, { passive: true });
+    document.addEventListener("touchmove", onTouch, { passive: true });
     document.addEventListener("focusin", onFocusIn);
     document.addEventListener("click", function (e) {
         if (e.target && e.target.closest && e.target.closest(".password-toggle")) {
