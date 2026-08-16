@@ -2,10 +2,14 @@
    peekCup.js — Peek-a-boo coffee cup character for the login page.
    Idle: the pupils follow the cursor (finger on touch screens). Focusing the
    username makes the cup lean in attentively and track the caret; typing the
-   password puts it in cautious-sneaky mode (leaning, arm tucked). While the
-   password is revealed the cup tilts sideways and the eyes look away, up and
-   off to the side, politely refusing to watch. A failed login slumps it:
-   eyes drop, then it recovers on its own.
+   password puts it in cautious-sneaky mode (leaning, arm tucked); Caps Lock
+   in the password field gets a worried little O mouth; hovering the Log In
+   button draws the eyes to it. While the password is revealed the cup tilts
+   sideways and the eyes look away, up and off to the side, politely refusing
+   to watch. Failed logins react by kind: empty fields get an annoyed shake,
+   invalid credentials a disappointed slump, connection failures a quiet
+   worried look. A successful login gets one happy hop before the transition
+   overlay covers the cup.
    Reduced-motion users get a still, polite cup.
    ========================================================================== */
 
@@ -116,6 +120,7 @@
         activeInput = null;
         cup.classList.remove("peek-focused");
         cup.classList.remove("peek-pw");
+        cup.classList.remove("peek-caps");
         stopIdle();
         schedule(); // re-apply current look; the cursor resumes on the next move
     }
@@ -204,22 +209,36 @@
         }
     }
 
-    // A failed login (dispatched by login.js) slumps the cup: eyes drop,
-    // arms go limp via the .peek-denied rules. It recovers on its own.
-    function onDenied() {
+    // A failed login (dispatched by login.js with a kind) triggers the
+    // matching body language. Empty fields just get an annoyed shake;
+    // invalid credentials slump the cup; a connection failure makes it
+    // go quiet and worried. Everything recovers on its own.
+    function onDenied(e) {
         if (reduceMotion || denied) return;
+        var kind = (e && e.detail && e.detail.kind) || "invalid";
         denied = true;
-        cup.classList.add("peek-denied");
         stopIdle();
-        setLook(0, 0.55);
         clearTimeout(deniedTimer);
+        if (kind === "empty") {
+            cup.classList.add("peek-nudge");
+            deniedTimer = setTimeout(recoverDenied, 700);
+            return;
+        }
+        if (kind === "connect") {
+            cup.classList.add("peek-worry");
+            setLook(-0.4, 0.55);
+            deniedTimer = setTimeout(recoverDenied, 2000);
+            return;
+        }
+        cup.classList.add("peek-denied");
+        setLook(0, 0.55);
         deniedTimer = setTimeout(recoverDenied, 2500);
     }
 
     function recoverDenied() {
         if (!denied) return;
         denied = false;
-        cup.classList.remove("peek-denied");
+        cup.classList.remove("peek-denied", "peek-nudge", "peek-worry");
         clearTimeout(deniedTimer);
         deniedTimer = null;
         if (away) return; // still hiding — keep the averted gaze
@@ -229,6 +248,45 @@
             schedule();
             startIdle();
         }
+    }
+
+    // Successful login — one happy hop before the transition overlay.
+    function onSuccess() {
+        if (reduceMotion) return;
+        cup.classList.remove("peek-away");
+        away = false;
+        clearTimeout(deniedTimer);
+        if (denied) {
+            denied = false;
+            cup.classList.remove("peek-denied", "peek-nudge", "peek-worry");
+        }
+        stopIdle();
+        cup.classList.add("peek-success");
+        setTimeout(function () {
+            cup.classList.remove("peek-success");
+            schedule();
+            startIdle();
+        }, 750);
+    }
+
+    // The eyes follow the cursor onto the Log In button when it is hovered.
+    function watchLoginButton() {
+        var btn = document.getElementById("loginBtn");
+        if (!btn) return;
+        btn.addEventListener("mouseenter", function () {
+            if (reduceMotion || away || denied || btn.disabled) return;
+            var r = btn.getBoundingClientRect();
+            lookAt({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+        });
+        btn.addEventListener("mouseleave", function () {
+            if (reduceMotion || away || denied) return;
+            if (focused) {
+                refreshCaret();
+            } else {
+                schedule();
+                startIdle();
+            }
+        });
     }
 
     // Gentle random drift while nobody is touching the page.
@@ -273,6 +331,19 @@
         }
     });
     document.addEventListener("cup:denied", onDenied);
+    document.addEventListener("cup:success", onSuccess);
+    watchLoginButton();
+
+    // Caps Lock in the password field makes the cup look mildly worried.
+    function syncCaps(e) {
+        cup.classList.toggle("peek-caps", !!(e.getModifierState && e.getModifierState("CapsLock")));
+    }
+    document.addEventListener("keydown", function (e) {
+        if (activeInput && activeInput.id === "password") syncCaps(e);
+    });
+    document.addEventListener("keyup", function (e) {
+        if (activeInput && activeInput.id === "password") syncCaps(e);
+    });
 
     // Browser password managers flip the input type without our click —
     // watch the attribute so the cup still reacts.

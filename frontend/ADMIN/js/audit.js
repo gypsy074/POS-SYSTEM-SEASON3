@@ -5,13 +5,6 @@
 
 let latestAudit = [];
 
-// Local (Philippine) date stamp for export filenames — toISOString() is UTC,
-// which is off by one day for exports made between midnight and 8 AM.
-function localDateStamp() {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 async function loadAuditData() {
     try {
         const from = document.getElementById("auditFrom");

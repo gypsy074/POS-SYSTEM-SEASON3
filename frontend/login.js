@@ -38,7 +38,14 @@ function showError(message) {
         void container.offsetWidth; // restart the shake animation
         container.classList.add("shake");
     }
-    document.dispatchEvent(new CustomEvent("cup:denied")); // the peek-a-boo cup reacts
+    // Tell the peek-a-boo cup what went wrong so it can react: empty fields
+    // get an annoyed shake, connection failures a worried look, everything
+    // else (invalid credentials / inactive account) the sad slump.
+    let kind = "invalid";
+    const msg = String(message || "");
+    if (msg.includes("Please enter both")) kind = "empty";
+    else if (msg.includes("Cannot connect")) kind = "connect";
+    document.dispatchEvent(new CustomEvent("cup:denied", { detail: { kind } }));
 }
 
 function clearError() {
@@ -120,6 +127,7 @@ async function handleLogin(e) {
 // The redirect is driven by the cup-pour animation (redirectAfterTransition
 // in logoutTransition.js) so the transition never drifts from its CSS.
 function redirectAfterLogin(role, username) {
+    document.dispatchEvent(new CustomEvent("cup:success")); // the peek-a-boo cup hops
     const overlay  = document.getElementById("loginTransitionOverlay");
     const welcome  = document.getElementById("transitionWelcome");
     const roleEl   = document.getElementById("transitionRole");

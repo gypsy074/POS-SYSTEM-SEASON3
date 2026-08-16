@@ -152,8 +152,8 @@ function computeRestock(soldByItem, wastedByItem, products, inventoryByProduct) 
 }
 
 /**
- * Waste insights: per-item waste-vs-sold ratio over 14 days (flags above
- * 15%) and wasted cost by category.
+ * Waste insights: every wasted item over 14 days (ratio vs sales included
+ * so the dashboard can flag heavy waste) plus wasted cost by category.
  */
 function computeWasteInsights(soldByItem, wastedByItem, wasteDocs) {
     const items = [];
@@ -163,9 +163,7 @@ function computeWasteInsights(soldByItem, wastedByItem, wasteDocs) {
         const soldQty = soldByItem[name] || 0;
         if (wastedQty < 1) return;
         const ratio = soldQty > 0 ? wastedQty / soldQty : 1; // all waste, no sales → 100%
-        if (ratio > 0.15) {
-            items.push({ name, soldQty, wastedQty: round1(wastedQty), ratio: round2(ratio) });
-        }
+        items.push({ name, soldQty, wastedQty: round1(wastedQty), ratio: round2(ratio) });
     });
     items.sort((a, b) => b.wastedQty - a.wastedQty);
 
