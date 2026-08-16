@@ -1,18 +1,23 @@
 /* ==========================================================================
    peekCup.js — Peek-a-boo coffee cup character for the login page.
-   Idle: the pupils follow the cursor (finger on touch screens). Focusing the
-   username makes the cup lean in attentively and track the caret; typing the
-   password puts it in cautious-sneaky mode (leaning, arm tucked); Caps Lock
-   in the password field gets a worried little O mouth; hovering the Log In
-   button draws the eyes to it. While the password is revealed the cup goes
-   lazy (slouched, arms loose, serious face) and holds its gaze up and away
-   from the field — no cursor, finger or idle drift can pull it back — but
-   every few seconds it sneaks a squinting glance at the password text,
-   then looks away again (sometimes a cheeky double-take). Failed logins react by kind: empty fields get an annoyed
-   shake, invalid credentials a disappointed slump, connection failures a
-   quiet worried look. A successful login gets one happy hop before the
-   transition overlay covers the cup.
-   Reduced-motion users get a still, polite cup.
+   Idle: steam rises off the coffee, the pupils follow the cursor (finger on
+   touch screens), and after a long stretch without input the cup yawns and
+   dozes off until touched again. Focusing the username makes the cup lean
+   in attentively and track the caret; typing the password puts it in
+   cautious-sneaky mode (half-lidded squint, tight mouth, arms tucked, a
+   nervous sweat drop every so often); Caps Lock in the password field gets
+   a worried little O mouth; hovering the Log In button draws the eyes to
+   it. The moment the password is revealed the cup startles, then goes lazy
+   (slouched, arms loose, serious face, steam stops) and holds its gaze up
+   and away from the field — no cursor, finger or idle drift can pull it
+   back — but every few seconds it sneaks a squinting glance at the
+   password text, leaning toward it, then looks away again (sometimes a
+   cheeky double-take). Failed logins react by kind: empty fields get an
+   annoyed shake, invalid credentials a disappointed slump with a coffee
+   sputter, connection failures a quiet worried look. A successful login
+   gets one happy hop with a heart puff before the transition overlay.
+   Tiny WebAudio blips accompany the key moments (no audio files).
+   Reduced-motion users get a still, quiet, polite cup.
    ========================================================================== */
 
 (function () {
@@ -34,6 +39,10 @@
     var deniedTimer = null;
     var glanceTimer = null;
     var glanceHold = null;
+    var startleTimer = null;
+    var sweatTimer = null;
+    var sweatHold = null;
+    var lastActivity = Date.now();
     var idlePhase = 0;
     var cupRect = null;
     var mirror = null;        // hidden span that measures the caret position
@@ -106,6 +115,7 @@
         activeInput = target;
         cup.classList.add("peek-focused");
         cup.classList.toggle("peek-pw", target.id === "password");
+        if (target.id === "password" && !away) startSweat();
         recoverDenied();
         if (target.tagName === "INPUT" && typeof target.selectionStart === "number") {
             ensureMirror();
@@ -122,6 +132,7 @@
         if (next && /^(INPUT|TEXTAREA|SELECT)$/.test(next.tagName)) return; // jumped to another field — keep locked
         focused = false;
         activeInput = null;
+        stopSweat();
         cup.classList.remove("peek-focused");
         cup.classList.remove("peek-pw");
         cup.classList.remove("peek-caps");
@@ -197,17 +208,26 @@
         apply();
         if (isAway) {
             stopIdle();
-            // The password is showing — the cup looks away, up and off to
-            // the side, politely not watching. It holds that gaze (even if
-            // the cursor moves) until the password is masked again, and
-            // sneaks the occasional glance at the field in between.
+            stopSweat();
+            // The password is showing — the cup startles, then looks away,
+            // up and off to the side, politely not watching. It holds that
+            // gaze (even if the cursor moves) until the password is masked
+            // again, and sneaks the occasional glance at the field between.
             if (!reduceMotion) {
                 setLook(0.5, -0.8);
                 startGlance();
+                cup.classList.add("peek-startle");
+                clearTimeout(startleTimer);
+                startleTimer = setTimeout(function () {
+                    cup.classList.remove("peek-startle");
+                }, 400);
+                blip(1300, 0.06, "sine", 0.03);
             }
         } else {
             stopGlance();
             lastMove = 0;
+            blip(950, 0.05, "sine", 0.025);
+            if (focused && activeInput && activeInput.id === "password") startSweat();
             // Back to watching: snap straight onto the caret again.
             if (focused) {
                 refreshCaret();
@@ -288,6 +308,74 @@
         cup.classList.remove("peek-glance");
     }
 
+    // --- Idle-to-sleep: after a long stretch without any input the cup
+    // yawns slowly, then dozes with droopy lids until touched again. ---
+    function bumpActivity() {
+        lastActivity = Date.now();
+        if (cup.classList.contains("peek-yawn") || cup.classList.contains("peek-sleepy")) {
+            cup.classList.remove("peek-yawn", "peek-sleepy");
+        }
+    }
+
+    function doYawn() {
+        if (away || denied || reduceMotion) return;
+        cup.classList.add("peek-yawn");
+        setTimeout(function () {
+            cup.classList.remove("peek-yawn");
+            if (Date.now() - lastActivity > 8000 && !away && !denied) {
+                cup.classList.add("peek-sleepy");
+            }
+        }, 1600);
+    }
+
+    // A nervous sweat drop appears beside the cup every so often while the
+    // password is being typed (and hidden again once it is masked/revealed).
+    function startSweat() {
+        stopSweat();
+        sweatTimer = setInterval(function () {
+            cup.classList.add("peek-sweat-on");
+            clearTimeout(sweatHold);
+            sweatHold = setTimeout(function () {
+                cup.classList.remove("peek-sweat-on");
+            }, 1200);
+        }, 6000);
+    }
+
+    function stopSweat() {
+        if (sweatTimer) {
+            clearInterval(sweatTimer);
+            sweatTimer = null;
+        }
+        if (sweatHold) {
+            clearTimeout(sweatHold);
+            sweatHold = null;
+        }
+        cup.classList.remove("peek-sweat-on");
+    }
+
+    // --- Soft WebAudio blips (no audio files) for the little moments. ---
+    var audio = null;
+    function blip(freq, dur, type, vol, delay) {
+        try {
+            if (reduceMotion) return;
+            var AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC) return;
+            if (!audio) audio = new AC();
+            if (audio.state === "suspended") audio.resume().catch(function () { });
+            var t = audio.currentTime + (delay || 0);
+            var o = audio.createOscillator();
+            var g = audio.createGain();
+            o.type = type || "sine";
+            o.frequency.setValueAtTime(freq, t);
+            o.connect(g);
+            g.connect(audio.destination);
+            g.gain.setValueAtTime(vol || 0.04, t);
+            g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+            o.start(t);
+            o.stop(t + dur);
+        } catch (err) { /* audio is optional */ }
+    }
+
     // A failed login (dispatched by login.js with a kind) triggers the
     // matching body language. Empty fields just get an annoyed shake;
     // invalid credentials slump the cup; a connection failure makes it
@@ -298,21 +386,26 @@
         denied = true;
         stopIdle();
         stopGlance();
+        stopSweat();
         clearTimeout(deniedTimer);
         if (kind === "empty") {
             cup.classList.add("peek-nudge");
             deniedTimer = setTimeout(recoverDenied, 700);
+            blip(520, 0.07, "square", 0.03);
             return;
         }
         if (kind === "connect") {
             cup.classList.add("peek-worry");
             setLook(-0.4, 0.55);
             deniedTimer = setTimeout(recoverDenied, 2000);
+            blip(240, 0.22, "sine", 0.045);
             return;
         }
         cup.classList.add("peek-denied");
         setLook(0, 0.55);
         deniedTimer = setTimeout(recoverDenied, 2500);
+        blip(330, 0.16, "triangle", 0.05);
+        blip(235, 0.22, "triangle", 0.045, 0.12);
     }
 
     function recoverDenied() {
@@ -336,6 +429,7 @@
         cup.classList.remove("peek-away");
         away = false;
         stopGlance();
+        stopSweat();
         clearTimeout(deniedTimer);
         if (denied) {
             denied = false;
@@ -343,6 +437,8 @@
         }
         stopIdle();
         cup.classList.add("peek-success");
+        blip(660, 0.12, "sine", 0.05);
+        blip(880, 0.2, "sine", 0.05, 0.1);
         setTimeout(function () {
             cup.classList.remove("peek-success");
             schedule();
@@ -400,6 +496,15 @@
     document.addEventListener("touchmove", onTouch, { passive: true });
     document.addEventListener("focusin", onFocusIn);
     document.addEventListener("focusout", onFocusOut);
+    ["mousemove", "touchstart", "touchmove", "click", "keydown"].forEach(function (t) {
+        document.addEventListener(t, bumpActivity);
+    });
+    setInterval(function () {
+        if (Date.now() - lastActivity > 8000 && !away && !denied && !reduceMotion &&
+            !cup.classList.contains("peek-yawn") && !cup.classList.contains("peek-sleepy")) {
+            doYawn();
+        }
+    }, 1000);
     document.addEventListener("input", function (e) {
         if (e.target === activeInput) refreshCaret();
     });

@@ -161,6 +161,73 @@ body {
     background: transparent;
 }
 
+/* Character extras: steam wisps, a nervous sweat drop, and a happy heart.
+   Steam rises off the coffee while the cup is awake, stops when the
+   password is revealed (the lazy cup goes cold), and bursts on a denied
+   login (a little sputter). The sweat drop appears while typing the
+   password; the heart pops on a successful login. */
+.peek-steam {
+    position: absolute;
+    top: -3px;
+    width: 5px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.8);
+    filter: blur(1.5px);
+    opacity: 0;
+    z-index: 0;
+    pointer-events: none;
+}
+.peek-steam.s1 { left: 27px; animation: steamRise1 2.6s ease-in-out infinite; }
+.peek-steam.s2 { left: 51px; animation: steamRise2 3.4s ease-in-out infinite; animation-delay: 1.15s; }
+@keyframes steamRise1 {
+    0% { transform: translateY(0) scaleX(1); opacity: 0; }
+    25% { opacity: 0.85; }
+    60% { transform: translateY(-9px) scaleX(1.5); opacity: 0.5; }
+    100% { transform: translateY(-18px) scaleX(0.8); opacity: 0; }
+}
+@keyframes steamRise2 {
+    0% { transform: translateY(0) scaleX(1); opacity: 0; }
+    25% { opacity: 0.7; }
+    60% { transform: translateY(-8px) scaleX(0.7); opacity: 0.45; }
+    100% { transform: translateY(-16px) scaleX(1.4); opacity: 0; }
+}
+.peek-sweat {
+    position: absolute;
+    top: 15px;
+    right: -1px;
+    width: 4px;
+    height: 7px;
+    border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+    background: #8fd0f0;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 2;
+}
+@keyframes sweatDrop {
+    0% { transform: translateY(0); opacity: 0; }
+    20% { opacity: 1; }
+    100% { transform: translateY(9px); opacity: 0; }
+}
+.peek-cup.peek-sweat-on .peek-sweat { animation: sweatDrop 1.2s ease-in 1; }
+.peek-heart {
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 4;
+}
+.peek-heart::after { content: "\2665"; color: #e26d60; font-size: 13px; line-height: 1; }
+@keyframes heartPop {
+    0% { transform: translateX(-50%) translateY(4px) scale(0.4); opacity: 0; }
+    30% { opacity: 1; }
+    60% { transform: translateX(-50%) translateY(-6px) scale(1.15); opacity: 1; }
+    100% { transform: translateX(-50%) translateY(-16px) scale(1); opacity: 0; }
+}
+.peek-cup.peek-success .peek-heart { animation: heartPop 0.7s ease-out 1; }
+
 /* Face */
 .peek-eyes {
     position: absolute;
@@ -415,6 +482,7 @@ body {
     transform: translateX(-50%);
 }
 .peek-away .peek-eye::after { opacity: 0; } /* serious face — lids stay up until a sneaky glance */
+.peek-away .peek-steam { animation: none; opacity: 0; } /* goes cold while the password is showing */
 
 /* The sneaky glance squint: declared after .peek-away so it beats the
    lid fade — the lids droop halfway while the eyes dart at the
@@ -433,6 +501,26 @@ body {
     opacity: 1;
 }
 
+/* The moment the password appears the cup startles — a quick recoil and a
+   hard blink — then settles into the lazy lean. Declared after the away
+   block so it wins over lazyLean while it plays. */
+@keyframes cupStartle {
+    0% { transform: rotate(0deg); }
+    35% { transform: rotate(-9deg) translateY(-2px); }
+    70% { transform: rotate(6deg); }
+    100% { transform: rotate(3deg); }
+}
+.peek-startle .peek-cup-body { animation: cupStartle 0.4s ease-in-out 1; }
+.peek-startle .peek-eye { animation: cupBlink 0.3s ease-in-out 1; }
+
+/* While sneaking a glance the body leans toward the field, then rocks
+   back to the lazy pose. One-shot, matching lazyLean's resting angle. */
+@keyframes glanceLean {
+    0%, 100% { transform: rotate(3deg); }
+    40% { transform: rotate(1deg); }
+}
+.peek-glance .peek-cup-body { animation: glanceLean 0.46s ease-in-out 1; }
+
 /* Login failed — disappointed slump: one quick shake of the head, then the
    arms drop limp, the feet stop, and the smile flips into a frown. The eyes
    drop too (set by peekCup.js); everything recovers on its own. Scoped
@@ -447,6 +535,12 @@ body {
 .peek-cup.peek-denied .peek-arm-r .peek-arm-fore { transform: rotate(0deg); }
 .peek-cup.peek-denied .peek-foot,
 .peek-cup.peek-denied .peek-foot-shin { animation: none; }
+.peek-cup.peek-denied .peek-steam { animation: steamBurst 0.6s ease-out 1; } /* coffee sputter */
+@keyframes steamBurst {
+    0% { transform: translateY(0) scale(0.5); opacity: 0; }
+    30% { opacity: 1; }
+    100% { transform: translateY(-10px) scale(2); opacity: 0; }
+}
 .peek-cup.peek-denied .peek-mouth {
     animation: none;
     width: 16px;
@@ -506,6 +600,48 @@ body {
     border: none;
     border-bottom: 4px solid #3a2417;
     border-radius: 0 0 16px 16px;
+    transform: translateX(-50%);
+}
+
+/* Idle too long — the cup yawns slowly, then dozes off with droopy lids
+   and a tiny content mouth until the page is touched again. Scoped under
+   .peek-cup so it wins over the focused/pw/away faces. */
+@keyframes cupYawn {
+    0%, 100% { transform: rotate(0deg) translateY(0); }
+    30% { transform: rotate(-2deg) translateY(-2px); }
+    60% { transform: rotate(1deg) translateY(-3px); }
+}
+.peek-cup.peek-yawn .peek-cup-body { animation: cupYawn 1.6s ease-in-out 1; }
+.peek-cup.peek-yawn .peek-mouth {
+    animation: none;
+    width: 14px;
+    height: 12px;
+    border: 2px solid #3a2417;
+    background: #3a2417;
+    border-radius: 50%;
+    transform: translateX(-50%);
+}
+.peek-cup.peek-sleepy .peek-eye { animation-duration: 7s; }
+.peek-cup.peek-sleepy .peek-eye::after {
+    content: "";
+    position: absolute;
+    left: -2px;
+    right: -2px;
+    top: -2px;
+    height: 42%;
+    background: #f5ede3;
+    border-bottom: 2px solid #3a2417;
+    border-radius: 50% 50% 0 0;
+    z-index: 2;
+    opacity: 1;
+}
+.peek-cup.peek-sleepy .peek-mouth {
+    animation: none;
+    width: 8px;
+    height: 4px;
+    border: none;
+    border-bottom: 2px solid #3a2417;
+    border-radius: 0;
     transform: translateX(-50%);
 }
 
