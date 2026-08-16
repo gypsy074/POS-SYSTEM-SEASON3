@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Season 3 - Login</title>
-    <link rel="stylesheet" href="login.css?v=13">
+    <link rel="stylesheet" href="login.css?v=14">
     <link rel="stylesheet" href="css/cup-transition.css?v=3">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -71,6 +71,21 @@
     </div>
 
     <div class="login-page-container">
+
+        <!-- Peek-a-boo coffee cup character sitting on the card's top edge -->
+        <div class="peek-cup" id="peekCup" aria-hidden="true">
+            <div class="peek-cup-body">
+                <div class="peek-cup-coffee"></div>
+                <div class="peek-eyes">
+                    <div class="peek-eye"><span class="peek-pupil"></span></div>
+                    <div class="peek-eye"><span class="peek-pupil"></span></div>
+                </div>
+                <div class="peek-mouth"></div>
+                <div class="peek-blush peek-blush-l"></div>
+                <div class="peek-blush peek-blush-r"></div>
+            </div>
+            <div class="peek-cup-handle"></div>
+        </div>
         
         <div class="date-badge" id="loginDateDisplay">Loading date...</div>
 
@@ -126,6 +141,7 @@
     </div>
 
     <script src="js/passwordToggle.js?v=11"></script>
+    <script src="js/peekCup.js"></script>
     <script src="js/logoutTransition.js"></script>
     <script src="login.js"></script>
 </body>
