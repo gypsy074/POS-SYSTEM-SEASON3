@@ -4,12 +4,14 @@
    username makes the cup lean in attentively and track the caret; typing the
    password puts it in cautious-sneaky mode (leaning, arm tucked); Caps Lock
    in the password field gets a worried little O mouth; hovering the Log In
-   button draws the eyes to it. While the password is revealed the cup tilts
-   sideways and the eyes look away, up and off to the side, politely refusing
-   to watch. Failed logins react by kind: empty fields get an annoyed shake,
-   invalid credentials a disappointed slump, connection failures a quiet
-   worried look. A successful login gets one happy hop before the transition
-   overlay covers the cup.
+   button draws the eyes to it. While the password is revealed the cup goes
+   lazy (slouched, arms loose, serious face) and holds its gaze up and away
+   from the field — no cursor, finger or idle drift can pull it back — but
+   every few seconds it sneaks a quick glance at the password, then looks
+   away again. Failed logins react by kind: empty fields get an annoyed
+   shake, invalid credentials a disappointed slump, connection failures a
+   quiet worried look. A successful login gets one happy hop before the
+   transition overlay covers the cup.
    Reduced-motion users get a still, polite cup.
    ========================================================================== */
 
@@ -30,6 +32,8 @@
     var lastMove = 0;
     var idleTimer = null;
     var deniedTimer = null;
+    var glanceTimer = null;
+    var glanceHold = null;
     var idlePhase = 0;
     var cupRect = null;
     var mirror = null;        // hidden span that measures the caret position
@@ -69,7 +73,7 @@
     }
 
     function onMouse(e) {
-        if (focused || reduceMotion) return; // a field is focused — watch it, not the cursor
+        if (focused || away || reduceMotion) return; // a field is focused — watch it, not the cursor
         // Direction relative to the cup itself, so the pupils point exactly
         // at the cursor no matter where the cup sits on the screen.
         var cx = cupRect ? cupRect.left + cupRect.width / 2 : window.innerWidth / 2;
@@ -80,7 +84,7 @@
     // Touch: the cup follows the finger like it would a cursor. Uses the
     // visual viewport when the keyboard shrinks the screen.
     function onTouch(e) {
-        if (focused || reduceMotion) return;
+        if (focused || away || reduceMotion) return;
         var touch = e.touches && e.touches[0];
         if (!touch) return;
         var vw = (window.visualViewport && window.visualViewport.width) || window.innerWidth;
@@ -194,18 +198,61 @@
         if (isAway) {
             stopIdle();
             // The password is showing — the cup looks away, up and off to
-            // the side, politely not watching. It holds that gaze until the
-            // password is masked again.
-            if (!reduceMotion) setLook(0.5, -0.8);
+            // the side, politely not watching. It holds that gaze (even if
+            // the cursor moves) until the password is masked again, and
+            // sneaks the occasional glance at the field in between.
+            if (!reduceMotion) {
+                setLook(0.5, -0.8);
+                startGlance();
+            }
         } else {
+            stopGlance();
             lastMove = 0;
             // Back to watching: snap straight onto the caret again.
             if (focused) {
                 refreshCaret();
             } else {
+                px = 0;
+                py = 0;
                 schedule();
             }
             startIdle();
+        }
+    }
+
+    // While the password is shown the cup sneaks a quick glance at the
+    // field every so often, then looks away again — lazy body, alert eyes.
+    function startGlance() {
+        stopGlance();
+        glanceTimer = setTimeout(glanceOnce, 1500);
+    }
+
+    function glanceOnce() {
+        if (!away) return;
+        var input = document.getElementById("password");
+        if (input) {
+            var r = input.getBoundingClientRect();
+            var cx = cupRect ? cupRect.left + cupRect.width / 2 : window.innerWidth / 2;
+            var cy = cupRect ? cupRect.top + cupRect.height / 2 : window.innerHeight / 2;
+            setLook((r.left + r.width / 2 - cx) / (window.innerWidth / 2), (r.top + r.height / 2 - cy) / (window.innerHeight / 2));
+            glanceHold = setTimeout(function () {
+                if (away) setLook(0.5, -0.8);
+                glanceTimer = setInterval(glanceOnce, 2800);
+            }, 320);
+        } else {
+            glanceTimer = setInterval(glanceOnce, 2800);
+        }
+    }
+
+    function stopGlance() {
+        if (glanceTimer) {
+            clearTimeout(glanceTimer);
+            clearInterval(glanceTimer);
+            glanceTimer = null;
+        }
+        if (glanceHold) {
+            clearTimeout(glanceHold);
+            glanceHold = null;
         }
     }
 
@@ -218,6 +265,7 @@
         var kind = (e && e.detail && e.detail.kind) || "invalid";
         denied = true;
         stopIdle();
+        stopGlance();
         clearTimeout(deniedTimer);
         if (kind === "empty") {
             cup.classList.add("peek-nudge");
@@ -255,6 +303,7 @@
         if (reduceMotion) return;
         cup.classList.remove("peek-away");
         away = false;
+        stopGlance();
         clearTimeout(deniedTimer);
         if (denied) {
             denied = false;
