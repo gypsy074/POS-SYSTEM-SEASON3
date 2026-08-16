@@ -121,6 +121,7 @@ function selectInventoryRow(item) {
     const priceInput   = document.getElementById("invPrice");
     const stockInput   = document.getElementById("invStock");
     const thresholdInput = document.getElementById("invThreshold");
+    const unitsInput     = document.getElementById("invUnitsPerSale");
     const statusInput  = document.getElementById("invStatus");
 
     if (linkSelect)    linkSelect.value     = item.menuProductId || "";
@@ -129,6 +130,7 @@ function selectInventoryRow(item) {
     if (priceInput)    priceInput.value     = item.price ?? "";
     if (stockInput)    stockInput.value     = item.stock ?? "";
     if (thresholdInput) thresholdInput.value = item.lowStockThreshold ?? "";
+    if (unitsInput)    unitsInput.value     = item.unitsPerSale ?? "";
     if (statusInput)   statusInput.value    = item.status || "Available";
 
     updateInventoryButtonStates(true);
@@ -149,6 +151,7 @@ function clearInventoryForm() {
     const priceInput   = document.getElementById("invPrice");
     const stockInput   = document.getElementById("invStock");
     const thresholdInput = document.getElementById("invThreshold");
+    const unitsInput     = document.getElementById("invUnitsPerSale");
     const statusInput  = document.getElementById("invStatus");
 
     if (linkSelect)    linkSelect.value     = "";
@@ -157,6 +160,7 @@ function clearInventoryForm() {
     if (priceInput)    priceInput.value     = "";
     if (stockInput)    stockInput.value     = "";
     if (thresholdInput) thresholdInput.value = "";
+    if (unitsInput)    unitsInput.value     = "";
     if (statusInput)   statusInput.value    = "Available";
 
     updateInventoryButtonStates(false);
@@ -173,6 +177,7 @@ function getInventoryPayload() {
     const priceInput    = document.getElementById("invPrice");
     const stockInput    = document.getElementById("invStock");
     const thresholdInput = document.getElementById("invThreshold");
+    const unitsInput     = document.getElementById("invUnitsPerSale");
     const statusInput   = document.getElementById("invStatus");
 
     const menuProductId = linkSelect    ? linkSelect.value.trim()    : "";
@@ -181,6 +186,7 @@ function getInventoryPayload() {
     const price         = priceInput    ? Number(priceInput.value)   : NaN;
     const stock         = stockInput    ? Number(stockInput.value)   : NaN;
     const lowStockThreshold = thresholdInput ? Number(thresholdInput.value) : NaN;
+    const unitsPerSale  = unitsInput    ? Number(unitsInput.value)   : NaN;
     const status        = statusInput   ? statusInput.value          : "Available";
 
     if (!productName || !Number.isFinite(price) || !Number.isFinite(stock)) {
@@ -195,6 +201,7 @@ function getInventoryPayload() {
         stock,
         status,
         lowStockThreshold: Number.isFinite(lowStockThreshold) ? Math.max(0, lowStockThreshold) : 10,
+        unitsPerSale: Number.isFinite(unitsPerSale) ? Math.max(0, unitsPerSale) : 1,
         date: new Date().toLocaleDateString()
     };
     if (menuProductId) payload.menuProductId = menuProductId;
@@ -363,6 +370,7 @@ function renderInventoryTable(items) {
             <td>₱${Number(item.price).toFixed(2)}</td>
             <td class="${low ? "low-stock-cell" : ""}">${stock}</td>
             <td>${escapeHtml(String(item.lowStockThreshold ?? 10))}</td>
+            <td>${escapeHtml(String(item.unitsPerSale ?? 1))}</td>
             <td>${escapeHtml(item.status)}</td>
             <td>${escapeHtml(item.date)}</td>
             <td>

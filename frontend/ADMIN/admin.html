@@ -423,6 +423,7 @@
                                         <th>Price</th>
                                         <th>Stock</th>
                                         <th>Threshold</th>
+                                        <th>Per Sale</th>
                                         <th>Status</th>
                                         <th>Date</th>
                                         <th>Action</th>
@@ -474,6 +475,13 @@
                                     <label>Low Stock Threshold:</label>
                                     <input type="number" id="invThreshold" min="0" step="1" placeholder="10">
                                 </div>
+                                <div class="inline-input">
+                                    <label>Units per Sale:</label>
+                                    <input type="number" id="invUnitsPerSale" min="0" step="0.5" placeholder="1">
+                                </div>
+                            </div>
+                            <p class="inventory-hint"><i class="fas fa-circle-info"></i> "Units per Sale" is deducted from this supply every time the linked menu product is sold or wasted. 1 = one unit per sale, 2 = two units, 0 = tracked but never consumed. Restocks are always separate.</p>
+                            <div class="form-row-group">
                                 <div class="inline-input">
                                     <label>Status:</label>
                                     <select id="invStatus">

@@ -212,6 +212,7 @@ const inventorySchema = new mongoose.Schema({
     status: { type: String, default: 'Available' },
     menuProductId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', default: null },
     lowStockThreshold: { type: Number, default: 10, min: 0 },
+    unitsPerSale: { type: Number, default: 1, min: 0 },
     date: { type: String, default: () => new Date().toLocaleDateString() }
 });
 const InventoryItem = mongoose.model('InventoryItem', inventorySchema);
@@ -294,10 +295,41 @@ function inventoryFromPayload(input, product, existing) {
         stock: pickNum("stock"),
         status: input.status || src.status || 'Available',
         lowStockThreshold: pickNum("lowStockThreshold"),
+        unitsPerSale: Number.isFinite(Number(input.unitsPerSale))
+            ? Math.max(0, Number(input.unitsPerSale))
+            : (Number.isFinite(Number(src.unitsPerSale)) ? Math.max(0, Number(src.unitsPerSale)) : 1),
         menuProductId: input.menuProductId === undefined
             ? (src.menuProductId || (product ? product._id : null) || null)
             : (input.menuProductId ? input.menuProductId : null)
     };
+}
+
+// Ingredient tracking: every sale or waste of a menu product moves its
+// linked supply items by `quantity × unitsPerSale` — forward on sales and
+// waste, backward on voids. Sold-out flags follow the ledger, mirroring the
+// menu flow. Returns the linked items (callers use this for verification).
+async function shiftLinkedSupplies(productName, quantity, sign) {
+    const product = await Product.findOne({ name: productName }).select('_id');
+    if (!product) return [];
+    const supplies = await InventoryItem.find({ menuProductId: product._id });
+    if (!supplies.length) return [];
+    const ops = supplies.map(item => {
+        const delta = quantity * Math.max(0, Number(item.unitsPerSale) || 0) * sign;
+        return delta === 0 ? null : InventoryItem.updateOne(
+            { _id: item._id },
+            { $inc: { stock: delta } }
+        );
+    }).filter(Boolean);
+    await Promise.all(ops);
+    await InventoryItem.updateMany(
+        { menuProductId: product._id, stock: { $lte: 0 } },
+        { status: "Sold Out" }
+    );
+    await InventoryItem.updateMany(
+        { menuProductId: product._id, stock: { $gt: 0 } },
+        { status: "Available" }
+    );
+    return supplies;
 }
 
 function normalizeOrderPayload(input) {
@@ -680,13 +712,25 @@ app.post('/api/orders', authRequired(), async (req, res) => {
             }
         }
 
-        // 1) Verify stock for every item before touching anything.
+        // 1) Verify stock for every item before touching anything — menu
+        //    stock first, then the linked supply ledger (ingredients).
         const shortages = [];
         for (const item of payload.items) {
             const product = await Product.findOne({ name: item.name }).select('stock status');
             if (!product) continue; // item not tracked in the menu → allow
             if ((Number(product.stock) || 0) < item.quantity) {
                 shortages.push({ name: item.name, available: Number(product.stock) || 0, requested: item.quantity });
+            }
+            const supplies = await InventoryItem.find({ menuProductId: product._id });
+            for (const supply of supplies) {
+                const needed = item.quantity * Math.max(0, Number(supply.unitsPerSale) || 0);
+                if (needed > 0 && (Number(supply.stock) || 0) < needed) {
+                    shortages.push({
+                        name: `${item.name} (needs ${supply.productName})`,
+                        available: Number(supply.stock) || 0,
+                        requested: needed
+                    });
+                }
             }
         }
         if (shortages.length) {
@@ -712,12 +756,14 @@ app.post('/api/orders', authRequired(), async (req, res) => {
             throw err;
         }
 
-        // 3) Deduct stock, then auto-flag sold-out items.
+// 3) Deduct stock, then auto-flag sold-out items.
         for (const item of payload.items) {
             await Product.updateOne(
                 { name: item.name },
                 { $inc: { stock: -item.quantity } }
             );
+            // Ingredient tracking — the sale consumes the linked supplies too.
+            await shiftLinkedSupplies(item.name, item.quantity, -1);
         }
         await Product.updateMany(
             { name: { $in: payload.items.map(i => i.name) }, stock: { $lte: 0 } },
@@ -767,6 +813,8 @@ app.patch('/api/orders/:id/void', authRequired(), async (req, res) => {
                 { name: item.name },
                 { $inc: { stock: item.quantity } }
             );
+            // Ingredient tracking — voiding returns the linked supplies too.
+            await shiftLinkedSupplies(item.name, item.quantity, 1);
         }
         await Product.updateMany(
             { name: { $in: (order.items || []).map(i => i.name) }, stock: { $gt: 0 } },
@@ -1093,6 +1141,8 @@ app.post('/api/waste', authRequired(), async (req, res) => {
             { name: payload.productName },
             { $inc: { stock: -payload.quantity } }
         );
+        // Ingredient tracking — the waste consumes the linked supplies too.
+        await shiftLinkedSupplies(payload.productName, payload.quantity, -1);
         // Auto-flag sold-out items, mirroring the order flow.
         await Product.updateMany(
             { name: payload.productName, stock: { $lte: 0 } },
@@ -1254,3 +1304,4 @@ mongoose.connection.once('connected', () => {
 });
 
 module.exports = app;
+

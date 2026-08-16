@@ -3413,6 +3413,23 @@ body.dark .ai-skeleton-line { background: #3a2d1f; }
     background-color: #f9f0e7 !important;
 }
 
+.inventory-hint {
+    margin: -6px 0 14px;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: #7c6a55;
+    background: #f9f0e7;
+    border: 1px solid #e7d6c3;
+    padding: 9px 12px;
+    border-radius: 10px;
+}
+
+body.dark .inventory-hint {
+    background: #3a2d1f;
+    border-color: #57432c;
+    color: #b09a80;
+}
+
 .restock-btn {
     background: #16a34a;
     border: 1px solid #15803d;
