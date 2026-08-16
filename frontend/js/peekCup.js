@@ -14,10 +14,10 @@
     if (!pupils.length) return;
 
     var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    var coarsePointer = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
 
     var RANGE = 5;            // max pupil travel in px (inner eye 16px - 6px pupil / 2)
     var away = false;         // looking away (password revealed)
+    var focused = false;      // an input is focused — the eyes lock onto it
     var px = 0, py = 0;       // applied pupil offset in px
     var lastMove = 0;
     var rafPending = false;
@@ -65,7 +65,7 @@
     }
 
     function onMouse(e) {
-        if (reduceMotion) return;
+        if (focused || reduceMotion) return; // a field is focused — watch it, not the cursor
         // Direction relative to the cup itself, so the pupils point exactly
         // at the cursor no matter where the cup sits on the screen.
         var cx = cupRect ? cupRect.left + cupRect.width / 2 : window.innerWidth / 2;
@@ -76,7 +76,7 @@
     // Touch: the cup follows the finger like it would a cursor. Uses the
     // visual viewport when the keyboard shrinks the screen.
     function onTouch(e) {
-        if (reduceMotion) return;
+        if (focused || reduceMotion) return;
         var touch = e.touches && e.touches[0];
         if (!touch) return;
         var vw = (window.visualViewport && window.visualViewport.width) || window.innerWidth;
@@ -86,19 +86,28 @@
         setLook((touch.clientX - cx) / (vw / 2), (touch.clientY - cy) / (vh / 2));
     }
 
-    // Touch fallback: watch the focused field instead of a cursor.
-    // Only for coarse pointers — on desktop the cursor is the source of truth
-    // (focusing the password field while clicking the toggle must not move
-    // the pupils off their cursor-based direction).
+    // While a field is focused the eyes lock onto that field — that is what
+    // makes the cup "watch" while the user types their username/password.
+    // Cursor and finger tracking resume once nothing is focused.
     function onFocusIn(e) {
-        if (away || reduceMotion || !coarsePointer) return;
+        if (reduceMotion) return;
         var target = e.target;
         if (!target || typeof target.getBoundingClientRect !== "function") return;
         if (!/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+        focused = true;
         var r = target.getBoundingClientRect();
         var cx = cupRect ? cupRect.left + cupRect.width / 2 : window.innerWidth / 2;
         var cy = cupRect ? cupRect.top + cupRect.height / 2 : window.innerHeight / 2;
         setLook(((r.left + r.width / 2) - cx) / (window.innerWidth / 2), ((r.top + r.height / 2) - cy) / (window.innerHeight / 2));
+    }
+
+    function onFocusOut(e) {
+        if (!focused) return;
+        var next = e.relatedTarget;
+        if (next && /^(INPUT|TEXTAREA|SELECT)$/.test(next.tagName)) return; // jumped to another field — keep locked
+        focused = false;
+        stopIdle();
+        schedule(); // re-apply current look; the cursor resumes on the next move
     }
 
     function updateAway(isAway) {
@@ -144,6 +153,7 @@
     document.addEventListener("touchstart", onTouch, { passive: true });
     document.addEventListener("touchmove", onTouch, { passive: true });
     document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("focusout", onFocusOut);
     document.addEventListener("click", function (e) {
         if (e.target && e.target.closest && e.target.closest(".password-toggle")) {
             updateAway(passwordVisible());
