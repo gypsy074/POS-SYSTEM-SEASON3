@@ -7,8 +7,8 @@
    button draws the eyes to it. While the password is revealed the cup goes
    lazy (slouched, arms loose, serious face) and holds its gaze up and away
    from the field — no cursor, finger or idle drift can pull it back — but
-   every few seconds it sneaks a quick glance at the password, then looks
-   away again. Failed logins react by kind: empty fields get an annoyed
+   every few seconds it sneaks a squinting glance at the password text,
+   then looks away again (sometimes a cheeky double-take). Failed logins react by kind: empty fields get an annoyed
    shake, invalid credentials a disappointed slump, connection failures a
    quiet worried look. A successful login gets one happy hop before the
    transition overlay covers the cup.
@@ -221,7 +221,9 @@
     }
 
     // While the password is shown the cup sneaks a quick glance at the
-    // field every so often, then looks away again — lazy body, alert eyes.
+    // visible text every so often — squinting through half-lidded eyes —
+    // then looks away again: lazy body, alert eyes. Sometimes it cannot
+    // resist a second peek (a double-take) before settling.
     function startGlance() {
         stopGlance();
         glanceTimer = setTimeout(glanceOnce, 1500);
@@ -230,18 +232,47 @@
     function glanceOnce() {
         if (!away) return;
         var input = document.getElementById("password");
-        if (input) {
-            var r = input.getBoundingClientRect();
-            var cx = cupRect ? cupRect.left + cupRect.width / 2 : window.innerWidth / 2;
-            var cy = cupRect ? cupRect.top + cupRect.height / 2 : window.innerHeight / 2;
-            setLook((r.left + r.width / 2 - cx) / (window.innerWidth / 2), (r.top + r.height / 2 - cy) / (window.innerHeight / 2));
-            glanceHold = setTimeout(function () {
-                if (away) setLook(0.5, -0.8);
-                glanceTimer = setInterval(glanceOnce, 2800);
-            }, 320);
-        } else {
-            glanceTimer = setInterval(glanceOnce, 2800);
+        if (!input) return;
+        cup.classList.add("peek-glance");
+        glanceAtText(input);
+        glanceHold = setTimeout(function () {
+            if (!away) return;
+            setLook(0.5, -0.8);
+            cup.classList.remove("peek-glance");
+            if (Math.random() < 0.25) {
+                // quick double-take: one more short peek before settling
+                glanceHold = setTimeout(function () {
+                    if (!away) return;
+                    cup.classList.add("peek-glance");
+                    glanceAtText(input);
+                    glanceHold = setTimeout(function () {
+                        if (away) setLook(0.5, -0.8);
+                        cup.classList.remove("peek-glance");
+                        glanceTimer = setTimeout(glanceOnce, 2200 + Math.random() * 1400);
+                    }, 180);
+                }, 160);
+            } else {
+                glanceTimer = setTimeout(glanceOnce, 2200 + Math.random() * 1400);
+            }
+        }, 240);
+    }
+
+    // Aim the pupils at the centre of the revealed password text (or the
+    // field's centre when it is empty) — a sneaky look that actually reads.
+    function glanceAtText(input) {
+        var r = input.getBoundingClientRect();
+        var cx = cupRect ? cupRect.left + cupRect.width / 2 : window.innerWidth / 2;
+        var cy = cupRect ? cupRect.top + cupRect.height / 2 : window.innerHeight / 2;
+        var x = r.left + r.width / 2;
+        var value = String(input.value || "");
+        if (value && mirror && mirrorCss) {
+            mirror.style.font = mirrorCss.font;
+            mirror.style.letterSpacing = mirrorCss.letterSpacing;
+            mirror.style.textTransform = mirrorCss.textTransform;
+            mirror.textContent = value;
+            x = r.left + mirrorCss.paddingLeft + mirrorCss.borderLeft + mirror.offsetWidth / 2;
         }
+        setLook((x - cx) / (window.innerWidth / 2), (r.top + r.height / 2 - cy) / (window.innerHeight / 2));
     }
 
     function stopGlance() {
@@ -254,6 +285,7 @@
             clearTimeout(glanceHold);
             glanceHold = null;
         }
+        cup.classList.remove("peek-glance");
     }
 
     // A failed login (dispatched by login.js with a kind) triggers the

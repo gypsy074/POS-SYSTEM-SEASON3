@@ -339,8 +339,9 @@ body {
 }
 
 /* Typing the password — cautious-sneaky: the cup leans in with a sideways
-   tilt, the right arm slinks in and tucks against the cup's side, the feet
-   slow to a cautious tap, and the smile turns into a knowing smirk. */
+   tilt, both arms tuck in close against the body, the feet slow to a
+   cautious tap, and the face goes focused — half-lidded squint eyes
+   watching the dots through the lids, with a tight concentrating mouth. */
 @keyframes cupSneak {
     0%, 100% { transform: rotate(1deg); }
     50% { transform: rotate(5deg); }
@@ -349,20 +350,33 @@ body {
     animation: cupSneak 2.6s ease-in-out infinite;
     transform-origin: 50% 100%;
 }
-.peek-pw .peek-arm-l { transform: rotate(-25deg); }
+.peek-pw .peek-arm-l { transform: rotate(-20deg); }
 .peek-pw .peek-arm-r { transform: rotate(10deg); }
-.peek-pw .peek-arm-l .peek-arm-fore { transform: rotate(5deg); }
+.peek-pw .peek-arm-l .peek-arm-fore { transform: rotate(15deg); }
 .peek-pw .peek-arm-r .peek-arm-fore { transform: rotate(-35deg); }
 .peek-pw .peek-foot,
 .peek-pw .peek-foot-shin { animation-duration: 2.6s; }
 .peek-pw .peek-mouth {
     animation: none;
-    width: 18px;
-    height: 8px;
+    width: 10px;
+    height: 4px;
     border: none;
-    border-bottom: 3px solid #3a2417;
-    border-radius: 0 0 10px 10px;
-    transform: translateX(-50%) rotate(-4deg); /* sly smirk */
+    border-bottom: 2px solid #3a2417;
+    border-radius: 0; /* tight, concentrating line */
+    transform: translateX(-50%);
+}
+.peek-pw .peek-eye { animation-duration: 6s; } /* deep focus — slower blink */
+.peek-pw .peek-eye::after {
+    content: "";
+    position: absolute;
+    left: -2px;
+    right: -2px;
+    top: -2px;
+    height: 55%;
+    background: #f5ede3; /* body-colored lid */
+    border-bottom: 2px solid #3a2417;
+    border-radius: 50% 50% 0 0;
+    z-index: 2;
 }
 
 /* Password revealed — lazy and alert (declared after .peek-pw so it wins
@@ -378,6 +392,8 @@ body {
     animation: lazyLean 3.2s ease-in-out infinite;
     transform-origin: 50% 100%;
 }
+.peek-away .peek-arm-l { transform: rotate(-25deg); }
+.peek-away .peek-arm-l .peek-arm-fore { transform: rotate(5deg); }
 .peek-away .peek-arm-r { transform: rotate(25deg); }
 .peek-away .peek-arm-r .peek-arm-fore { transform: rotate(-5deg); }
 .peek-away .peek-foot,
@@ -390,6 +406,23 @@ body {
     border-bottom: 3px solid #3a2417;
     border-radius: 0; /* flat, serious line */
     transform: translateX(-50%);
+}
+.peek-away .peek-eye::after { display: none; } /* serious face — lids stay up until a sneaky glance */
+
+/* The sneaky glance squint: declared after .peek-away so it beats the
+   lid-suppress — the lids droop halfway while the eyes dart at the
+   password, then lift again. (peekCup.js toggles .peek-glance.) */
+.peek-glance .peek-eye::after {
+    content: "";
+    position: absolute;
+    left: -2px;
+    right: -2px;
+    top: -2px;
+    height: 55%;
+    background: #f5ede3; /* body-colored lid */
+    border-bottom: 2px solid #3a2417;
+    border-radius: 50% 50% 0 0;
+    z-index: 2;
 }
 
 /* Login failed — disappointed slump: one quick shake of the head, then the
