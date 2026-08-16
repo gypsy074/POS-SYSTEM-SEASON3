@@ -214,10 +214,9 @@ body {
 .peek-blush-l { left: 17px; }
 .peek-blush-r { right: 17px; }
 
-/* Jointed stick-man arms: thin strokes with an elbow, ending in a real-shaped
-   hand (palm + three fingers). Idle: arms hang with a soft bend; focused:
-   they rise a little; revealed: they fold straight up so the hands cover the
-   eyes, elbows poking out to the sides. */
+/* Jointed stick-man arms: plain thin strokes with an elbow joint. Idle: arms
+   hang with a soft bend; focused: they rise a little; revealed: they fold
+   straight up over the eyes, elbows poking out to the sides. */
 .peek-arm {
     position: absolute;
     width: 3px;
@@ -255,44 +254,8 @@ body {
 }
 .peek-arm-l .peek-arm-fore { transform: rotate(5deg); }
 .peek-arm-r .peek-arm-fore { transform: rotate(-5deg); }
-.peek-arm-fore::before {
-    /* palm */
-    content: "";
-    position: absolute;
-    left: 50%;
-    bottom: -5px;
-    width: 12px;
-    height: 11px;
-    margin-left: -6px;
-    background: #3a2417;
-    border-radius: 40% 40% 50% 50%;
-    animation: handBob 2.4s ease-in-out infinite;
-}
-.peek-arm-fore::after {
-    /* three fingers */
-    content: "";
-    position: absolute;
-    left: 50%;
-    bottom: -16px;
-    width: 10px;
-    height: 7px;
-    margin-left: -5px;
-    background: linear-gradient(90deg,
-        #3a2417 0 2px, transparent 2px 4px,
-        #3a2417 4px 6px, transparent 6px 8px,
-        #3a2417 8px 10px);
-    border-radius: 1px;
-    animation: handBob 2.4s ease-in-out infinite;
-}
 
-/* The hands give a little bob while waiting. */
-@keyframes handBob {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-2px); }
-}
-
-/* Jointed stick legs: thigh and shin with a knee, ending in a real-shaped
-   foot — a little shoe with the toe tilted up. */
+/* Jointed stick legs: thigh and shin with a knee. */
 .peek-foot {
     position: absolute;
     top: 74px;
@@ -325,20 +288,6 @@ body {
     border-radius: 2px;
     transform-origin: 50% 0;
 }
-.peek-foot-shin::before {
-    /* shoe */
-    content: "";
-    position: absolute;
-    left: 50%;
-    bottom: -4px;
-    width: 14px;
-    height: 6px;
-    margin-left: -7px;
-    background: #3a2417;
-    border-radius: 4px 6px 2px 3px;
-}
-.peek-foot-l .peek-foot-shin::before { transform: rotate(-8deg); }
-.peek-foot-r .peek-foot-shin::before { transform: rotate(8deg); }
 .peek-foot-l { left: 22px; }
 .peek-foot-r { right: 22px; }
 
@@ -413,11 +362,11 @@ body {
     animation: mouthSip 2.4s ease-in-out infinite;
 }
 
-/* Password revealed — sneaky mode: the arms fold up so the hands cover the
-   eyes (elbows poking out), the feet stop tapping, and the whole cup tilts
-   sideways to sneak a look around its own hands. The right arm angles a bit
-   higher so the eye peeks out from under the hand and can dart quick
-   side-eye glances at the password. */
+/* Password revealed — sneaky mode: the arms fold up over the eyes (elbows
+   poking out) so the cup refuses to peek, the feet stop tapping, and the
+   whole cup tilts sideways. The right arm angles a bit higher so the eye
+   peeks out from under the hand — but it looks away, up and off to the
+   side, politely not watching the password. */
 @keyframes sneakTilt {
     0%, 100% { transform: rotate(2deg); }
     50% { transform: rotate(8deg); }
@@ -430,8 +379,6 @@ body {
 .peek-away .peek-arm-r { transform: rotate(-30deg); }
 .peek-away .peek-arm-l .peek-arm-fore { transform: rotate(95deg); }
 .peek-away .peek-arm-r .peek-arm-fore { transform: rotate(-98deg); }
-.peek-away .peek-arm-fore::before,
-.peek-away .peek-arm-fore::after { animation: none; }
 .peek-away .peek-foot,
 .peek-away .peek-foot-shin { animation: none; }
 .peek-away .peek-mouth {

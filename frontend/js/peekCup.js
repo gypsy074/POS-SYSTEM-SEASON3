@@ -2,9 +2,9 @@
    peekCup.js — Peek-a-boo coffee cup character for the login page.
    Idle: the pupils follow the cursor (finger on touch screens). The moment
    a field is focused the eyes lock onto it and track the caret while the
-   user types. While the password is revealed the cup gets sneaky: hands
-   cover the eyes, and it tilts sideways to dart quick side-eye glances at
-   the caret — like sneaking a real look, then playing innocent.
+   user types. While the password is revealed the cup gets sneaky: arms fold
+   up over the eyes, the cup tilts sideways — and the eyes look away, up
+   and off to the side, politely refusing to watch.
    Reduced-motion users get a still, polite cup.
    ========================================================================== */
 
@@ -137,7 +137,7 @@
     }
 
     function refreshCaret() {
-        if (!focused || !activeInput) return;
+        if (!focused || !activeInput || away) return;
         var t = caretTarget(activeInput);
         if (!t) return; // keep the last look
         lookAt(t);
@@ -182,9 +182,11 @@
         apply();
         if (isAway) {
             stopIdle();
-            startSideEye();
+            // The password is showing — the cup looks away, up and off to
+            // the side, politely not watching. It holds that gaze until the
+            // password is masked again.
+            if (!reduceMotion) setLook(0.5, -0.8);
         } else {
-            stopSideEye();
             lastMove = 0;
             // Back to watching: snap straight onto the caret again.
             if (focused) {
@@ -194,36 +196,6 @@
             }
             startIdle();
         }
-    }
-
-    // --- Side-eye sneaking ------------------------------------------------
-    // Real life body language: when the password is revealed the cup does NOT
-    // stare at it. Instead it glances over quickly (at the caret), then looks
-    // up innocently, then glances again — short furtive side eyes.
-    var sideEyeToken = 0;
-
-    function startSideEye() {
-        if (reduceMotion) return;
-        stopSideEye();
-        var token = ++sideEyeToken;
-        setTimeout(function () { sideEyeGlance(token); }, 700);
-    }
-
-    function sideEyeGlance(token) {
-        if (token !== sideEyeToken || !away) return;
-        refreshCaret(); // dart to the caret
-        setTimeout(function () {
-            if (token !== sideEyeToken || !away) return;
-            setLook(0, -0.3); // …and play innocent, looking up
-            setTimeout(function () {
-                sideEyeGlance(token); // loop: another glance in ~2s
-            }, 1950);
-        }, 450);
-    }
-
-    function stopSideEye() {
-        window.__pcLog.push("stop");
-        sideEyeToken++;
     }
 
     // Gentle random drift while nobody is touching the page.
