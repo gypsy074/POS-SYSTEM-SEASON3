@@ -214,18 +214,38 @@ body {
 .peek-blush-l { left: 17px; }
 .peek-blush-r { right: 17px; }
 
-/* Little mitts holding onto the cup's sides */
-.peek-hand {
+/* Stick-man arms: a thin dark stroke with a round hand at the end,
+   swinging from the cup's sides. */
+.peek-arm {
     position: absolute;
-    width: 15px;
-    height: 13px;
-    background: #f5ede3;
-    border: 3px solid #d8c4a8;
-    border-radius: 8px 8px 10px 10px;
+    width: 3px;
+    height: 14px;
+    background: #3a2417;
+    border-radius: 2px;
     z-index: 3;
+    transform-origin: 50% 0;
+    transition: transform 0.3s ease;
 }
-.peek-hand-l { left: -12px; top: 42px; }
-.peek-hand-r { right: -12px; top: 52px; }
+.peek-arm-l { left: -3px; top: 40px; transform: rotate(-30deg); }
+.peek-arm-r { right: -3px; top: 40px; transform: rotate(30deg); }
+.peek-arm::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -5px;
+    width: 11px;
+    height: 11px;
+    margin-left: -5.5px;
+    background: #3a2417;
+    border-radius: 50%;
+    animation: handBob 2.4s ease-in-out infinite;
+}
+
+/* The hands give a little bob while waiting. */
+@keyframes handBob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-2px); }
+}
 
 /* Boot stubs peeking below the cup base */
 .peek-foot {
@@ -264,12 +284,8 @@ body {
 .peek-eye { animation: cupBlink 4.5s ease-in-out infinite; }
 
 /* Hands wave gently, feet tap — livelier while the user types. */
-@keyframes handWiggle {
-    0%, 100% { transform: rotate(-4deg); }
-    50% { transform: rotate(4deg); }
-}
-.peek-hand { animation: handWiggle 2.2s ease-in-out infinite; }
-.peek-focused .peek-hand { animation-duration: 1.6s; }
+.peek-focused .peek-arm-l { transform: rotate(-20deg); }
+.peek-focused .peek-arm-r { transform: rotate(20deg); }
 
 @keyframes footTap {
     0%, 100% { transform: rotate(-5deg); }
@@ -302,9 +318,10 @@ body {
     animation: mouthSip 2.4s ease-in-out infinite;
 }
 
-/* Password revealed — sneaky mode: the hands cover the eyes, the feet stop
-   tapping, and the whole cup tilts sideways to sneak a look around its own
-   hands. The right hand slides up so the eye peeks out and keeps watching. */
+/* Password revealed — sneaky mode: the arms swing up so the hands cover the
+   eyes, the feet stop tapping, and the whole cup tilts sideways to sneak a
+   look around its own hands. The right arm angles a bit higher so the eye
+   peeks out from under the hand and keeps watching. */
 @keyframes sneakTilt {
     0%, 100% { transform: rotate(2deg); }
     50% { transform: rotate(8deg); }
@@ -313,16 +330,10 @@ body {
     animation: sneakTilt 2.4s ease-in-out infinite;
     transform-origin: 50% 100%;
 }
-.peek-away .peek-hand {
-    animation: none;
-}
-.peek-away .peek-hand-r {
-    transform: translateY(-8px);
-    transition: transform 0.3s ease;
-}
-.peek-away .peek-foot {
-    animation: none;
-}
+.peek-away .peek-arm-l { transform: rotate(69deg); }
+.peek-away .peek-arm-r { transform: rotate(-80deg); }
+.peek-away .peek-arm::after { animation: none; }
+.peek-away .peek-foot { animation: none; }
 .peek-away .peek-mouth {
     animation: none;
     width: 18px;
