@@ -38,6 +38,7 @@ function showError(message) {
         void container.offsetWidth; // restart the shake animation
         container.classList.add("shake");
     }
+    document.dispatchEvent(new CustomEvent("cup:denied")); // the peek-a-boo cup reacts
 }
 
 function clearError() {

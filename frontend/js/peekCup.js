@@ -1,10 +1,11 @@
 /* ==========================================================================
    peekCup.js — Peek-a-boo coffee cup character for the login page.
-   Idle: the pupils follow the cursor (finger on touch screens). The moment
-   a field is focused the eyes lock onto it and track the caret while the
-   user types. While the password is revealed the cup gets sneaky: arms fold
-   up over the eyes, the cup tilts sideways — and the eyes look away, up
-   and off to the side, politely refusing to watch.
+   Idle: the pupils follow the cursor (finger on touch screens). Focusing the
+   username makes the cup lean in attentively and track the caret; typing the
+   password puts it in cautious-sneaky mode (leaning, arm tucked). While the
+   password is revealed the cup tilts sideways and the eyes look away, up and
+   off to the side, politely refusing to watch. A failed login slumps it:
+   eyes drop, then it recovers on its own.
    Reduced-motion users get a still, polite cup.
    ========================================================================== */
 
@@ -19,10 +20,12 @@
     var RANGE = 5;            // max pupil travel in px (inner eye 16px - 6px pupil / 2)
     var away = false;         // looking away (password revealed)
     var focused = false;      // an input is focused — the eyes lock onto it
+    var denied = false;       // login failed — sad slump, eyes down
     var activeInput = null;   // the focused field the eyes are watching
     var px = 0, py = 0;       // applied pupil offset in px
     var lastMove = 0;
     var idleTimer = null;
+    var deniedTimer = null;
     var idlePhase = 0;
     var cupRect = null;
     var mirror = null;        // hidden span that measures the caret position
@@ -94,6 +97,8 @@
         focused = true;
         activeInput = target;
         cup.classList.add("peek-focused");
+        cup.classList.toggle("peek-pw", target.id === "password");
+        recoverDenied();
         if (target.tagName === "INPUT" && typeof target.selectionStart === "number") {
             ensureMirror();
             cacheInputMetrics(target);
@@ -110,6 +115,7 @@
         focused = false;
         activeInput = null;
         cup.classList.remove("peek-focused");
+        cup.classList.remove("peek-pw");
         stopIdle();
         schedule(); // re-apply current look; the cursor resumes on the next move
     }
@@ -137,7 +143,7 @@
     }
 
     function refreshCaret() {
-        if (!focused || !activeInput || away) return;
+        if (!focused || !activeInput || away || denied) return;
         var t = caretTarget(activeInput);
         if (!t) return; // keep the last look
         lookAt(t);
@@ -198,6 +204,33 @@
         }
     }
 
+    // A failed login (dispatched by login.js) slumps the cup: eyes drop,
+    // arms go limp via the .peek-denied rules. It recovers on its own.
+    function onDenied() {
+        if (reduceMotion || denied) return;
+        denied = true;
+        cup.classList.add("peek-denied");
+        stopIdle();
+        setLook(0, 0.55);
+        clearTimeout(deniedTimer);
+        deniedTimer = setTimeout(recoverDenied, 2500);
+    }
+
+    function recoverDenied() {
+        if (!denied) return;
+        denied = false;
+        cup.classList.remove("peek-denied");
+        clearTimeout(deniedTimer);
+        deniedTimer = null;
+        if (away) return; // still hiding — keep the averted gaze
+        if (focused) {
+            refreshCaret();
+        } else {
+            schedule();
+            startIdle();
+        }
+    }
+
     // Gentle random drift while nobody is touching the page.
     function startIdle() {
         if (reduceMotion) return;
@@ -239,6 +272,7 @@
             updateAway(passwordVisible());
         }
     });
+    document.addEventListener("cup:denied", onDenied);
 
     // Browser password managers flip the input type without our click —
     // watch the attribute so the cup still reacts.
