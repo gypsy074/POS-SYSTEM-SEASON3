@@ -10,9 +10,10 @@
    it. The moment the password is revealed the cup startles, then goes lazy
    (slouched, arms loose, serious face, steam stops) and holds its gaze up
    and away from the field — no cursor, finger or idle drift can pull it
-   back — but every few seconds it sneaks a squinting glance at the
-   password text, leaning toward it, then looks away again (sometimes a
-   cheeky double-take). Failed logins react by kind: empty fields get an
+back — but every few seconds it sneaks a squinting glance at the
+    password text, leaning toward it, then looks away again (sometimes a
+    cheeky double-take), with restless open-eyed darts to the other side
+    in between. Failed logins react by kind: empty fields get an
    annoyed shake, invalid credentials a disappointed slump with a coffee
    sputter, connection failures a quiet worried look. A successful login
    gets one happy hop with a heart puff before the transition overlay.
@@ -42,6 +43,9 @@
     var startleTimer = null;
     var sweatTimer = null;
     var sweatHold = null;
+    var sideTimer = null;
+    var sideHold = null;
+    var eyeBusy = false;      // a sneaky glance or a restless dart holds the eyes
     var lastActivity = Date.now();
     var idlePhase = 0;
     var cupRect = null;
@@ -216,6 +220,7 @@
             if (!reduceMotion) {
                 setLook(0.5, -0.8);
                 startGlance();
+                scheduleSideDart(true);
                 cup.classList.add("peek-startle");
                 clearTimeout(startleTimer);
                 startleTimer = setTimeout(function () {
@@ -243,7 +248,10 @@
     // While the password is shown the cup sneaks a quick glance at the
     // visible text every so often — squinting through half-lidded eyes —
     // then looks away again: lazy body, alert eyes. Sometimes it cannot
-    // resist a second peek (a double-take) before settling.
+    // resist a second peek (a double-take) before settling. Between these
+    // peeks the eyes also dart restlessly off to the other side now and
+    // then, like a person who cannot hold still — never squinting, and
+    // never at the field.
     function startGlance() {
         stopGlance();
         glanceTimer = setTimeout(glanceOnce, 1500);
@@ -251,8 +259,13 @@
 
     function glanceOnce() {
         if (!away) return;
+        if (eyeBusy) {
+            glanceTimer = setTimeout(glanceOnce, 250);
+            return;
+        }
         var input = document.getElementById("password");
         if (!input) return;
+        eyeBusy = true;
         cup.classList.add("peek-glance");
         glanceAtText(input);
         glanceHold = setTimeout(function () {
@@ -266,12 +279,14 @@
                     cup.classList.add("peek-glance");
                     glanceAtText(input);
                     glanceHold = setTimeout(function () {
+                        eyeBusy = false;
                         if (away) setLook(0.5, -0.8);
                         cup.classList.remove("peek-glance");
                         glanceTimer = setTimeout(glanceOnce, 2200 + Math.random() * 1400);
                     }, 180);
                 }, 160);
             } else {
+                eyeBusy = false;
                 glanceTimer = setTimeout(glanceOnce, 2200 + Math.random() * 1400);
             }
         }, 240);
@@ -305,7 +320,49 @@
             clearTimeout(glanceHold);
             glanceHold = null;
         }
+        if (sideTimer) {
+            clearTimeout(sideTimer);
+            sideTimer = null;
+        }
+        if (sideHold) {
+            clearTimeout(sideHold);
+            sideHold = null;
+        }
+        eyeBusy = false;
         cup.classList.remove("peek-glance");
+    }
+
+    // Occasional restless dart to the OTHER side — never at the password
+    // (which sits down-centre of the cup). The held gaze is up-right, so
+    // most darts flick left; the eyes snap back to the averted hold after.
+    // Plain open eyes: the squint and body-lean belong to the sneak peek.
+    function scheduleSideDart(first) {
+        clearTimeout(sideTimer);
+        sideTimer = setTimeout(dartOnce, first ? 1200 : 1000 + Math.random() * 2200);
+    }
+
+    function dartOnce() {
+        if (!away) return;
+        if (eyeBusy) {
+            scheduleSideDart(false);
+            return;
+        }
+        var targets = [
+            [-1, -1],      // up-left
+            [-1, -0.33],   // far left, mid
+            [-1, 0],       // straight left
+            [-0.3, -1],    // high up-left
+            [1, -1]        // far up-right (the other side entirely)
+        ];
+        var t = targets[Math.floor(Math.random() * targets.length)];
+        eyeBusy = true;
+        setLook(t[0], t[1]);
+        sideHold = setTimeout(function () {
+            sideHold = null;
+            eyeBusy = false;
+            if (away) setLook(0.5, -0.8);
+            scheduleSideDart(false);
+        }, 160 + Math.random() * 160);
     }
 
     // --- Idle-to-sleep: after a long stretch without any input the cup
