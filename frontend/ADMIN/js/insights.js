@@ -48,7 +48,8 @@ function renderRestockCard(items) {
                     ? `${it.stock} left · ~${it.daysLeft} day${it.daysLeft === 1 ? "" : "s"}`
                     : `${it.stock} left · no recent sales`}</span>
             </div>
-            <span class="ai-list-action">Order ${it.suggestedOrder}</span>
+            <button type="button" class="ai-restock-btn" data-ai-name="${escapeHtml(it.name)}" data-ai-qty="${it.suggestedOrder}"
+                title="Restock ${escapeHtml(it.name)} now">+ Restock ${it.suggestedOrder}</button>
         </li>`).join("")}</ul>`;
 }
 

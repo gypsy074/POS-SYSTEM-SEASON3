@@ -195,12 +195,15 @@ function getMenuPayload() {
         return null;
     }
 
+    const stockNum = Number.isFinite(stock) ? Math.max(0, stock) : 999;
+
     return {
         name,
         price,
         category,
-        status,
-        stock: Number.isFinite(stock) ? Math.max(0, stock) : 999,
+        // Running out always marks the item sold out (mirrors the server).
+        status: stockNum <= 0 ? "Out of Stock" : status,
+        stock: stockNum,
         lowStockThreshold: Number.isFinite(lowStockThreshold) ? Math.max(0, lowStockThreshold) : 10,
         image: selectedImageData ||
             (selectedProductId
@@ -342,6 +345,10 @@ function renderMenuTable(products) {
             </td>
             <td>${escapeHtml(product.status)}</td>
             <td>${escapeHtml(product.date)}</td>
+            <td>
+                <button type="button" class="restock-btn" data-restock-id="${product._id}" data-restock-type="menu"
+                    title="Restock this menu item">+ Restock</button>
+            </td>
         </tr>
     `).join("");
 }

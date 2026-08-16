@@ -318,6 +318,7 @@
                                     <th>Stock</th>
                                     <th>Status</th>
                                     <th>Date Added</th>
+                                    <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody id="menuItemsTableBody"></tbody>
@@ -392,6 +393,27 @@
                 </div>
                 <div class="content-wrapper inventory-management">
                     <section class="inventory-table-card card">
+                        <div class="inventory-stats">
+                            <span class="inv-stat-chip"><i class="fas fa-coins"></i> Total Value: <strong id="invStatValue">₱0.00</strong></span>
+                            <span class="inv-stat-chip"><i class="fas fa-cubes"></i> Items: <strong id="invStatCount">0</strong></span>
+                            <span class="inv-stat-chip inv-stat-warn"><i class="fas fa-triangle-exclamation"></i> Low Stock: <strong id="invStatLow">0</strong></span>
+                        </div>
+                        <div class="inventory-filter-row">
+                            <input type="text" id="invSearch" class="inv-filter-input" placeholder="Search products…">
+                            <select id="invFilterCategory" class="inv-filter-select">
+                                <option value="">All Categories</option>
+                                <option value="Coffee Beans">Coffee Beans</option>
+                                <option value="Syrups & Flavorings">Syrups & Flavorings</option>
+                                <option value="Sauces">Sauces</option>
+                                <option value="Paper goods & Disposables">Paper goods & Disposables</option>
+                                <option value="Cleaning & Maintenance">Cleaning & Maintenance</option>
+                            </select>
+                            <select id="invFilterStatus" class="inv-filter-select">
+                                <option value="">All Statuses</option>
+                                <option value="Available">Available</option>
+                                <option value="Sold Out">Sold Out</option>
+                            </select>
+                        </div>
                         <div class="table-scroll">
                             <table class="design-table">
                                 <thead>
@@ -400,8 +422,10 @@
                                         <th>Category</th>
                                         <th>Price</th>
                                         <th>Stock</th>
+                                        <th>Threshold</th>
                                         <th>Status</th>
                                         <th>Date</th>
+                                        <th>Action</th>
                                     </tr>
                                 </thead>
                                 <tbody id="inventoryTableBody"></tbody>
@@ -412,6 +436,14 @@
                     <section class="inventory-form-card card">
                         <div class="inventory-form-grid">
                             <div class="form-row-group">
+                                <div class="inline-input" style="flex: 2;">
+                                    <label>Link to Menu Product:</label>
+                                    <select id="invLinkedProduct">
+                                        <option value="">— None (standalone supply) —</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row-group">
                                 <div class="inline-input">
                                     <label>Product Name:</label>
                                     <input type="text" id="invProdName">
@@ -419,7 +451,7 @@
                                 <div class="inline-input">
                                     <label>Category:</label>
                                     <select id="invCategory">
-                                        <option value="Coffee Beans">Coffee</option>
+                                        <option value="Coffee Beans">Coffee Beans</option>
                                         <option value="Syrups & Flavorings">Syrups & Flavorings</option>
                                         <option value="Sauces">Sauces</option>
                                         <option value="Paper goods & Disposables">Paper goods & Disposables</option>
@@ -438,6 +470,10 @@
                                 </div>
                             </div>
                             <div class="form-row-group">
+                                <div class="inline-input">
+                                    <label>Low Stock Threshold:</label>
+                                    <input type="number" id="invThreshold" min="0" step="1" placeholder="10">
+                                </div>
                                 <div class="inline-input">
                                     <label>Status:</label>
                                     <select id="invStatus">
@@ -465,8 +501,13 @@
                     <section class="transactions-section">
                         <div class="section-header">
                             <i class="fas fa-clipboard-list"></i> Discarded Items
-                            <span class="waste-total" id="wasteTotalCost">Total Waste: â‚±0.00</span>
+                            <span class="waste-total" id="wasteTotalCost">Total Waste: ₱0.00</span>
+                            <div class="waste-filter-group" style="display: flex; gap: 10px; align-items: center; margin-left: auto;">
+                                <input type="date" id="wasteFrom" class="audit-date-filter" title="From date">
+                                <input type="date" id="wasteTo" class="audit-date-filter" title="To date">
+                            </div>
                         </div>
+                        <div class="waste-top-items" id="wasteTopItems"></div>
                         <div class="table-container">
                             <table>
                                 <thead>
@@ -536,14 +577,15 @@
     <script src="js/header.js?v=38"></script>
 
     <!-- Feature Modules -->
-    <script src="js/dashboard.js?v=41"></script>
-    <script src="js/insights.js?v=40"></script>
-<script src="js/menu.js?v=41"></script>
+    <script src="js/dashboard.js?v=42"></script>
+    <script src="js/insights.js?v=41"></script>
+<script src="js/menu.js?v=42"></script>
     <script src="js/users.js?v=41"></script>
-    <script src="js/inventory.js?v=41"></script>
+    <script src="js/inventory.js?v=42"></script>
+    <script src="js/restock.js?v=1"></script>
     <script src="js/audit.js?v=41"></script>
     <!-- Main Entry Point (runs last) -->
-    <script src="admin.js?v=41"></script>
+    <script src="admin.js?v=42"></script>
 
     <!-- Shared account/session panel -->
     <script src="js/account.js?v=39"></script>

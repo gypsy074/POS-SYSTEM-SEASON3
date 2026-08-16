@@ -539,6 +539,28 @@ function exportSalesCsv() {
 
 // ── Waste Food Panel (view + remove) ───────────────────────────────────────
 
+function setupWasteFilters() {
+    const fromEl = document.getElementById("wasteFrom");
+    const toEl   = document.getElementById("wasteTo");
+    if (fromEl) fromEl.addEventListener("change", renderWasteTable);
+    if (toEl)   toEl.addEventListener("change", renderWasteTable);
+}
+
+// The visible waste set, bounded by the from/to date filters.
+function filteredWaste() {
+    const waste = latestWaste || [];
+    const fromEl = document.getElementById("wasteFrom");
+    const toEl   = document.getElementById("wasteTo");
+    const from = fromEl && fromEl.value ? new Date(fromEl.value + "T00:00:00") : null;
+    const to   = toEl && toEl.value ? new Date(toEl.value + "T23:59:59") : null;
+    return waste.filter(entry => {
+        const d = new Date(entry.date);
+        if (from && d < from) return false;
+        if (to && d > to) return false;
+        return true;
+    });
+}
+
 async function loadWasteData() {
     try {
         const response = await apiFetch("/api/waste");
@@ -570,11 +592,29 @@ function updateWasteStat() {
     }
 }
 
+function renderWasteTopItems(filtered) {
+    const el = document.getElementById("wasteTopItems");
+    if (!el) return;
+    if (!filtered.length) {
+        el.innerHTML = "";
+        return;
+    }
+    const byName = {};
+    filtered.forEach(entry => {
+        byName[entry.productName] = (byName[entry.productName] || 0) + Number(entry.totalCost || 0);
+    });
+    const top = Object.entries(byName).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    el.innerHTML = '<span class="waste-top-label"><i class="fas fa-fire"></i> Top wasted:</span> ' +
+        top.map(([name, cost]) =>
+            `<span class="waste-top-chip">${escapeHtml(name)} · ₱${cost.toFixed(2)}</span>`
+        ).join(" ");
+}
+
 function renderWasteTable() {
     const tbody = document.getElementById("wasteTableBody");
     if (!tbody) return;
 
-    const waste = latestWaste || [];
+    const waste = filteredWaste();
 
     const totalEl = document.getElementById("wasteTotalCost");
     if (totalEl) {
@@ -582,11 +622,13 @@ function renderWasteTable() {
         totalEl.innerText = `Total Waste: ₱${total.toFixed(2)}`;
     }
 
+    renderWasteTopItems(waste);
+
     if (!waste.length) {
         tbody.innerHTML = `
             <tr>
                 <td colspan="8" style="text-align:center; color:#888; padding:22px;">
-                    No food waste logged. Everything looks great!
+                    No food waste logged${latestWaste && latestWaste.length ? " in this date range" : ""}. Everything looks great!
                 </td>
             </tr>`;
         return;
@@ -610,7 +652,16 @@ function renderWasteTable() {
     tbody.querySelectorAll(".resolve-btn").forEach(button => {
         button.addEventListener("click", async () => {
             const entryId = button.dataset.wasteId;
-            if (!confirm("Remove this waste entry from the record?")) return;
+            const entry = (latestWaste || []).find(w => w._id === entryId);
+            const confirmed = await showConfirmModal({
+                title: "Remove waste entry?",
+                message: entry
+                    ? `"${entry.productName}" × ${entry.quantity} will be removed from the waste record. This cannot be undone.`
+                    : "This waste entry will be permanently removed. This cannot be undone.",
+                confirmLabel: "Remove",
+                danger: true
+            });
+            if (!confirmed) return;
             await removeWasteEntry(entryId);
         });
     });

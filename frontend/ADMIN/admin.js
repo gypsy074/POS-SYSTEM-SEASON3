@@ -150,6 +150,13 @@ document.addEventListener("DOMContentLoaded", () => {
     // Inventory module
     setupInventoryTableSelection();
     setupInventoryActionButtons();
+    setupInventoryFilters();
+
+    // Restock flow — menu rows, inventory rows, AI suggestions
+    setupRestockButtons();
+
+    // Waste panel — date filters
+    setupWasteFilters();
 
     // Sales analytics module
     setupSalesFilterTabs();
@@ -202,6 +209,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const menuLoad = loadLiveMenuData();
     Promise.allSettled([dashboardLoad, menuLoad]).then(() => {
         renderSalesCharts(latestOrders, allProducts);
+        populateInventoryLinkSelect();
     });
 
     // Profile + waste modules

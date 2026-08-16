@@ -3345,3 +3345,205 @@ body.dark .ai-skeleton-line { background: #3a2d1f; }
         flex: 1 1 auto;
     }
 }
+/* ==========================================================================
+   INVENTORY OVERHAUL — stat chips, filters, link badges, restock flow
+   ========================================================================== */
+
+.inventory-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.inv-stat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: #f9f0e7;
+    border: 1px solid #e7d6c3;
+    color: #5a4632;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.inv-stat-chip strong { color: #2b1f15; }
+
+.inv-stat-warn { background: #fdf3e3; border-color: #f2d8a8; }
+.inv-stat-warn strong { color: #b45309; }
+
+.inventory-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.inv-filter-input {
+    flex: 1 1 200px;
+    min-width: 160px;
+    padding: 9px 14px;
+    border: 1px solid #d9c9b6;
+    border-radius: 10px;
+    background: #fff;
+    color: #2b1f15;
+    font-size: 0.9rem;
+}
+
+.inv-filter-select {
+    padding: 9px 12px;
+    border: 1px solid #d9c9b6;
+    border-radius: 10px;
+    background: #fff;
+    color: #2b1f15;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.inv-link-badge {
+    display: inline-block;
+    margin-left: 6px;
+    color: #2563eb;
+    font-size: 0.8rem;
+}
+
+.inv-row-selected td {
+    background-color: #f9f0e7 !important;
+}
+
+.restock-btn {
+    background: #16a34a;
+    border: 1px solid #15803d;
+    color: #fff;
+    padding: 5px 12px;
+    border-radius: 14px;
+    font-weight: 700;
+    font-size: 0.78rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s ease;
+}
+
+.restock-btn:hover {
+    background: #15803d;
+}
+
+/* Restock modal — reuses the confirm modal shell */
+.restock-modal-overlay .confirm-modal {
+    width: min(380px, 92vw);
+}
+
+.restock-field-label {
+    display: block;
+    margin: 0 0 5px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+}
+
+.restock-field {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    margin-bottom: 14px;
+    border: 1px solid #d9c9b6;
+    border-radius: 10px;
+    background: #fff;
+    color: #2b1f15;
+    font-size: 0.95rem;
+}
+
+.restock-field:focus {
+    outline: none;
+    border-color: #16a34a;
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
+}
+
+/* AI insights restock button */
+.ai-restock-btn {
+    background: #16a34a;
+    border: 1px solid #15803d;
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 14px;
+    font-weight: 700;
+    font-size: 0.75rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s ease;
+}
+
+.ai-restock-btn:hover { background: #15803d; }
+
+/* Waste panel — top-wasted summary + date filters */
+.waste-top-items {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    margin: 12px 0;
+    background: #fdf3e3;
+    border: 1px solid #f2d8a8;
+    border-radius: 12px;
+    font-size: 0.82rem;
+}
+
+.waste-top-label {
+    font-weight: 700;
+    color: #b45309;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.waste-top-chip {
+    background: #fff;
+    border: 1px solid #f0d9b0;
+    color: #7c4a12;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-weight: 600;
+}
+
+body.dark .inv-stat-chip {
+    background: #3a2d1f;
+    border-color: #57432c;
+    color: #d8c4a8;
+}
+
+body.dark .inv-stat-chip strong { color: #f0e6d5; }
+
+body.dark .inv-filter-input,
+body.dark .inv-filter-select {
+    background: #2e2417;
+    border-color: #57432c;
+    color: #f0e6d5;
+}
+
+body.dark .inv-row-selected td {
+    background-color: #3a2d1f !important;
+}
+
+body.dark .restock-field {
+    background: #2e2417;
+    border-color: #57432c;
+    color: #f0e6d5;
+}
+
+body.dark .restock-field-label { color: #b09a80; }
+
+body.dark .waste-top-items {
+    background: #3a2d1f;
+    border-color: #57432c;
+}
+
+body.dark .waste-top-label { color: #e8a33c; }
+
+body.dark .waste-top-chip {
+    background: #2e2417;
+    border-color: #57432c;
+    color: #e8dccb;
+}
