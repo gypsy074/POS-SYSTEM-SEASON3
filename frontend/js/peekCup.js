@@ -3,7 +3,8 @@
    Idle: the pupils follow the cursor (finger on touch screens). The moment
    a field is focused the eyes lock onto it and track the caret while the
    user types. While the password is revealed the cup gets sneaky: hands
-   cover the eyes, but it tilts sideways and keeps watching through the gap.
+   cover the eyes, and it tilts sideways to dart quick side-eye glances at
+   the caret — like sneaking a real look, then playing innocent.
    Reduced-motion users get a still, polite cup.
    ========================================================================== */
 
@@ -21,7 +22,6 @@
     var activeInput = null;   // the focused field the eyes are watching
     var px = 0, py = 0;       // applied pupil offset in px
     var lastMove = 0;
-    var rafPending = false;
     var idleTimer = null;
     var idlePhase = 0;
     var cupRect = null;
@@ -40,19 +40,15 @@
     refreshCupRect();
 
     function apply() {
-        // While the password is revealed the cup is sneaky: the hands cover
-        // the eyes, but the pupils keep tracking the caret through the gap.
         var t = "translate(" + px.toFixed(2) + "px," + py.toFixed(2) + "px)";
         for (var i = 0; i < pupils.length; i++) {
             pupils[i].style.transform = t;
         }
-        rafPending = false;
     }
 
     function schedule() {
-        if (rafPending || reduceMotion) return;
-        rafPending = true;
-        requestAnimationFrame(apply);
+        if (reduceMotion) return;
+        apply();
     }
 
     function setLook(nx, ny) {
@@ -186,7 +182,9 @@
         apply();
         if (isAway) {
             stopIdle();
+            startSideEye();
         } else {
+            stopSideEye();
             lastMove = 0;
             // Back to watching: snap straight onto the caret again.
             if (focused) {
@@ -196,6 +194,36 @@
             }
             startIdle();
         }
+    }
+
+    // --- Side-eye sneaking ------------------------------------------------
+    // Real life body language: when the password is revealed the cup does NOT
+    // stare at it. Instead it glances over quickly (at the caret), then looks
+    // up innocently, then glances again — short furtive side eyes.
+    var sideEyeToken = 0;
+
+    function startSideEye() {
+        if (reduceMotion) return;
+        stopSideEye();
+        var token = ++sideEyeToken;
+        setTimeout(function () { sideEyeGlance(token); }, 700);
+    }
+
+    function sideEyeGlance(token) {
+        if (token !== sideEyeToken || !away) return;
+        refreshCaret(); // dart to the caret
+        setTimeout(function () {
+            if (token !== sideEyeToken || !away) return;
+            setLook(0, -0.3); // …and play innocent, looking up
+            setTimeout(function () {
+                sideEyeGlance(token); // loop: another glance in ~2s
+            }, 1950);
+        }, 450);
+    }
+
+    function stopSideEye() {
+        window.__pcLog.push("stop");
+        sideEyeToken++;
     }
 
     // Gentle random drift while nobody is touching the page.
