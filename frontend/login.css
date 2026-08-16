@@ -154,9 +154,9 @@ body {
     width: 22px;
     height: 34px;
     border: 3px solid #d8c4a8;
-    border-left: none;
+    border-left: 3px solid #f5ede3; /* body-colored left edge hides the seam where the handle meets the cup */
     border-radius: 0 14px 14px 0;
-    background: #f5ede3; /* same as the cup body — hides the seam where they meet */
+    background: transparent;
 }
 
 /* Face */
