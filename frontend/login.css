@@ -125,6 +125,7 @@ body {
     border-radius: 8px 8px 18px 18px;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
     transform-origin: 50% 100%;
+    transition: transform 0.4s ease; /* eases back to rest after a shake or hop */
 }
 
 /* Coffee surface with crema line */
@@ -201,6 +202,7 @@ body {
     height: 7px;
     border-bottom: 3px solid #3a2417;
     border-radius: 0 0 14px 14px;
+    transition: width 0.25s ease, height 0.25s ease, border-width 0.25s ease, border-radius 0.25s ease, transform 0.25s ease;
 }
 
 .peek-blush {
@@ -253,6 +255,7 @@ body {
     border-radius: 2px;
     z-index: 1;
     transform-origin: 50% 0;
+    transition: transform 0.35s ease; /* the tap slows to a stop instead of freezing */
 }
 .peek-foot-shin {
     position: absolute;
@@ -263,6 +266,7 @@ body {
     background: #3a2417;
     border-radius: 2px;
     transform-origin: 50% 0;
+    transition: transform 0.35s ease;
 }
 .peek-foot-l { left: 22px; }
 .peek-foot-r { right: 22px; }
@@ -366,6 +370,8 @@ body {
     transform: translateX(-50%);
 }
 .peek-pw .peek-eye { animation-duration: 6s; } /* deep focus — slower blink */
+/* The squint lids fade open and closed rather than popping. */
+.peek-eye::after { transition: opacity 0.18s ease; }
 .peek-pw .peek-eye::after {
     content: "";
     position: absolute;
@@ -377,6 +383,7 @@ body {
     border-bottom: 2px solid #3a2417;
     border-radius: 50% 50% 0 0;
     z-index: 2;
+    opacity: 1;
 }
 
 /* Password revealed — lazy and alert (declared after .peek-pw so it wins
@@ -407,10 +414,10 @@ body {
     border-radius: 0; /* flat, serious line */
     transform: translateX(-50%);
 }
-.peek-away .peek-eye::after { display: none; } /* serious face — lids stay up until a sneaky glance */
+.peek-away .peek-eye::after { opacity: 0; } /* serious face — lids stay up until a sneaky glance */
 
 /* The sneaky glance squint: declared after .peek-away so it beats the
-   lid-suppress — the lids droop halfway while the eyes dart at the
+   lid fade — the lids droop halfway while the eyes dart at the
    password, then lift again. (peekCup.js toggles .peek-glance.) */
 .peek-glance .peek-eye::after {
     content: "";
@@ -423,6 +430,7 @@ body {
     border-bottom: 2px solid #3a2417;
     border-radius: 50% 50% 0 0;
     z-index: 2;
+    opacity: 1;
 }
 
 /* Login failed — disappointed slump: one quick shake of the head, then the
