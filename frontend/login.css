@@ -44,7 +44,8 @@ body {
     padding: 22px;
     opacity: 0.3;
     filter: blur(7px) saturate(0.85) brightness(0.9);
-    transform: scale(1.08); /* hide blur edge bleed */
+    /* Slow cinematic drift (Ken Burns) — scale covers the blur edge bleed */
+    animation: wallDrift 28s ease-in-out infinite alternate;
 }
 
 .cafe-wall img {
@@ -83,6 +84,8 @@ body {
     position: relative;
     z-index: 1;
     margin: 7vh auto 0;
+    /* The card settles in first; children cascade in after it */
+    animation: cardSettle 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 /* Dynamic Date Tag Floating At Top Center */
@@ -141,6 +144,46 @@ body {
     from { opacity: 0; transform: translateY(24px); }
     to   { opacity: 1; transform: translateY(0); }
 }
+
+/* Frosted card rises and settles over the photo wall */
+@keyframes cardSettle {
+    from { opacity: 0; transform: translateY(28px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Slow cinematic drift for the cafe photo wall (Ken Burns) */
+@keyframes wallDrift {
+    from { transform: scale(1.06) translate3d(-12px, -8px, 0); }
+    to   { transform: scale(1.16) translate3d(12px, 10px, 0); }
+}
+
+/* Page-scale steam rising from behind the login card */
+@keyframes pageSteam {
+    0%   { opacity: 0; transform: translateY(10px) scaleX(1); }
+    30%  { opacity: 0.55; }
+    100% { opacity: 0; transform: translateY(-130px) scaleX(1.7); }
+}
+
+.login-steam {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.login-steam .steam {
+    bottom: auto;
+    top: 52vh; /* starts behind the card, rises through it and out the top */
+    width: 7px;
+    height: 34px;
+    background: rgba(255, 235, 205, 0.5);
+    animation: pageSteam 2.8s ease-out infinite;
+}
+
+.login-steam .steam-1 { left: 41%; animation-delay: 0s; }
+.login-steam .steam-2 { left: 49%; animation-delay: 0.95s; }
+.login-steam .steam-3 { left: 57%; animation-delay: 1.9s; }
 
 @keyframes logoPop {
     from { opacity: 0; transform: scale(0.8); }
