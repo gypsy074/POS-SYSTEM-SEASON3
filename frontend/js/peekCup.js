@@ -1,10 +1,10 @@
 /* ==========================================================================
    peekCup.js — Peek-a-boo coffee cup character for the login page.
-   The cup's pupils follow the cursor; on touch devices (no cursor) they
-   follow whichever field is focused. While the password is being typed the
-   cup keeps watching, but the moment the password is revealed (Show
-   password / a browser password manager) the cup looks away and half-closes
-   its eyes. Reduced-motion users get a still, polite cup.
+   Idle: the pupils follow the cursor (finger on touch screens). The moment
+   a field is focused the eyes lock onto it and track the caret while the
+   user types. While the password is revealed the cup refuses to peek and
+   points the opposite way of the caret. Reduced-motion users get a still,
+   polite cup.
    ========================================================================== */
 
 (function () {
@@ -18,12 +18,15 @@
     var RANGE = 5;            // max pupil travel in px (inner eye 16px - 6px pupil / 2)
     var away = false;         // looking away (password revealed)
     var focused = false;      // an input is focused — the eyes lock onto it
+    var activeInput = null;   // the focused field the eyes are watching
     var px = 0, py = 0;       // applied pupil offset in px
     var lastMove = 0;
     var rafPending = false;
     var idleTimer = null;
     var idlePhase = 0;
     var cupRect = null;
+    var mirror = null;        // hidden span that measures the caret position
+    var mirrorCss = null;     // cached font metrics of the focused input
 
     function refreshCupRect() {
         try {
@@ -95,10 +98,15 @@
         if (!target || typeof target.getBoundingClientRect !== "function") return;
         if (!/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
         focused = true;
-        var r = target.getBoundingClientRect();
-        var cx = cupRect ? cupRect.left + cupRect.width / 2 : window.innerWidth / 2;
-        var cy = cupRect ? cupRect.top + cupRect.height / 2 : window.innerHeight / 2;
-        setLook(((r.left + r.width / 2) - cx) / (window.innerWidth / 2), ((r.top + r.height / 2) - cy) / (window.innerHeight / 2));
+        activeInput = target;
+        cup.classList.add("peek-focused");
+        if (target.tagName === "INPUT" && typeof target.selectionStart === "number") {
+            ensureMirror();
+            cacheInputMetrics(target);
+            refreshCaret();
+        } else {
+            lookAtFieldCenter(target);
+        }
     }
 
     function onFocusOut(e) {
@@ -106,8 +114,71 @@
         var next = e.relatedTarget;
         if (next && /^(INPUT|TEXTAREA|SELECT)$/.test(next.tagName)) return; // jumped to another field — keep locked
         focused = false;
+        activeInput = null;
+        cup.classList.remove("peek-focused");
         stopIdle();
         schedule(); // re-apply current look; the cursor resumes on the next move
+    }
+
+    // --- Caret tracking -----------------------------------------------------
+    // A hidden span copies the input's font metrics and holds the text before
+    // the caret; its width locates the caret inside the field.
+    function ensureMirror() {
+        if (mirror) return;
+        mirror = document.createElement("span");
+        mirror.setAttribute("aria-hidden", "true");
+        mirror.style.cssText = "position:absolute;visibility:hidden;white-space:pre;pointer-events:none;left:0;top:0;";
+        document.body.appendChild(mirror);
+    }
+
+    function cacheInputMetrics(input) {
+        var cs = getComputedStyle(input);
+        mirrorCss = {
+            font: cs.font,
+            paddingLeft: parseFloat(cs.paddingLeft) || 0,
+            borderLeft: parseFloat(cs.borderLeftWidth) || 0,
+            letterSpacing: cs.letterSpacing,
+            textTransform: cs.textTransform
+        };
+    }
+
+    function refreshCaret() {
+        if (!focused || !activeInput) return;
+        var t = caretTarget(activeInput);
+        if (!t) return; // keep the last look
+        lookAt(t);
+    }
+
+    function caretTarget(input) {
+        if (!mirror || !mirrorCss) return null;
+        var start;
+        try { start = input.selectionStart; } catch (err) { return null; }
+        if (typeof start !== "number" || start < 0) return null;
+        // Masked password dots advance like the real characters, so mirror a
+        // bullet per character instead of the raw text.
+        var text = input.type === "password"
+            ? new Array(start + 1).join("\u2022")
+            : String(input.value || "").slice(0, start);
+        mirror.style.font = mirrorCss.font;
+        mirror.style.letterSpacing = mirrorCss.letterSpacing;
+        mirror.style.textTransform = mirrorCss.textTransform;
+        mirror.textContent = text;
+        var r = input.getBoundingClientRect();
+        return {
+            x: r.left + mirrorCss.paddingLeft + mirrorCss.borderLeft + mirror.offsetWidth,
+            y: r.top + r.height / 2
+        };
+    }
+
+    function lookAt(t) {
+        var cx = cupRect ? cupRect.left + cupRect.width / 2 : window.innerWidth / 2;
+        var cy = cupRect ? cupRect.top + cupRect.height / 2 : window.innerHeight / 2;
+        setLook((t.x - cx) / (window.innerWidth / 2), (t.y - cy) / (window.innerHeight / 2));
+    }
+
+    function lookAtFieldCenter(target) {
+        var r = target.getBoundingClientRect();
+        lookAt({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
     }
 
     function updateAway(isAway) {
@@ -119,7 +190,12 @@
             stopIdle();
         } else {
             lastMove = 0;
-            schedule();
+            // Back to watching: snap straight onto the caret again.
+            if (focused) {
+                refreshCaret();
+            } else {
+                schedule();
+            }
             startIdle();
         }
     }
@@ -154,6 +230,12 @@
     document.addEventListener("touchmove", onTouch, { passive: true });
     document.addEventListener("focusin", onFocusIn);
     document.addEventListener("focusout", onFocusOut);
+    document.addEventListener("input", function (e) {
+        if (e.target === activeInput) refreshCaret();
+    });
+    document.addEventListener("selectionchange", function () {
+        if (activeInput && document.activeElement === activeInput) refreshCaret();
+    });
     document.addEventListener("click", function (e) {
         if (e.target && e.target.closest && e.target.closest(".password-toggle")) {
             updateAway(passwordVisible());

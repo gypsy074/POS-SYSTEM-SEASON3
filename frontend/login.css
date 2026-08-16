@@ -124,6 +124,7 @@ body {
     border: 3px solid #d8c4a8;
     border-radius: 8px 8px 18px 18px;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+    transform-origin: 50% 100%;
 }
 
 /* Coffee surface with crema line */
@@ -213,12 +214,61 @@ body {
 .peek-blush-l { left: 17px; }
 .peek-blush-r { right: 17px; }
 
+/* Body language: the cup gently sways and breathes while waiting… */
+@keyframes cupSway {
+    0%, 100% { transform: rotate(0deg) translateY(0); }
+    50% { transform: rotate(-1.6deg) translateY(-1.5px); }
+}
+.peek-cup-body { animation: cupSway 3.6s ease-in-out infinite; }
+
+/* …and leans in attentively while the user types. */
+@keyframes cupLean {
+    0%, 100% { transform: rotate(-2deg) translateY(0); }
+    50% { transform: rotate(-3.2deg) translateY(-1px); }
+}
+.peek-focused .peek-cup-body { animation: cupLean 2.8s ease-in-out infinite; }
+
+/* Blink: both eyes shut together for a moment, roughly every 4.5s. */
+@keyframes cupBlink {
+    0%, 90%, 100% { transform: scaleY(1); }
+    95% { transform: scaleY(0.12); }
+}
+.peek-eye { animation: cupBlink 4.5s ease-in-out infinite; }
+
+/* Mouth: a gentle sip pulse on the smile. */
+@keyframes mouthSip {
+    0%, 100% { transform: translateX(-50%) scaleY(1); }
+    50% { transform: translateX(-50%) scaleY(0.55); }
+}
+.peek-mouth {
+    animation: mouthSip 3.6s ease-in-out infinite;
+    transition: width 0.3s ease, height 0.3s ease, border-radius 0.3s ease, border-bottom-width 0.3s ease, border-width 0.3s ease;
+}
+
+/* Brighter grin while locked onto an input. */
+.peek-focused .peek-mouth {
+    width: 20px;
+    height: 9px;
+    border-radius: 0 0 12px 12px;
+    animation: mouthSip 2.4s ease-in-out infinite;
+}
+
 /* Password revealed: the pupils point the opposite way of the cursor and
-   the cup gives a shy tilt — it refuses to peek. */
+   the cup gives a shy tilt — it refuses to peek. The sway stops so the
+   tilt can take over, and the mouth turns into a small surprised "o". */
 .peek-away .peek-cup-body {
+    animation: none;
     transform: rotate(6deg);
     transition: transform 0.22s ease;
     transform-origin: 50% 100%;
+}
+.peek-away .peek-mouth {
+    animation: none;
+    width: 11px;
+    height: 11px;
+    border: 2px solid #3a2417;
+    border-bottom-width: 2px;
+    border-radius: 50%;
 }
 
 .logo-container {
