@@ -242,18 +242,6 @@ body {
     align-items: center;
 }
 
-.build-version-badge {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--primary-color, #7c3aed);
-    background: color-mix(in srgb, var(--primary-color, #7c3aed) 12%, transparent);
-    border: 1px solid color-mix(in srgb, var(--primary-color, #7c3aed) 30%, transparent);
-    border-radius: 999px;
-    padding: 4px 10px;
-    white-space: nowrap;
-    user-select: none;
-}
-
 .icon-circle {
     width: 45px;
     height: 45px;
