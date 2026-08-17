@@ -1,0 +1,10 @@
+flowchart LR
+    A["Cashier picks items"] --> B["POST /api/orders"]
+    B --> C{"Linked ingredients<br/>enough stock?"}
+    C -- "NO" --> D["409 Shortage blocked<br/>'name (needs productName)'"]
+    C -- "YES" --> E["Order saved<br/>ingredient stock −= unitsPerSale × qty"]
+    E --> F["Audit log entry"]
+    E --> G["Dashboard / insights update"]
+    H["Void order"] --> I["Ingredient stock restored<br/>+ unitsPerSale × qty"]
+    I --> F
+    J["Manual stock edit / restock"] -. "never propagates (independent ledgers)" .-> E

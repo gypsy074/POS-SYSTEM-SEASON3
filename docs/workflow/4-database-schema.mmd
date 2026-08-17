@@ -1,0 +1,61 @@
+erDiagram
+    PRODUCTS ||--o{ ORDERS : "sold in"
+    PRODUCTS ||--o{ INVENTORYITEMS : "linked supply"
+    PRODUCTS ||--o{ WASTEITEMS : "wasted as"
+    USERS ||--o{ ORDERS : "cashier"
+    USERS ||--o{ WASTEITEMS : "logged by"
+    USERS ||--o{ SESSIONS : "holds"
+    USERS ||--o{ AUDITLOGS : "acted by"
+
+    PRODUCTS {
+        ObjectId _id PK
+        string name
+        number price
+        string category
+        number stock
+        string status
+        string image
+    }
+    INVENTORYITEMS {
+        ObjectId _id PK
+        ObjectId productId FK
+        string name
+        number unitsPerSale
+        number stock
+        number threshold
+    }
+    ORDERS {
+        ObjectId _id PK
+        array items
+        number qty
+        string cashier
+        number total
+        date createdAt
+    }
+    WASTEITEMS {
+        ObjectId _id PK
+        string item
+        number qty
+        string reason
+        string cashier
+        date createdAt
+    }
+    USERS {
+        ObjectId _id PK
+        string username
+        string passwordHash
+        string role
+    }
+    SESSIONS {
+        ObjectId _id PK
+        ObjectId userId FK
+        string token
+        date expiresAt
+    }
+    AUDITLOGS {
+        ObjectId _id PK
+        string action
+        string user
+        string target
+        date createdAt
+    }

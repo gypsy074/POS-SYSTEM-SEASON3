@@ -2,7 +2,8 @@
 
 > These diagrams are Mermaid — they render as images on GitHub, in VS Code
 > (extension: *Markdown Preview Mermaid Support*), and on mermaid.live
-> (paste the code, download PNG).
+> (paste the code, download PNG). Ready-made PNG images are in
+> [docs/workflow/](docs/workflow/) — see [PNG versions](#6-png-versions).
 
 ## 1. System architecture
 
@@ -162,3 +163,22 @@ flowchart LR
         J -. mirrors .-> D
     end
 ```
+
+## 6. PNG versions
+
+Ready-made images (no extensions needed) — also under `docs/workflow/`:
+
+### 1. System architecture
+![System architecture](docs/workflow/1-system-architecture.png)
+
+### 2. Order lifecycle (ingredient ledger)
+![Order lifecycle](docs/workflow/2-order-lifecycle.png)
+
+### 3. Offline flow (per device)
+![Offline flow](docs/workflow/3-offline-flow.png)
+
+### 4. Database schema (MongoDB — 7 collections)
+![Database schema](docs/workflow/4-database-schema.png)
+
+### 5. Deployment
+![Deployment](docs/workflow/5-deployment.png)

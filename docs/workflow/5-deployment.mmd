@@ -1,0 +1,15 @@
+flowchart LR
+    subgraph cloud_deploy["CLOUD"]
+        A["git push origin ulan"] --> B["POST Render deploy hook"]
+        B --> C["Render rebuilds + restarts season3-pos"]
+        C --> D["Live site + Atlas DB"]
+    end
+
+    subgraph laptop_deploy["CÁFÉ LAPTOP"]
+        E["Copy project → npm install"] --> F["backend/.env (local URIs + ATLAS_MONGO_URI)"]
+        F --> G["npm run restore -- &lt;backup folder&gt;"]
+        G --> H["NSSM install Season3POS → service"]
+        H --> I["Devices open http://&lt;laptop-IP&gt;:3000"]
+        I --> J["Scheduled daily: npm run backup + npm run mirror"]
+        J -. mirrors .-> D
+    end
