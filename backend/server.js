@@ -1163,7 +1163,11 @@ const payload = normalizeWastePayload(req.body);
 app.delete('/api/waste/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid waste id' });
-        await WasteItem.findByIdAndDelete(req.params.id);
+        const deleted = await WasteItem.findByIdAndDelete(req.params.id);
+        if (deleted) {
+            writeLog('waste.delete', req.user.username, req.params.id,
+                `Removed waste entry "${deleted.productName}" × ${deleted.quantity} (₱${Number(deleted.totalCost || 0).toFixed(2)})`);
+        }
         res.json({ message: 'Waste entry removed' });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });

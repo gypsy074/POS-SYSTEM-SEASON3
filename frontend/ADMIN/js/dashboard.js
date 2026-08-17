@@ -662,20 +662,39 @@ function renderWasteTable() {
                 danger: true
             });
             if (!confirmed) return;
-            await removeWasteEntry(entryId);
+            await removeWasteEntry(entryId, button);
         });
     });
 }
 
-async function removeWasteEntry(entryId) {
+async function removeWasteEntry(entryId, button) {
+    const originalLabel = button ? button.textContent : "";
+    if (button) {
+        button.disabled = true;
+        button.textContent = "Removing…";
+    }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
     try {
-        const response = await apiFetch(`/api/waste/${entryId}`, { method: "DELETE" });
+        const response = await apiFetch(`/api/waste/${entryId}`, { method: "DELETE", signal: controller.signal });
         if (!response.ok) throw new Error("Failed to delete waste entry");
 
-        await Promise.all([loadWasteData(), loadLiveDashboardData()]);
+        showToast("Waste entry removed.", "success");
+        await loadWasteData();
+        loadLiveDashboardData();
     } catch (err) {
-        console.error("❌ Waste removal error:", err);
-        showToast("Failed to remove the waste entry.", "error");
+        if (err.name === "AbortError") {
+            showToast("The server took too long — refresh to check whether the entry was removed.", "error");
+        } else {
+            console.error("❌ Waste removal error:", err);
+            showToast("Failed to remove the waste entry.", "error");
+        }
+    } finally {
+        clearTimeout(timeoutId);
+        if (button) {
+            button.disabled = false;
+            button.textContent = originalLabel;
+        }
     }
 }
 
