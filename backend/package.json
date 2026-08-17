@@ -8,6 +8,8 @@
     "dev": "node server.js",
     "test": "jest --runInBand",
     "backup": "node scripts/backup.js",
+    "restore": "node scripts/restore.js",
+    "mirror": "node scripts/mirror.js",
     "reset-admin-password": "node scripts/reset-admin-password.js"
   },
   "keywords": [],
