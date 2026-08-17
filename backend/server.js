@@ -1169,10 +1169,11 @@ app.delete('/api/waste/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid waste id' });
         const deleted = await WasteItem.findByIdAndDelete(req.params.id);
-        if (deleted) {
-            writeLog('waste.delete', req.user.username, req.params.id,
-                `Removed waste entry "${deleted.productName}" × ${deleted.quantity} (₱${Number(deleted.totalCost || 0).toFixed(2)})`);
-        }
+        writeLog('waste.delete', req.user.username, req.params.id,
+            deleted
+                ? `Removed waste entry "${deleted.productName}" × ${deleted.quantity} (₱${Number(deleted.totalCost || 0).toFixed(2)})`
+                : `DELETE matched nothing (id: ${req.params.id})`);
+        if (!deleted) return res.status(404).json({ error: 'Waste entry not found' });
         res.json({ message: 'Waste entry removed' });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
