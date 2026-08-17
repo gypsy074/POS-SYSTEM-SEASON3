@@ -257,14 +257,13 @@ function isValidObjectId(id) {
 
 // Matches a document by id whether the stored _id is a plain string (older
 // data rebuilt from raw JSON backups) or a proper ObjectId (new writes).
-// Mongoose's findById casts the input to ObjectId, which silently misses the
-// string form — so every _id lookup goes through this filter instead.
+// A $expr/$toString comparison is used because mongoose casts regular
+// { _id: ... } filters to the schema's ObjectId type, silently missing the
+// string form — while $expr values are never cast. So every _id lookup goes
+// through this filter instead.
 function idMatchFilter(rawId) {
     const str = String(rawId || '');
-    if (isValidObjectId(str)) {
-        return { $or: [{ _id: str }, { _id: new mongoose.Types.ObjectId(str) }] };
-    }
-    return { _id: str };
+    return { $expr: { $eq: [{ $toString: '$_id' }, str] } };
 }
 
 function isBcryptHash(value) {
