@@ -255,6 +255,18 @@ function isValidObjectId(id) {
     return mongoose.Types.ObjectId.isValid(id);
 }
 
+// Matches a document by id whether the stored _id is a plain string (older
+// data rebuilt from raw JSON backups) or a proper ObjectId (new writes).
+// Mongoose's findById casts the input to ObjectId, which silently misses the
+// string form — so every _id lookup goes through this filter instead.
+function idMatchFilter(rawId) {
+    const str = String(rawId || '');
+    if (isValidObjectId(str)) {
+        return { $or: [{ _id: str }, { _id: new mongoose.Types.ObjectId(str) }] };
+    }
+    return { _id: str };
+}
+
 function isBcryptHash(value) {
     return typeof value === 'string' && /^\$2[abxy]\$/.test(value);
 }
@@ -395,7 +407,7 @@ function touchUserActivity(userId) {
     const now = Date.now();
     if (now - (activityThrottle.get(key) || 0) < 60 * 1000) return;
     activityThrottle.set(key, now);
-    User.updateOne({ _id: userId }, { $set: { lastActiveAt: new Date() } }).catch(() => {});
+    User.updateOne(idMatchFilter(userId), { $set: { lastActiveAt: new Date() } }).catch(() => {});
 }
 
 function signToken(user) {
@@ -648,7 +660,7 @@ app.put('/api/auth/password', authRequired(), async (req, res) => {
         if (String(newPassword).length < 8) {
             return res.status(400).json({ error: 'New password must be at least 8 characters.' });
         }
-        const user = await User.findById(req.user.id);
+        const user = await User.findOne(idMatchFilter(req.user.id));
         if (!user) return res.status(404).json({ error: 'User not found' });
 
         let passwordMatches;
@@ -785,7 +797,7 @@ app.delete('/api/orders/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order id' });
 
-        const order = await Order.findById(req.params.id);
+const order = await Order.findOne(idMatchFilter(req.params.id));
         if (!order) return res.status(404).json({ error: 'Order not found' });
 
         // Paid orders must be voided first: hard-deleting them would silently
@@ -796,7 +808,7 @@ app.delete('/api/orders/:id', authRequired(['Admin']), async (req, res) => {
             return res.status(409).json({ error: 'Void the order first. Deleting a paid order would corrupt sales history.' });
         }
 
-        await Order.findByIdAndDelete(req.params.id);
+        await Order.findOneAndDelete(idMatchFilter(req.params.id));
         writeLog('order.delete', req.user.username, req.params.id, `Order ${req.params.id} hard-deleted (was voided)`);
         res.json({ message: 'Order successfully deleted' });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -808,7 +820,7 @@ app.patch('/api/orders/:id/void', authRequired(), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order id' });
 
-        const order = await Order.findById(req.params.id);
+const order = await Order.findOne(idMatchFilter(req.params.id));
         if (!order) return res.status(404).json({ error: 'Order not found' });
         if (order.status === "Voided") {
             return res.status(409).json({ error: 'Order is already voided.' });
@@ -899,7 +911,7 @@ app.put('/api/products/:id', authRequired(['Admin']), async (req, res) => {
         // Running out always marks the item sold out — even when the form
         // sends a status. Restocking revives it unless the form explicitly
         // keeps it hidden on "Out of Stock" hold.
-        const existing = await Product.findById(req.params.id);
+const existing = await Product.findOne(idMatchFilter(req.params.id));
         if (update.stock !== undefined) {
             if (update.stock <= 0) {
                 update.status = 'Out of Stock';
@@ -907,7 +919,7 @@ app.put('/api/products/:id', authRequired(['Admin']), async (req, res) => {
                 update.status = 'Available';
             }
         }
-        const updated = await Product.findByIdAndUpdate(req.params.id, update, { new: true });
+        const updated = await Product.findOneAndUpdate(idMatchFilter(req.params.id), update, { new: true });
         if (!updated) return res.status(404).json({ error: 'Product not found' });
         if (existing) {
             const bits = [];
@@ -925,7 +937,7 @@ app.put('/api/products/:id', authRequired(['Admin']), async (req, res) => {
 app.delete('/api/products/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid product id' });
-        const deleted = await Product.findByIdAndDelete(req.params.id);
+const deleted = await Product.findOneAndDelete(idMatchFilter(req.params.id));
         writeLog('product.delete', req.user.username, req.params.id,
             deleted ? `Deleted product "${deleted.name}"` : `Delete attempt on missing product ${req.params.id}`);
         res.json({ message: 'Product successfully scrubbed from database' });
@@ -943,10 +955,10 @@ app.post('/api/products/:id/restock', authRequired(['Admin']), async (req, res) 
             return res.status(400).json({ error: 'Restock quantity must be a number above zero.' });
         }
         const reason = String((req.body && req.body.reason) || "").trim().slice(0, 100) || "Manual restock";
-        const product = await Product.findById(req.params.id);
+const product = await Product.findOne(idMatchFilter(req.params.id));
         if (!product) return res.status(404).json({ error: 'Product not found' });
-        const updated = await Product.findByIdAndUpdate(
-            req.params.id,
+        const updated = await Product.findOneAndUpdate(
+            idMatchFilter(req.params.id),
             { $inc: { stock: quantity }, status: "Available" },
             { new: true }
         );
@@ -999,7 +1011,7 @@ app.put('/api/users/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid user id' });
 
-        const existing = await User.findById(req.params.id);
+const existing = await User.findOne(idMatchFilter(req.params.id));
         if (!existing) return res.status(404).json({ error: 'User profile not found' });
 
         const update = { ...req.body };
@@ -1019,7 +1031,7 @@ app.put('/api/users/:id', authRequired(['Admin']), async (req, res) => {
             delete update.password;
         }
 
-        const updated = await User.findByIdAndUpdate(req.params.id, update, { new: true });
+        const updated = await User.findOneAndUpdate(idMatchFilter(req.params.id), update, { new: true });
 
         // Password was reset — kill every session so the old password
         // stops working everywhere immediately.
@@ -1040,7 +1052,7 @@ app.put('/api/users/:id', authRequired(['Admin']), async (req, res) => {
 app.delete('/api/users/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid user id' });
-        const deleted = await User.findByIdAndDelete(req.params.id);
+const deleted = await User.findOneAndDelete(idMatchFilter(req.params.id));
         writeLog('user.delete', req.user.username, req.params.id,
             deleted ? `Deleted account "${deleted.username}"` : `Delete attempt on missing account ${req.params.id}`);
         res.json({ message: 'User account deactivated and erased' });
@@ -1057,7 +1069,7 @@ app.post('/api/inventory', authRequired(['Admin']), async (req, res) => {
         const input = { ...req.body };
         let product = null;
         if (input.menuProductId && isValidObjectId(input.menuProductId)) {
-            product = await Product.findById(input.menuProductId);
+            product = await Product.findOne(idMatchFilter(input.menuProductId));
         }
         const payload = inventoryFromPayload(input, product, {});
         if (!payload.productName || !Number.isFinite(payload.price) || !Number.isFinite(payload.stock)) {
@@ -1077,19 +1089,19 @@ app.post('/api/inventory', authRequired(['Admin']), async (req, res) => {
 app.put('/api/inventory/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid inventory token id' });
-        const existing = await InventoryItem.findById(req.params.id);
+const existing = await InventoryItem.findOne(idMatchFilter(req.params.id));
         if (!existing) return res.status(404).json({ error: 'Inventory stock line item not found' });
         const input = { ...req.body };
         let product = null;
         if (input.menuProductId && isValidObjectId(input.menuProductId)) {
-            product = await Product.findById(input.menuProductId);
+            product = await Product.findOne(idMatchFilter(input.menuProductId));
         }
         const update = inventoryFromPayload(input, product, existing);
         // Auto-sync status from stock unless the form chose one explicitly.
         if (input.status === undefined) {
             update.status = update.stock > 0 ? 'Available' : 'Sold Out';
         }
-        const updated = await InventoryItem.findByIdAndUpdate(req.params.id, { $set: update }, { new: true });
+        const updated = await InventoryItem.findOneAndUpdate(idMatchFilter(req.params.id), { $set: update }, { new: true });
         const bits = [];
         if (existing.stock !== updated.stock) bits.push('stock ' + existing.stock + ' → ' + updated.stock);
         if (Number(existing.lowStockThreshold || 0) !== Number(updated.lowStockThreshold || 0)) bits.push('threshold ' + existing.lowStockThreshold + ' → ' + updated.lowStockThreshold);
@@ -1103,7 +1115,7 @@ app.put('/api/inventory/:id', authRequired(['Admin']), async (req, res) => {
 app.delete('/api/inventory/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid inventory id' });
-        const deleted = await InventoryItem.findByIdAndDelete(req.params.id);
+const deleted = await InventoryItem.findOneAndDelete(idMatchFilter(req.params.id));
         writeLog('inventory.delete', req.user.username, req.params.id,
             deleted ? `Deleted inventory "${deleted.productName}"` : `Delete attempt on missing inventory ${req.params.id}`);
         res.json({ message: 'Inventory asset profile cleared from active system records' });
@@ -1119,10 +1131,10 @@ app.post('/api/inventory/:id/restock', authRequired(['Admin']), async (req, res)
             return res.status(400).json({ error: 'Restock quantity must be a number above zero.' });
         }
         const reason = String((req.body && req.body.reason) || "").trim().slice(0, 100) || "Manual restock";
-        const item = await InventoryItem.findById(req.params.id);
+const item = await InventoryItem.findOne(idMatchFilter(req.params.id));
         if (!item) return res.status(404).json({ error: 'Inventory item not found' });
-        const updated = await InventoryItem.findByIdAndUpdate(
-            req.params.id,
+        const updated = await InventoryItem.findOneAndUpdate(
+            idMatchFilter(req.params.id),
             { $inc: { stock: quantity }, status: "Available" },
             { new: true }
         );
@@ -1168,7 +1180,7 @@ const payload = normalizeWastePayload(req.body);
 app.delete('/api/waste/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid waste id' });
-        const deleted = await WasteItem.findByIdAndDelete(req.params.id);
+        const deleted = await WasteItem.findOneAndDelete(idMatchFilter(req.params.id));
         writeLog('waste.delete', req.user.username, req.params.id,
             deleted
                 ? `Removed waste entry "${deleted.productName}" × ${deleted.quantity} (₱${Number(deleted.totalCost || 0).toFixed(2)})`

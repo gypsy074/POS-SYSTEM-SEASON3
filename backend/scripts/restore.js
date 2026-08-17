@@ -37,6 +37,16 @@ const path = require('path');
         process.exit(1);
     }
 
+    // Backup JSON serializes ObjectIds as plain hex strings. Revive them so
+    // restored documents keep real ObjectId _ids — otherwise every id lookup
+    // in the API (findById etc.) would silently miss these documents.
+    function reviveDocumentIds(doc) {
+        if (doc && typeof doc._id === 'string' && /^[0-9a-fA-F]{24}$/.test(doc._id)) {
+            doc._id = new mongoose.Types.ObjectId(doc._id);
+        }
+        return doc;
+    }
+
     try {
         await mongoose.connect(uri, { serverSelectionTimeoutMS: 20000 });
         const db = mongoose.connection.db;
@@ -52,7 +62,7 @@ const path = require('path');
             const collection = db.collection(collectionName);
             await collection.deleteMany({});
             if (docs.length) {
-                await collection.insertMany(docs, { ordered: false });
+                await collection.insertMany(docs.map(reviveDocumentIds), { ordered: false });
             }
             totalDocs += docs.length;
             console.log(`  ✓ ${collectionName}: ${docs.length} documents`);
