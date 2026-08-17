@@ -17,6 +17,23 @@ let currentOrderId = generateOrderId();
 const PRINT_SETTINGS_KEY = "posPrintSettings";
 const DEFAULT_PRINT_SETTINGS = { mode: "dialog", width: "80", url: "http://127.0.0.1:8080" };
 
+// Senior/PWD discount state — 20% off the whole order, requires the SC/PWD
+// ID + customer name (server re-validates and recomputes every amount).
+let seniorDiscountActive = false;
+const SENIOR_DISCOUNT_RATE = 0.2;
+
+function cartSubtotal() {
+    return cart.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0);
+}
+
+function cartDiscountAmount() {
+    return seniorDiscountActive ? Math.round(cartSubtotal() * SENIOR_DISCOUNT_RATE * 100) / 100 : 0;
+}
+
+function cartOrderTotal() {
+    return Math.round((cartSubtotal() - cartDiscountAmount()) * 100) / 100;
+}
+
 function getPrintSettings() {
     try {
         return Object.assign({}, DEFAULT_PRINT_SETTINGS, JSON.parse(localStorage.getItem(PRINT_SETTINGS_KEY) || "{}"));
@@ -43,6 +60,7 @@ document.addEventListener("DOMContentLoaded", () => {
     renderOrderId();
     setupQuickTenderChips();
     setupCalculatorModal();
+    setupSeniorDiscount();
     setupKeyboardShortcuts();
     updateCalculatorVisibility();
     updateChangeCalculator();
@@ -1131,8 +1149,17 @@ function renderCart() {
         });
     });
 
-    const total = cart.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0);
+    const total = cartOrderTotal();
     totalPrice.textContent = `₱${total.toFixed(2)}`;
+
+    const discountSummary = document.getElementById("discountSummary");
+    const discountLabel = document.getElementById("discountAmountLabel");
+    if (discountSummary && discountLabel) {
+        const amount = cartDiscountAmount();
+        discountSummary.classList.toggle("hidden", !seniorDiscountActive || amount <= 0);
+        discountLabel.textContent = `−₱${amount.toFixed(2)}`;
+    }
+
     updateSwipeSummary();
     updateChangeCalculator();
 }
@@ -1263,7 +1290,7 @@ function setupSwipeSubmit() {
 function updateSwipeSummary() {
     const swipeText = document.getElementById("swipeText");
     const swipeTrack = document.getElementById("swipeTrack");
-    const total = cart.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0);
+    const total = cartOrderTotal();
     if (swipeText) {
         swipeText.textContent = cart.length
             ? `Swipe to Place Order (${selectedPayment.toUpperCase()}) ₱${total.toFixed(2)}`
@@ -1299,7 +1326,7 @@ function updateChangeCalculator() {
         return;
     }
 
-    const total = cart.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0);
+    const total = cartOrderTotal();
     const tendered = input ? parseFloat(input.value) || 0 : 0;
     tenderedAmount = tendered;
     const change = tendered - total;
@@ -1436,6 +1463,48 @@ function setupCalculatorModal() {
     }
 }
 
+function setupSeniorDiscount() {
+    const toggle = document.getElementById("seniorDiscountToggle");
+    const fields = document.getElementById("seniorDiscountFields");
+    if (!toggle) return;
+
+    toggle.addEventListener("change", () => {
+        seniorDiscountActive = toggle.checked;
+        if (fields) fields.classList.toggle("hidden", !toggle.checked);
+        if (!toggle.checked) {
+            const idInput = document.getElementById("seniorIdInput");
+            const nameInput = document.getElementById("seniorNameInput");
+            if (idInput) idInput.value = "";
+            if (nameInput) nameInput.value = "";
+        }
+        playSound("qty");
+        resetChangeCalculator();
+        renderCart();
+    });
+
+    const idInput = document.getElementById("seniorIdInput");
+    const nameInput = document.getElementById("seniorNameInput");
+    [idInput, nameInput].forEach(input => {
+        if (!input) return;
+        input.addEventListener("input", () => {
+            renderCart();
+            updateChangeCalculator();
+        });
+    });
+}
+
+function resetSeniorDiscount() {
+    seniorDiscountActive = false;
+    const toggle = document.getElementById("seniorDiscountToggle");
+    const fields = document.getElementById("seniorDiscountFields");
+    const idInput = document.getElementById("seniorIdInput");
+    const nameInput = document.getElementById("seniorNameInput");
+    if (toggle) toggle.checked = false;
+    if (fields) fields.classList.add("hidden");
+    if (idInput) idInput.value = "";
+    if (nameInput) nameInput.value = "";
+}
+
 function resetChangeCalculator() {
     const input = document.getElementById("amountTenderedInput");
     if (input) input.value = "";
@@ -1491,7 +1560,7 @@ async function submitOrder() {
 
     // Cash guard: the amount received must cover the total.
     if (selectedPayment === "cash") {
-        const orderTotal = cart.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0);
+        const orderTotal = cartOrderTotal();
         if (tenderedAmount < orderTotal) {
             playSound("error");
             await showPosAlert({
@@ -1503,6 +1572,23 @@ async function submitOrder() {
             });
             return;
         }
+    }
+
+    // Senior discount guard: the SC/PWD ID and customer name are required.
+    const seniorIdInput = document.getElementById("seniorIdInput");
+    const seniorNameInput = document.getElementById("seniorNameInput");
+    const seniorId = seniorIdInput ? seniorIdInput.value.trim() : "";
+    const seniorName = seniorNameInput ? seniorNameInput.value.trim() : "";
+    if (seniorDiscountActive && (!seniorId || !seniorName)) {
+        playSound("error");
+        await showPosAlert({
+            title: "Senior discount details missing",
+            icon: "fa-id-card",
+            iconClass: "danger",
+            bodyHtml: '<p class="pos-modal-error-text">Enter the SC/PWD ID and the customer\'s name to apply the 20% Senior discount.</p>',
+            buttonLabel: "OK"
+        });
+        return;
     }
 
     const customerInput = document.getElementById("customerNameInput");
@@ -1528,10 +1614,13 @@ async function submitOrder() {
             quantity: item.quantity,
             price: Number(item.price || 0)
         })),
-        total: cart.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0),
+        total: cartOrderTotal(),
+        discountType: seniorDiscountActive ? "Senior" : "",
+        discountId: seniorDiscountActive ? seniorId : "",
+        discountName: seniorDiscountActive ? seniorName : "",
         tendered: selectedPayment === "cash" ? tenderedAmount : 0,
         change: selectedPayment === "cash"
-            ? Math.max(0, tenderedAmount - cart.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0))
+            ? Math.max(0, tenderedAmount - cartOrderTotal())
             : 0
     };
 
@@ -1553,6 +1642,9 @@ async function submitOrder() {
                     <div class="row"><span>Mode</span><strong>${escapeHtml(selectedMode)}</strong></div>
                     <div class="row"><span>Payment</span><strong>${selectedPayment.toUpperCase()}</strong></div>
                     <div class="row"><span>Cashier</span><strong>${escapeHtml(getCashierName())}</strong></div>
+                    ${seniorDiscountActive ? `
+                    <div class="row"><span>Subtotal</span><strong>₱${cartSubtotal().toFixed(2)}</strong></div>
+                    <div class="row"><span>Senior Discount (20%)</span><strong>−₱${cartDiscountAmount().toFixed(2)}</strong></div>` : ""}
                     <div class="pos-modal-total"><span>Total</span><span>₱${Number(payload.total).toFixed(2)}</span></div>
                 </div>`,
             primaryLabel: "Place Order",
@@ -1588,7 +1680,11 @@ async function submitOrder() {
                     <div class="receipt-id">${escapeHtml(createdOrder.receiptId || currentOrderId)}</div>
                     <div class="row"><span>Customer</span><strong>${escapeHtml(payload.customer)}</strong></div>
                     <div class="row"><span>Payment</span><strong>${selectedPayment.toUpperCase()}</strong></div>
-                    <div class="row"><span>Total</span><strong>₱${Number(payload.total).toFixed(2)}</strong></div>
+                    ${createdOrder.discountType ? `
+                    <div class="row"><span>Subtotal</span><strong>₱${Number(createdOrder.subtotal ?? payload.total).toFixed(2)}</strong></div>
+                    <div class="row"><span>Senior Discount</span><strong>−₱${Number(createdOrder.discountAmount || 0).toFixed(2)}</strong></div>
+                    <div class="row"><span>SC/PWD ID</span><strong>${escapeHtml(createdOrder.discountId || "")}</strong></div>` : ""}
+                    <div class="row"><span>Total</span><strong>₱${Number(createdOrder.total ?? payload.total).toFixed(2)}</strong></div>
                     ${changeGiven}
                 </div>
                 <button type="button" class="pos-modal-btn pos-modal-btn-secondary" id="printReceiptBtn">Print receipt</button>`,
@@ -1677,11 +1773,20 @@ function printReceipt(order) {
             </div>
             <div class="print-items">${items}</div>
             <div class="print-total">
+                ${order.discountType ? `
+                <div><span>Subtotal</span><strong>₱${Number(order.subtotal || order.total || 0).toFixed(2)}</strong></div>
+                <div><span>Senior Discount (20%)</span><strong>−₱${Number(order.discountAmount || 0).toFixed(2)}</strong></div>` : ""}
                 <div><span>Total</span><strong>₱${Number(order.total || 0).toFixed(2)}</strong></div>
                 ${String(order.paymentMethod || "").toLowerCase().includes("cash") ? `
                 <div><span>Tendered</span><strong>₱${Number(order.tendered ?? 0).toFixed(2)}</strong></div>
                 <div><span>Change</span><strong>₱${Number(order.change ?? 0).toFixed(2)}</strong></div>` : ""}
             </div>
+            ${order.discountType ? `
+            <div class="print-senior">
+                <div>SC/PWD ID: ${escapeHtml(order.discountId || "")}</div>
+                <div>Name: ${escapeHtml(order.discountName || "")}</div>
+                <div class="print-signature-line">Signature over printed name</div>
+            </div>` : ""}
             <div class="print-foot">Thank you for your order!<br>Please come again.</div>
         </div>`;
 
@@ -1717,12 +1822,22 @@ function buildReceiptText(order) {
     });
     const total = [
         "",
-        line,
-        "TOTAL                  P" + Number(order.total || 0).toFixed(2)
+        line
     ];
+    if (order.discountType) {
+        total.push("SUBTOTAL               P" + Number(order.subtotal || order.total || 0).toFixed(2));
+        total.push("SENIOR DISC(20%)      -P" + Number(order.discountAmount || 0).toFixed(2));
+    }
+    total.push("TOTAL                  P" + Number(order.total || 0).toFixed(2));
     if (String(order.paymentMethod || "").toLowerCase().includes("cash")) {
         total.push("Tendered               P" + Number(order.tendered ?? 0).toFixed(2));
         total.push("Change                 P" + Number(order.change ?? 0).toFixed(2));
+    }
+    if (order.discountType) {
+        total.push(line);
+        total.push("SC/PWD ID: " + String(order.discountId || ""));
+        total.push("Name: " + String(order.discountName || ""));
+        total.push("Signature over printed name");
     }
     total.push(line, "  Thank you! Please come again.", "");
     return head.concat(line, meta, line, items, total).join("\n");
@@ -1941,6 +2056,7 @@ function cancelOrder(silent = false) {
         playSound("cancel");
     }
     cart = [];
+    resetSeniorDiscount();
     currentOrderId = generateOrderId(); // fresh ID for next order
     renderOrderId();
     renderCart();

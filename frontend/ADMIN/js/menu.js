@@ -212,6 +212,180 @@ function getMenuPayload() {
     };
 }
 
+// ── Categories ──────────────────────────────────────────────────────────────
+
+function setupCategoryManager() {
+    const addBtn = document.getElementById("addCategoryBtn");
+    const input = document.getElementById("newCategoryInput");
+    if (addBtn) addBtn.addEventListener("click", addCategory);
+    if (input) input.addEventListener("keydown", event => {
+        if (event.key === "Enter") addCategory();
+    });
+
+    const list = document.getElementById("categoryManagerList");
+    if (!list) return;
+    list.addEventListener("click", event => {
+        const item = event.target.closest(".category-manager-item");
+        if (!item) return;
+        const name = item.dataset.category;
+        const action = event.target.closest("[data-cat-action]")?.dataset.catAction;
+        if (action === "rename") startRenameCategory(item, name);
+        if (action === "rename-save") {
+            const input = item.querySelector("input");
+            finishRenameCategory(item, name, input ? input.value.trim() : "");
+        }
+        if (action === "rename-cancel") loadCategories();
+        if (action === "delete") deleteCategory(name);
+    });
+}
+
+async function loadCategories() {
+    try {
+        const response = await apiFetch("/api/categories");
+        if (!response.ok) throw new Error("Failed to pull categories");
+        const categories = (await response.json()) || [];
+        populateCategorySelect(categories);
+        renderCategoryManager(categories);
+    } catch (err) {
+        console.error("❌ Category load fault:", err);
+    }
+}
+
+function populateCategorySelect(categories) {
+    const select = document.getElementById("categorySelect");
+    if (!select) return;
+    const current = select.value || "Coffee";
+    select.innerHTML = categories
+        .map(cat => `<option value="${escapeHtml(cat)}">${escapeHtml(cat)}</option>`)
+        .join("") || `<option value="Coffee">Coffee</option>`;
+    if (categories.includes(current)) {
+        select.value = current;
+    } else if (current) {
+        const option = document.createElement("option");
+        option.value = current;
+        option.textContent = current;
+        select.appendChild(option);
+        select.value = current;
+    }
+}
+
+function renderCategoryManager(categories) {
+    const list = document.getElementById("categoryManagerList");
+    if (!list) return;
+
+    const counts = (allProducts || []).reduce((map, product) => {
+        const cat = product.category || "Uncategorized";
+        map[cat] = (map[cat] || 0) + 1;
+        return map;
+    }, {});
+
+    list.innerHTML = categories.map(category => `
+        <div class="category-manager-item" data-category="${escapeHtml(category)}">
+            <span class="category-manager-name">${escapeHtml(category)}</span>
+            <span class="category-manager-count">${counts[category] || 0} product(s)</span>
+            <span class="category-manager-actions">
+                <button type="button" class="category-manager-btn" data-cat-action="rename">Rename</button>
+                <button type="button" class="category-manager-btn danger" data-cat-action="delete">Delete</button>
+            </span>
+        </div>
+    `).join("") || `<span class="category-manager-count">No categories yet — add one or create a product with a new category.</span>`;
+}
+
+async function addCategory() {
+    const input = document.getElementById("newCategoryInput");
+    if (!input) return;
+    const name = input.value.trim();
+    if (!name) {
+        showToast("Enter a category name first.", "warning");
+        return;
+    }
+    try {
+        const response = await apiFetch("/api/categories", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name })
+        });
+        if (response.ok) {
+            showToast(`Category "${name}" created.`);
+            input.value = "";
+            loadCategories();
+            return;
+        }
+        const errorPayload = await response.json().catch(() => null);
+        showToast(errorPayload?.error || `Failed to create category (HTTP ${response.status}).`, "error");
+    } catch (err) {
+        showToast(`Failed to create category. ${err.message}`, "error");
+    }
+}
+
+function startRenameCategory(item, oldName) {
+    const nameEl = item.querySelector(".category-manager-name");
+    if (!nameEl) return;
+    const actionsEl = item.querySelector(".category-manager-actions");
+    const input = document.createElement("input");
+    input.value = oldName;
+    nameEl.replaceWith(input);
+    actionsEl.innerHTML = `
+        <button type="button" class="category-manager-btn" data-cat-action="rename-save">Save</button>
+        <button type="button" class="category-manager-btn danger" data-cat-action="rename-cancel">Cancel</button>`;
+    input.focus();
+    input.select();
+}
+
+async function finishRenameCategory(item, oldName, newName) {
+    if (!newName || newName === oldName) {
+        loadCategories();
+        return;
+    }
+    try {
+        const response = await apiFetch(`/api/categories/${encodeURIComponent(oldName)}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: newName })
+        });
+        if (response.ok) {
+            showToast(`Category "${oldName}" renamed to "${newName}".`);
+            loadCategories();
+            loadLiveMenuData();
+            return;
+        }
+        const errorPayload = await response.json().catch(() => null);
+        showToast(errorPayload?.error || `Failed to rename category (HTTP ${response.status}).`, "error");
+        loadCategories();
+    } catch (err) {
+        showToast(`Failed to rename category. ${err.message}`, "error");
+        loadCategories();
+    }
+}
+
+async function deleteCategory(name) {
+    const counts = (allProducts || []).filter(p => p.category === name).length;
+    const confirmed = await showConfirmModal({
+        title: "Delete category?",
+        message: counts > 0
+            ? `"${name}" still has ${counts} product(s). You must move them to another category first — deleting is blocked while products use it.`
+            : `Category "${name}" is empty and will be removed.`,
+        confirmLabel: "Delete",
+        danger: true
+    });
+    if (!confirmed) return;
+    try {
+        const response = await apiFetch(`/api/categories/${encodeURIComponent(name)}`, {
+            method: "DELETE"
+        });
+        if (response.ok) {
+            showToast(`Category "${name}" deleted.`);
+            loadCategories();
+            return;
+        }
+        const errorPayload = await response.json().catch(() => null);
+        showToast(errorPayload?.error || `Failed to delete category (HTTP ${response.status}).`, "error");
+        loadCategories();
+    } catch (err) {
+        showToast(`Failed to delete category. ${err.message}`, "error");
+    }
+}
+
 // ── CRUD Operations ────────────────────────────────────────────────────────
 
 async function addMenuItem() {
@@ -322,6 +496,7 @@ async function loadLiveMenuData() {
 
         renderMenuTable(products);
         renderSalesCharts(latestOrders, products);
+        loadCategories();
 
         if (selectedProductId && !products.some(p => p._id === selectedProductId)) {
             clearMenuForm();

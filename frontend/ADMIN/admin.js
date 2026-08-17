@@ -142,6 +142,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupMenuTableSelection();
     setupMenuActionButtons();
     setupImageUploadEngine();
+    setupCategoryManager();
 
     // Users module
     setupUserTableSelection();

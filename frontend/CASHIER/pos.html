@@ -169,10 +169,25 @@
 
             <div class="cart-items" id="cartContainer"></div>
 
-            <div class="checkout-area">
+<div class="checkout-area">
                 <div class="total-summary">
                     <span>Total Order</span>
-                    <span class="total-price" id="totalPrice">â‚±0.00</span>
+                    <span class="total-price" id="totalPrice">₱0.00</span>
+                </div>
+                <div class="discount-summary hidden" id="discountSummary">
+                    <span>Senior Discount (20%)</span>
+                    <span class="discount-amount" id="discountAmountLabel">−₱0.00</span>
+                </div>
+
+                <div class="senior-discount-box">
+                    <label class="senior-discount-toggle">
+                        <input type="checkbox" id="seniorDiscountToggle">
+                        <span class="senior-discount-label">Senior Discount (20%)</span>
+                    </label>
+                    <div class="senior-discount-fields hidden" id="seniorDiscountFields">
+                        <input type="text" id="seniorIdInput" placeholder="SC/PWD ID number" maxlength="40" autocomplete="off">
+                        <input type="text" id="seniorNameInput" placeholder="Customer name" maxlength="80" autocomplete="off">
+                    </div>
                 </div>
 
                 <div class="payment-options">

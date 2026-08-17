@@ -1176,6 +1176,64 @@ payment-details-section h3 {
     font-weight: bold;
 }
 
+.discount-summary {
+    display: flex;
+    justify-content: space-between;
+    margin: -10px 0 14px 0;
+    font-size: 0.86rem;
+    color: var(--pos-warn, #b45309);
+    font-weight: 600;
+}
+
+.senior-discount-box {
+    margin-bottom: 16px;
+    padding: 12px;
+    border: 1px solid #eee;
+    border-radius: 12px;
+    background: var(--soft-bg, #faf7f2);
+}
+
+.senior-discount-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.senior-discount-toggle input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent-brown, #8b5e3c);
+}
+
+.senior-discount-label {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--dark-brown, #4a2c17);
+}
+
+.senior-discount-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.senior-discount-fields input {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    background: #fff;
+    outline: none;
+}
+
+.senior-discount-fields input:focus {
+    border-color: var(--accent-brown, #8b5e3c);
+}
+
 .slide-button-container {
     position: relative;
 }
@@ -2151,6 +2209,24 @@ payment-details-section h3 {
 .print-receipt .print-foot {
     text-align: center;
     font-size: 0.72rem;
+}
+.print-receipt .print-senior {
+    border-top: 1px dashed #aaa;
+    margin-top: 6px;
+    padding-top: 6px;
+    font-size: 0.78rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 8px;
+}
+.print-receipt .print-signature-line {
+    margin-top: 14px;
+    border-top: 1px solid #444;
+    padding-top: 3px;
+    text-align: center;
+    font-size: 0.7rem;
+    color: #555;
 }
 
 /* 58mm thermal receipt variant (Bluetooth thermal printers).

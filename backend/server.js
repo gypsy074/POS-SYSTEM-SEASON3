@@ -156,9 +156,17 @@ const orderSchema = new mongoose.Schema({
     date: { type: Date, default: Date.now },
     receiptId: { type: String, default: () => String(Date.now()).slice(-8) },
     items: { type: [orderItemSchema], default: [] },
-    total: { type: Number, default: 0, min: 0 },
+total: { type: Number, default: 0, min: 0 },
     tendered: { type: Number, default: 0, min: 0 },
     change: { type: Number, default: 0, min: 0 },
+    // Senior/PWD discount — server computes the amounts, never trusts the
+    // client total when a discount is present. discountId is the SC/PWD ID.
+    discountType: { type: String, enum: ["", "Senior"], default: "" },
+    discountRate: { type: Number, default: 0, min: 0, max: 0.2 },
+    discountAmount: { type: Number, default: 0, min: 0 },
+    discountId: { type: String, default: "", trim: true },
+    discountName: { type: String, default: "", trim: true },
+    subtotal: { type: Number, default: 0, min: 0 },
     // Idempotency key for offline sync retries — must be unique per order.
     clientOrderId: { type: String, trim: true }
 });
@@ -246,6 +254,15 @@ const logSchema = new mongoose.Schema({
 });
 logSchema.index({ action: 1, date: -1 });
 const AuditLog = mongoose.model('AuditLog', logSchema);
+
+// Categories are first-class (reserved names persist even before any product
+// uses them), but the source of truth for what the café actually offers is
+// still the products — GET /api/categories returns the union of both.
+const categorySchema = new mongoose.Schema({
+    name: { type: String, required: true, trim: true }
+});
+categorySchema.index({ name: 1 });
+const Category = mongoose.model('Category', categorySchema);
 
 /* ==========================================================================
    2. UTILITY INTERCEPTORS & VALIDATION ENGINES
@@ -357,10 +374,41 @@ function normalizeOrderPayload(input) {
         }))
         : [];
 
-    const computedTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+const computedTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const round2 = n => Math.round(n * 100) / 100;
+
+    const rawDiscountType = String(input.discountType || "").trim();
+    if (rawDiscountType && rawDiscountType !== "Senior") {
+        throw new Error('Unknown discount type. Supported: "Senior".');
+    }
+    const discountType = rawDiscountType === "Senior" ? "Senior" : "";
+    const payloadExtra = {};
+    let discountRate = 0;
+    let discountAmount = 0;
+    let subtotal = computedTotal;
+    let total = Number.isFinite(Number(input.total)) && Number(input.total) > 0
+        ? Number(input.total)
+        : computedTotal;
+
+    if (discountType === "Senior") {
+        discountRate = 0.2;
+        subtotal = computedTotal;
+        discountAmount = round2(subtotal * discountRate);
+        total = round2(subtotal - discountAmount);
+        const discountId = String(input.discountId || "").trim();
+        const discountName = String(input.discountName || "").trim();
+        if (!discountId || !discountName) {
+            throw new Error('The Senior discount requires the SC/PWD ID and the customer name.');
+        }
+        if (discountId.length > 40 || discountName.length > 80) {
+            throw new Error('The SC/PWD ID or customer name is too long.');
+        }
+        payloadExtra.discountId = discountId;
+        payloadExtra.discountName = discountName;
+    }
 
     const payload = {
-customer: String(input.customer || "Walk-in Customer").trim() || "Walk-in Customer",
+        customer: String(input.customer || "Walk-in Customer").trim() || "Walk-in Customer",
         cashier: String(input.cashier || "").trim(),
         tableNo: String(input.tableNo || "").trim(),
         mode: ["Dine In", "To Go", "Online Order"].includes(input.mode) ? input.mode : "Dine In",
@@ -368,9 +416,13 @@ customer: String(input.customer || "Walk-in Customer").trim() || "Walk-in Custom
         receiptId: String(input.receiptId || String(Date.now()).slice(-8)),
         date: input.date ? new Date(input.date) : new Date(),
         items,
-        total: Number.isFinite(Number(input.total)) && Number(input.total) > 0
-            ? Number(input.total)
-            : computedTotal,
+        total,
+        subtotal,
+        discountType,
+        discountRate,
+        discountAmount,
+        discountId: payloadExtra.discountId || "",
+        discountName: payloadExtra.discountName || "",
         tendered: Math.max(0, Number(input.tendered) || 0),
         change: Math.max(0, Number(input.change) || 0)
     };
@@ -839,16 +891,22 @@ const order = await Order.findOne(idMatchFilter(req.params.id));
             { status: "Available" }
         );
 
-        order.status = "Voided";
+order.status = "Voided";
         order.voidedBy = req.user.username || "";
         order.voidedAt = new Date();
         order.voidReason = String((req.body && req.body.reason) || "").trim().slice(0, 300);
 
-        const savedOrder = await order.save();
+        // updateOne via the casting-proof filter instead of order.save() —
+        // save() rebuilds the filter from the doc's _id and mongoose casts it
+        // to ObjectId, which silently misses string _ids (older data).
+        await Order.updateOne(
+            idMatchFilter(order._id),
+            { $set: { status: order.status, voidedBy: order.voidedBy, voidedAt: order.voidedAt, voidReason: order.voidReason } }
+        );
         writeLog('order.void', req.user.username, String(order._id),
-            `Order #${savedOrder.receiptId} voided (₱${savedOrder.total.toFixed(2)})${savedOrder.voidReason ? ' — ' + savedOrder.voidReason : ''}`);
+            `Order #${order.receiptId} voided (₱${order.total.toFixed(2)})${order.voidReason ? ' — ' + order.voidReason : ''}`);
 
-        res.json(savedOrder);
+        res.json(order);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -859,6 +917,79 @@ app.get('/api/products', authRequired(), async (req, res) => {
 
 app.get('/api/products/categories', authRequired(), async (req, res) => {
     try { res.json(await Product.distinct('category')); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---------------------- CATEGORY MANAGEMENT (CRUD) ----------------------
+// Categories are managed as reserved names (Category collection) and stay
+// linked to the products that use them. Renaming reassigns every product;
+// deleting is blocked while products still use the category.
+
+function normalizeCategoryName(raw) {
+    return String(raw || "").trim().replace(/\s+/g, " ").slice(0, 40);
+}
+
+function categoryExistsFilter(name) {
+    return { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' };
+}
+
+app.get('/api/categories', authRequired(['Admin']), async (req, res) => {
+    try {
+        const reserved = await Category.find({}).sort({ name: 1 }).lean();
+        const used = await Product.distinct('category');
+        const names = new Set(reserved.map(c => c.name));
+        used.forEach(name => { if (name) names.add(name); });
+        res.json([...names].sort((a, b) => a.localeCompare(b)));
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/categories', authRequired(['Admin']), async (req, res) => {
+    try {
+        const name = normalizeCategoryName(req.body && req.body.name);
+        if (!name) return res.status(400).json({ error: 'Category name is required.' });
+        const clash = await Category.findOne({ name: categoryExistsFilter(name) });
+        if (clash) return res.status(409).json({ error: `Category "${name}" already exists.` });
+        const productClash = await Product.findOne({ category: categoryExistsFilter(name) }).select('category');
+        if (productClash) return res.status(409).json({ error: `Category "${name}" already exists.` });
+        await Category.create({ name });
+        writeLog('category.create', req.user.username, name, `Created category "${name}"`);
+        res.status(201).json({ name });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/categories/:name', authRequired(['Admin']), async (req, res) => {
+    try {
+        const oldName = decodeURIComponent(req.params.name);
+        const newName = normalizeCategoryName(req.body && req.body.name);
+        if (!newName) return res.status(400).json({ error: 'New category name is required.' });
+        if (oldName === newName) {
+            return res.json({ name: newName, count: await Product.countDocuments({ category: oldName }) });
+        }
+        const clash = await Category.findOne({ name: categoryExistsFilter(newName) });
+        if (clash && clash.name.toLowerCase() !== oldName.toLowerCase()) {
+            return res.status(409).json({ error: `Category "${newName}" already exists.` });
+        }
+        const productClash = await Product.findOne({ category: categoryExistsFilter(newName) }).select('category');
+        if (productClash && productClash.category.toLowerCase() !== oldName.toLowerCase()) {
+            return res.status(409).json({ error: `Category "${newName}" already exists.` });
+        }
+        await Category.updateMany({ name: categoryExistsFilter(oldName) }, { $set: { name: newName } });
+        const result = await Product.updateMany({ category: oldName }, { $set: { category: newName } });
+        writeLog('category.rename', req.user.username, oldName, `Renamed category "${oldName}" → "${newName}" (${result.modifiedCount} product(s))`);
+        res.json({ name: newName, count: result.modifiedCount });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/categories/:name', authRequired(['Admin']), async (req, res) => {
+    try {
+        const name = decodeURIComponent(req.params.name);
+        const inUse = await Product.countDocuments({ category: name });
+        if (inUse > 0) {
+            return res.status(409).json({ error: `Cannot delete "${name}" — ${inUse} product(s) still use it. Move them to another category first.` });
+        }
+        await Category.deleteMany({ name });
+        writeLog('category.delete', req.user.username, name, `Deleted empty category "${name}"`);
+        res.json({ message: `Category "${name}" deleted` });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/products', authRequired(['Admin']), async (req, res) => {

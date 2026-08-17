@@ -384,3 +384,231 @@ describe('Security hardening', () => {
         expect(res.headers['access-control-allow-origin']).toBeUndefined();
     });
 });
+
+// Regression suite for the string-_id bug (older data rebuilt from raw JSON
+// backups stores _id as plain strings; mongoose's findById casts to ObjectId
+// and silently misses them — every _id lookup must match both forms).
+describe('Category management', () => {
+    test('creates a category, rejects duplicates', async () => {
+        const created = await request(app)
+            .post('/api/categories')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ name: 'Cat-Test-A' });
+        expect(created.status).toBe(201);
+
+        const dup = await request(app)
+            .post('/api/categories')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ name: 'cat-test-a' }); // case-insensitive
+        expect(dup.status).toBe(409);
+    });
+
+    test('cashier cannot create a category → 403', async () => {
+        const res = await request(app)
+            .post('/api/categories')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({ name: 'Nope' });
+        expect(res.status).toBe(403);
+    });
+
+    test('renaming a category reassigns its products', async () => {
+        const product = await createProduct('CatTestDrink', 40, 5);
+        await request(app)
+            .put(`/api/products/${product._id}`)
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ category: 'Cat-Test-A' });
+
+        const renamed = await request(app)
+            .put('/api/categories/Cat-Test-A')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ name: 'Cat-Test-B' });
+        expect(renamed.status).toBe(200);
+
+        const updated = await getProduct('CatTestDrink');
+        expect(updated.category).toBe('Cat-Test-B');
+    });
+
+    test('deleting a category with products is blocked with a count', async () => {
+        const res = await request(app)
+            .delete('/api/categories/Cat-Test-B')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(res.status).toBe(409);
+        expect(String(res.body.error)).toMatch(/1 product\(s\) still use it/);
+    });
+
+    test('deleting an empty category succeeds', async () => {
+        const product = await getProduct('CatTestDrink');
+        const res = await request(app)
+            .delete('/api/categories/Cat-Test-B')
+            .set('Authorization', `Bearer ${adminToken}`);
+        // Still blocked — the product is still there; move it first.
+        expect(res.status).toBe(409);
+        await request(app)
+            .put(`/api/products/${product._id}`)
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ category: 'Test' });
+        const gone = await request(app)
+            .delete('/api/categories/Cat-Test-B')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(gone.status).toBe(200);
+    });
+});
+
+describe('Senior discount', () => {
+    test('Senior order: total is 80% of the subtotal, amounts server-computed', async () => {
+        await createProduct('TestSeniorMeal', 100, 3);
+        const res = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                cashier: 'tester',
+                items: [{ name: 'TestSeniorMeal', quantity: 2, price: 100 }],
+                total: 9999, // must be ignored — server recomputes
+                discountType: 'Senior',
+                discountId: 'SC-123456789',
+                discountName: 'Lola Maria'
+            });
+        expect(res.status).toBe(201);
+        expect(Number(res.body.subtotal)).toBe(200);
+        expect(Number(res.body.discountAmount)).toBe(40);
+        expect(Number(res.body.total)).toBe(160);
+        expect(res.body.discountType).toBe('Senior');
+        expect(res.body.discountId).toBe('SC-123456789');
+    });
+
+    test('Senior discount without SC/PWD ID or name → 400', async () => {
+        const res = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                cashier: 'tester',
+                items: [{ name: 'TestSeniorMeal', quantity: 1, price: 100 }],
+                discountType: 'Senior',
+                discountName: 'Lola Maria'
+            });
+        expect(res.status).toBe(400);
+        expect(String(res.body.error)).toMatch(/SC\/PWD ID/);
+    });
+
+    test('unknown discount type → 400', async () => {
+        const res = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                cashier: 'tester',
+                items: [{ name: 'TestSeniorMeal', quantity: 1, price: 100 }],
+                discountType: 'PWD'
+            });
+        expect(res.status).toBe(400);
+    });
+
+    test('non-discount orders keep the old client-total behavior', async () => {
+        const res = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                cashier: 'tester',
+                items: [{ name: 'TestSeniorMeal', quantity: 1, price: 100 }],
+                total: 123
+            });
+        expect(res.status).toBe(201);
+        expect(Number(res.body.total)).toBe(123);
+        expect(res.body.discountType).toBe('');
+    });
+});
+
+describe('String _id compatibility', () => {
+    const STRING_ID = '6a7b094a51820109b91dc302';
+
+    async function insertRaw(collection, doc) {
+        await mongoose.connection.db.collection(collection).insertOne(doc);
+    }
+
+    test('product with a string _id is updated and deleted by id', async () => {
+        await insertRaw('products', {
+            _id: STRING_ID,
+            name: 'String-Id Product',
+            category: 'Test',
+            price: 50,
+            stock: 10,
+            lowStockThreshold: 5,
+            status: 'Available'
+        });
+
+        const listed = await request(app)
+            .get('/api/products')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(listed.status).toBe(200);
+        expect(listed.body.some(p => String(p._id) === STRING_ID)).toBe(true);
+
+        const updated = await request(app)
+            .put(`/api/products/${STRING_ID}`)
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ price: 75 });
+        expect(updated.status).toBe(200);
+        expect(Number(updated.body.price)).toBe(75);
+
+        const deleted = await request(app)
+            .delete(`/api/products/${STRING_ID}`)
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(deleted.status).toBe(200);
+    });
+
+    test('waste entry with a string _id is deleted by id (the original bug)', async () => {
+        await insertRaw('wasteitems', {
+            _id: STRING_ID,
+            productName: 'String-Id Waste',
+            category: 'Test',
+            cashier: 'tester',
+            quantity: 1,
+            price: 10,
+            totalCost: 10,
+            reason: 'string-id regression',
+            date: new Date()
+        });
+
+        const del = await request(app)
+            .delete(`/api/waste/${STRING_ID}`)
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(del.status).toBe(200);
+
+        const after = await request(app)
+            .get('/api/waste')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(after.body.some(w => String(w._id) === STRING_ID)).toBe(false);
+    });
+
+    test('order with a string _id is fetched, voided, and hard-deleted by id', async () => {
+        await insertRaw('orders', {
+            _id: STRING_ID,
+            customer: 'String-Id Customer',
+            cashier: 'tester',
+            mode: 'Dine In',
+            paymentMethod: 'Cash',
+            status: 'Completed',
+            date: new Date(),
+            receiptId: 'STRIDTEST',
+            items: [{ name: 'Anything', quantity: 1, price: 10 }],
+            total: 10,
+            tendered: 10,
+            change: 0
+        });
+
+        const listed = await request(app)
+            .get('/api/orders')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(listed.status).toBe(200);
+        expect(listed.body.some(o => String(o._id) === STRING_ID)).toBe(true);
+
+        const voided = await request(app)
+            .patch(`/api/orders/${STRING_ID}/void`)
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(voided.status).toBe(200);
+        expect(voided.body.status).toBe('Voided');
+
+        const deleted = await request(app)
+            .delete(`/api/orders/${STRING_ID}`)
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(deleted.status).toBe(200);
+    });
+});

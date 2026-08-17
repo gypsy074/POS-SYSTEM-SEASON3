@@ -327,6 +327,19 @@
                     </div>
                 </section>
 
+                <section class="transactions-section" style="margin-bottom: 25px;">
+                    <div class="section-header"><i class="fas fa-tags"></i> Categories
+                        <span class="section-header-note">Rename or delete menu categories. Deleting is blocked while products still use a category.</span>
+                    </div>
+                    <div class="category-manager-row">
+                        <div class="category-manager-add">
+                            <input type="text" id="newCategoryInput" class="inv-filter-input" placeholder="New category name...">
+                            <button type="button" class="action-btn action-btn-primary" id="addCategoryBtn">Add Category</button>
+                        </div>
+                        <div class="category-manager-list" id="categoryManagerList"></div>
+                    </div>
+                </section>
+
                 <section class="menu-form-section">
                     <div class="menu-form-grid">
                         <div class="form-inputs">
@@ -588,7 +601,7 @@
     <!-- Feature Modules -->
     <script src="js/dashboard.js?v=44"></script>
     <script src="js/insights.js?v=41"></script>
-<script src="js/menu.js?v=42"></script>
+<script src="js/menu.js?v=43"></script>
     <script src="js/users.js?v=41"></script>
     <script src="js/inventory.js?v=42"></script>
     <script src="js/restock.js?v=1"></script>
