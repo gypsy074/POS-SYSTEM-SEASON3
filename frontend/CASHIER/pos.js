@@ -105,6 +105,8 @@ async function guardCashierPage() {
    ========================================================================== */
 
 const OFFLINE_QUEUE_KEY = "posOfflineOrders";
+const OFFLINE_WASTE_KEY = "posOfflineWaste";
+const PRODUCTS_CACHE_KEY = "posProductsCache";
 
 function getOfflineQueue() {
     try {
@@ -125,6 +127,30 @@ function saveOfflineQueue(queue) {
     }
 }
 
+function getOfflineWasteQueue() {
+    try {
+        const raw = localStorage.getItem(OFFLINE_WASTE_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveOfflineWasteQueue(queue) {
+    try {
+        localStorage.setItem(OFFLINE_WASTE_KEY, JSON.stringify(queue.slice(-10)));
+    } catch {
+        // ignore — storage full means the oldest waste entries are dropped.
+    }
+}
+
+function queueOfflineWaste(payload) {
+    const queue = getOfflineWasteQueue();
+    queue.push(payload);
+    saveOfflineWasteQueue(queue);
+}
+
 function queueOfflineOrder(payload) {
     const queue = getOfflineQueue();
     const existingIndex = queue.findIndex(order => order.clientOrderId === payload.clientOrderId);
@@ -141,11 +167,13 @@ async function flushOfflineOrders() {
         return;
     }
     const queue = getOfflineQueue();
-    if (!queue.length) {
+    const wasteQueue = getOfflineWasteQueue();
+    if (!queue.length && !wasteQueue.length) {
         return;
     }
 
     let synced = 0;
+    let syncedWaste = 0;
     const remaining = [];
 
     for (const payload of queue) {
@@ -166,18 +194,40 @@ async function flushOfflineOrders() {
         }
     }
 
+    const remainingWaste = [];
+    for (const payload of wasteQueue) {
+        try {
+            const response = await apiFetch("/api/waste", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            if (response.ok) {
+                syncedWaste += 1;
+            } else {
+                remainingWaste.push(payload);
+            }
+        } catch (err) {
+            remainingWaste.push(payload);
+        }
+    }
+
     saveOfflineQueue(remaining);
+    saveOfflineWasteQueue(remainingWaste);
     updateOfflineBanner();
 
-    if (synced > 0) {
+    if (synced > 0 || syncedWaste > 0) {
         playSound("success");
         loadCashierHistory();
-        showSyncBanner(synced);
+        const parts = [];
+        if (synced > 0) parts.push(`${synced} order${synced === 1 ? "" : "s"}`);
+        if (syncedWaste > 0) parts.push(`${syncedWaste} waste ${syncedWaste === 1 ? "entry" : "entries"}`);
+        showSyncBanner(`${parts.join(" and ")} synced ✓`);
     }
 }
 
 function getOfflineQueueCount() {
-    return getOfflineQueue().length;
+    return getOfflineQueue().length + getOfflineWasteQueue().length;
 }
 
 function updateOfflineBanner() {
@@ -186,9 +236,10 @@ function updateOfflineBanner() {
         return;
     }
     const text = document.getElementById("offlineBannerText");
+    const syncBtn = document.getElementById("offlineSyncBtn");
     const queued = getOfflineQueueCount();
 
-    if (navigator.onLine) {
+    if (navigator.onLine && !queued) {
         banner.style.display = "none";
         return;
     }
@@ -196,15 +247,21 @@ function updateOfflineBanner() {
     banner.classList.add("offline");
     banner.style.display = "flex";
     if (text) {
-        text.textContent = queued > 0
-            ? `You're offline — ${queued} order${queued === 1 ? "" : "s"} saved and waiting to sync.`
-            : "You're offline — orders will be saved and synced automatically.";
+        if (queued > 0) {
+            const cause = navigator.onLine ? "Connection trouble" : "You're offline";
+            text.textContent = `${cause} — ${queued} item${queued === 1 ? "" : "s"} saved and waiting to sync.`;
+        } else {
+            text.textContent = "You're offline — orders will be saved and synced automatically.";
+        }
+    }
+    if (syncBtn) {
+        syncBtn.style.display = queued > 0 ? "" : "none";
     }
 }
 
 // Green confirmation strip shown briefly after queued orders finish syncing.
 let syncBannerTimer = null;
-function showSyncBanner(count) {
+function showSyncBanner(message) {
     const banner = document.getElementById("offlineBanner");
     const text = document.getElementById("offlineBannerText");
     if (!banner) {
@@ -213,7 +270,7 @@ function showSyncBanner(count) {
     banner.classList.remove("offline");
     banner.style.display = "flex";
     if (text) {
-        text.textContent = `${count} offline order${count === 1 ? "" : "s"} synced ✓`;
+        text.textContent = `${message}`;
     }
     clearTimeout(syncBannerTimer);
     syncBannerTimer = setTimeout(() => {
@@ -237,6 +294,23 @@ function setupOfflineSupport() {
         playSound("error");
         updateOfflineBanner();
     });
+
+    const syncBtn = document.getElementById("offlineSyncBtn");
+    if (syncBtn) {
+        syncBtn.addEventListener("click", async () => {
+            syncBtn.disabled = true;
+            await flushOfflineOrders();
+            syncBtn.disabled = false;
+        });
+    }
+
+    // Server-down recovery: even while the device stays online, retry the
+    // queue every 30s so orders sync without waiting for a page reload.
+    setInterval(() => {
+        if (navigator.onLine && getOfflineQueueCount() > 0) {
+            flushOfflineOrders();
+        }
+    }, 30000);
 
     updateOfflineBanner();
     // Recovered orders from a previous session sync as soon as we're online.
@@ -496,6 +570,11 @@ async function refreshCashierProducts() {
         }
 
         allProducts = await response.json();
+        try {
+            localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(allProducts));
+        } catch {
+            // Cache is best-effort — ignore storage failures.
+        }
         const searchInput = document.getElementById("searchInput");
         renderCategoryTabs();
         displayCategoryItems(activeCategory, searchInput ? searchInput.value : "");
@@ -503,6 +582,21 @@ async function refreshCashierProducts() {
         buildWasteProductSearch();
     } catch (err) {
         console.error("❌ Failed to refresh cashier menu:", err);
+        // Offline fallback — serve the last known menu from storage so a
+        // fresh offline open can still take orders.
+        if (!allProducts.length) {
+            try {
+                const cached = JSON.parse(localStorage.getItem(PRODUCTS_CACHE_KEY) || "[]");
+                if (Array.isArray(cached) && cached.length) {
+                    allProducts = cached;
+                    renderCategoryTabs();
+                    displayCategoryItems(activeCategory, "");
+                    buildWasteProductSearch();
+                }
+            } catch {
+                // ignore — no usable cache.
+            }
+        }
     }
 }
 
@@ -1864,23 +1958,35 @@ function getCashierName() {
 
 async function logWasteItems(items, reason) {
     let logged = 0;
+    let queued = 0;
     for (const item of items || []) {
+        const payload = {
+            productName: item.name,
+            cashier: getCashierName(),
+            quantity: item.quantity,
+            price: Number(item.price || 0),
+            reason
+        };
         try {
             const response = await apiFetch("/api/waste", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    productName: item.name,
-                    cashier: getCashierName(),
-                    quantity: item.quantity,
-                    price: Number(item.price || 0),
-                    reason
-                })
+                body: JSON.stringify(payload)
             });
-            if (response.ok) logged++;
+            if (response.ok) {
+                logged++;
+            } else {
+                queueOfflineWaste(payload);
+                queued++;
+            }
         } catch (err) {
             console.error("❌ Waste log failed:", err);
+            queueOfflineWaste(payload);
+            queued++;
         }
+    }
+    if (queued > 0) {
+        updateOfflineBanner();
     }
     if (logged > 0) {
         showPosAlert({
@@ -2057,17 +2163,18 @@ function setupWasteLogForm() {
                 return;
             }
 
+            const payload = {
+                productName,
+                cashier: getCashierName(),
+                quantity,
+                price,
+                reason: reasonSelect ? reasonSelect.value : "Other"
+            };
             try {
                 const response = await apiFetch("/api/waste", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        productName,
-                        cashier: getCashierName(),
-                        quantity,
-                        price,
-                        reason: reasonSelect ? reasonSelect.value : "Other"
-                    })
+                    body: JSON.stringify(payload)
                 });
                 if (!response.ok) throw new Error("Failed to log waste");
                 showPosAlert({
@@ -2082,12 +2189,19 @@ function setupWasteLogForm() {
                 if (priceInput) priceInput.value = "";
             } catch (err) {
                 console.error("❌ Waste save failed:", err);
+                // Server unreachable — save for automatic sync later.
+                queueOfflineWaste(payload);
+                updateOfflineBanner();
                 showPosAlert({
-                    title: "Log Failed",
-                    icon: "fa-circle-exclamation",
-                    iconClass: "danger",
-                    bodyHtml: '<p class="pos-modal-note">Failed to log the waste.</p>'
+                    title: "Saved for Sync",
+                    icon: "fa-circle-info",
+                    iconClass: "info",
+                    bodyHtml: '<p class="pos-modal-note">Could not reach the server — the waste entry was saved on this device and will sync automatically.</p>'
                 });
+                if (form) form.style.display = "none";
+                if (name) name.value = "";
+                if (qtyInput) qtyInput.value = "";
+                if (priceInput) priceInput.value = "";
             }
         });
     }

@@ -2217,6 +2217,38 @@ payment-details-section h3 {
     font-size: 16px;
 }
 
+.offline-sync-btn {
+    background: #fff;
+    color: var(--dark-brown);
+    border: none;
+    border-radius: 14px;
+    padding: 4px 14px;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: transform 0.15s ease, opacity 0.2s ease;
+}
+
+.offline-sync-btn:hover {
+    transform: translateY(-1px);
+    opacity: 0.9;
+}
+
+.offline-sync-btn:active {
+    transform: scale(0.95);
+}
+
+.offline-sync-btn:disabled {
+    opacity: 0.5;
+    cursor: wait;
+}
+
+.offline-banner.offline .offline-sync-btn {
+    color: #fff;
+    background: #8a6a4d;
+}
+
 @keyframes banner-slide-down {
     from { transform: translateY(-100%); }
     to   { transform: translateY(0); }

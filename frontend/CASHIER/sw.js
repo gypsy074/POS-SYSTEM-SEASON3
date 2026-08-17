@@ -5,7 +5,7 @@
    connection returns.
    ========================================================================== */
 
-const CACHE_NAME = 'pos-shell-v3';
+const CACHE_NAME = 'pos-shell-v4';
 
 const APP_SHELL = [
     './pos.html',
@@ -54,7 +54,15 @@ self.addEventListener('fetch', event => {
 
     if (isApiRequest(url)) {
         event.respondWith(
-            fetch(request).catch(() => caches.match(request))
+            fetch(request).then(response => {
+                // Keep a copy of successful product/menu fetches so a fresh
+                // offline open still has the catalog to sell from.
+                if (response && response.ok && url.pathname === '/api/products') {
+                    const clone = response.clone();
+                    caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+                }
+                return response;
+            }).catch(() => caches.match(request))
         );
         return;
     }
