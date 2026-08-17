@@ -80,7 +80,12 @@ app.use((req, res, next) => {
     next();
 });
 
-app.use(express.static(path.join(__dirname, '..', 'frontend')));
+app.use(express.static(path.join(__dirname, '..', 'frontend'), {
+    // HTML must always revalidate so every device picks up new script versions.
+    setHeaders(res, filePath) {
+        if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
+    }
+}));
 
 // Brute-force guard for the login endpoint — 10 failed attempts per 15 min
 // per IP. Successful logins never consume the budget, so legitimate staff

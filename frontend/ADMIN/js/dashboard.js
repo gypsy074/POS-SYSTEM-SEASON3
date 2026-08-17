@@ -668,21 +668,25 @@ function renderWasteTable() {
 }
 
 async function removeWasteEntry(entryId, button) {
+    const row = button ? button.closest("tr") : null;
     const originalLabel = button ? button.textContent : "";
     if (button) {
         button.disabled = true;
         button.textContent = "Removing…";
     }
+    if (row) row.classList.add("removing-row");
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
     try {
         const response = await apiFetch(`/api/waste/${entryId}`, { method: "DELETE", signal: controller.signal });
         if (!response.ok) throw new Error("Failed to delete waste entry");
 
+        if (row) row.remove();
         showToast("Waste entry removed.", "success");
         await loadWasteData();
         loadLiveDashboardData();
     } catch (err) {
+        if (row) row.classList.remove("removing-row");
         if (err.name === "AbortError") {
             showToast("The server took too long — refresh to check whether the entry was removed.", "error");
         } else {
