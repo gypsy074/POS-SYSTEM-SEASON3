@@ -688,20 +688,14 @@ body.banner-visible .app-container {
 .tab-item p { font-size: 0.85rem; opacity: 0.7; }
 
 /* 4. Food Items Grid Area */
-@keyframes menuCardIn {
-    from {
-        opacity: 0;
-        transform: translateY(14px) scale(0.98);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
+@keyframes menuSlideOut {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(-40px); opacity: 0; }
 }
 
-@keyframes menuEmptyIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+@keyframes menuSlideIn {
+    from { transform: translateX(48px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
 }
 
 .menu-grid {
@@ -718,17 +712,13 @@ body.banner-visible .app-container {
     align-content: start;
 }
 
-.menu-grid .food-card {
-    animation: menuCardIn 0.35s ease-out backwards;
-}
-
-.menu-grid .menu-empty-card {
-    animation: menuEmptyIn 0.25s ease-out backwards;
-}
+/* Carousel-style transitions when the menu re-renders */
+.menu-grid.menu-slide-out { animation: menuSlideOut 0.16s ease-in forwards; }
+.menu-grid.menu-slide-in { animation: menuSlideIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
 
 @media (prefers-reduced-motion: reduce) {
-    .menu-grid .food-card,
-    .menu-grid .menu-empty-card {
+    .menu-grid.menu-slide-out,
+    .menu-grid.menu-slide-in {
         animation: none;
     }
 }

@@ -1040,6 +1040,7 @@ function productIsLowStock(product) {
 }
 
 function displayCategoryItems(category, searchTerm = "") {
+    const isCategorySwitch = category !== activeCategory;
     activeCategory = category;
     renderCategoryTabs();
 
@@ -1062,44 +1063,65 @@ function displayCategoryItems(category, searchTerm = "") {
     // Sold-out items go last so the cashier sees available items first.
     products.sort((a, b) => (productIsSoldOut(a) ? 1 : 0) - (productIsSoldOut(b) ? 1 : 0));
 
-    // Category switches get a staggered cascade; live search typing gets a
-    // quick uniform fade so every keystroke stays snappy.
-    const searching = Boolean(normalizedSearch);
+    // Carousel transition: category switches slide the whole menu out to the
+    // left, then the new grid slides in from the right. Search typing and
+    // refreshes skip the out-phase and just slide the new grid in quickly.
     grid.scrollTop = 0;
 
-    grid.innerHTML = products.length
-        ? products.map((product, index) => {
-            const soldOut = productIsSoldOut(product);
-            const lowStock = productIsLowStock(product);
-            const delay = searching ? 0.02 : Math.min(index * 0.045, 0.45);
-            return `
-            <article class="food-card ${soldOut ? "sold-out-card" : ""}" style="animation-delay: ${delay.toFixed(3)}s">
-                <img src="${escapeHtml(product.image || createPlaceholderImage(product.name))}" alt="${escapeHtml(product.name)}">
-                <div class="food-info">
-                    <h4>${escapeHtml(product.name)}</h4>
-                    <div class="price-box">
-                        <span>₱${Number(product.price || 0).toFixed(2)}</span>
-                        <button type="button" class="add-circle" data-product-id="${product._id}" ${soldOut ? "disabled" : ""}>
-                            <i class="fa-solid fa-plus"></i>
-                        </button>
+    function renderGrid() {
+        grid.innerHTML = products.length
+            ? products.map(product => {
+                const soldOut = productIsSoldOut(product);
+                const lowStock = productIsLowStock(product);
+                return `
+                <article class="food-card ${soldOut ? "sold-out-card" : ""}">
+                    <img src="${escapeHtml(product.image || createPlaceholderImage(product.name))}" alt="${escapeHtml(product.name)}">
+                    <div class="food-info">
+                        <h4>${escapeHtml(product.name)}</h4>
+                        <div class="price-box">
+                            <span>₱${Number(product.price || 0).toFixed(2)}</span>
+                            <button type="button" class="add-circle" data-product-id="${product._id}" ${soldOut ? "disabled" : ""}>
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                        </div>
+                        ${soldOut
+                            ? '<div class="sold-out-overlay"><span>OUT OF STOCK</span></div>'
+                            : lowStock
+                                ? `<div class="low-stock-badge">Only ${productStock(product)} left</div>`
+                                : ""}
                     </div>
-                    ${soldOut
-                        ? '<div class="sold-out-overlay"><span>OUT OF STOCK</span></div>'
-                        : lowStock
-                            ? `<div class="low-stock-badge">Only ${productStock(product)} left</div>`
-                            : ""}
-                </div>
-            </article>
-        `;
-        }).join("")
-        : `<div class="food-card menu-empty-card"><div class="food-info"><h4>No items found</h4><p>Try a different category or search term.</p></div></div>`;
+                </article>
+            `;
+            }).join("")
+            : `<div class="food-card menu-empty-card"><div class="food-info"><h4>No items found</h4><p>Try a different category or search term.</p></div></div>`;
 
-    grid.querySelectorAll("[data-product-id]").forEach(button => {
-        button.addEventListener("click", event => {
-            event.stopPropagation();
-            addToCart(button.dataset.productId);
+        grid.querySelectorAll("[data-product-id]").forEach(button => {
+            button.addEventListener("click", event => {
+                event.stopPropagation();
+                addToCart(button.dataset.productId);
+            });
         });
-    });
+
+        grid.classList.remove("menu-slide-out");
+        grid.classList.add("menu-slide-in");
+    }
+
+    if (isCategorySwitch && grid.children.length) {
+        grid.classList.remove("menu-slide-in");
+        grid.classList.add("menu-slide-out");
+
+        let swapped = false;
+        const swap = () => {
+            if (swapped) return;
+            swapped = true;
+            grid.removeEventListener("animationend", swap);
+            renderGrid();
+        };
+        grid.addEventListener("animationend", swap);
+        setTimeout(swap, 300);
+    } else {
+        renderGrid();
+    }
 }
 
 function createPlaceholderImage(label) {
