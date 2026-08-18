@@ -267,6 +267,19 @@ const categorySchema = new mongoose.Schema({
 categorySchema.index({ name: 1 });
 const Category = mongoose.model('Category', categorySchema);
 
+// Owner email alerts — a single document holding recipient emails, alert
+// toggles, and the dedup state (per-item low-stock and per-day summary).
+const ownerAlertSettingsSchema = new mongoose.Schema({
+    _id: { type: String, default: 'owner-alerts' },
+    recipients: { type: [String], default: [] },
+    lowStockEnabled: { type: Boolean, default: true },
+    dailySummaryEnabled: { type: Boolean, default: true },
+    dailySummaryHour: { type: Number, default: 20, min: 0, max: 23 },
+    lastDailySentDate: { type: String, default: '' },
+    lowStockLastSent: { type: Map, of: String, default: {} }
+});
+const OwnerAlertSettings = mongoose.model('OwnerAlertSettings', ownerAlertSettingsSchema);
+
 /* ==========================================================================
    2. UTILITY INTERCEPTORS & VALIDATION ENGINES
    ========================================================================== */
@@ -843,6 +856,15 @@ const payload = normalizeOrderPayload(req.body);
             { status: "Out of Stock" }
         );
 
+        // 4) Fire-and-forget owner alert when an item drops below its
+        //    threshold (deduped to one email per item per day).
+        for (const item of payload.items) {
+            const product = await Product.findOne({ name: item.name }).select('name stock lowStockThreshold');
+            if (product && Number(product.stock) < Number(product.lowStockThreshold)) {
+                trySendLowStockAlert(product).catch(err => console.error('❌ Low-stock email failed:', err.message));
+            }
+        }
+
         res.status(201).json(newOrder);
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
@@ -1395,6 +1417,202 @@ app.post('/api/ai/report', aiReportLimiter, authRequired(['Admin']), async (req,
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ---------------------- OWNER EMAIL ALERTS ----------------------
+// Real-time low-stock emails (on order placement) and a daily sales
+// summary. Sending uses nodemailer + SMTP env vars (backend/email.js).
+const { isEmailConfigured, sendAlertMail } = require('./email');
+
+function manilaDateStr(d = new Date()) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+async function getOwnerAlertSettings() {
+    let doc = await OwnerAlertSettings.findById('owner-alerts');
+    if (!doc) {
+        doc = new OwnerAlertSettings({ _id: 'owner-alerts' });
+        await doc.save();
+    }
+    return doc;
+}
+
+function escapeHtmlEmail(value) {
+    return String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+}
+
+// Fire-and-forget low-stock email, deduped to one email per item per day.
+async function trySendLowStockAlert(product) {
+    if (!isEmailConfigured()) return;
+    const settings = await getOwnerAlertSettings();
+    if (!settings.lowStockEnabled || !settings.recipients.length) return;
+    const today = manilaDateStr();
+    if (settings.lowStockLastSent.get(product.name) === today) return;
+
+    const stock = Number(product.stock) || 0;
+    const threshold = Number(product.lowStockThreshold) || 0;
+    const html = `
+        <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto">
+            <h2 style="color:#8b5e3c">Low Stock Alert</h2>
+            <p><strong>${escapeHtmlEmail(product.name)}</strong> is down to
+            <strong style="color:#c0392b">${stock}</strong> (threshold ${threshold}).</p>
+            <p>Restock soon or it will run out of the menu.</p>
+        </div>`;
+    const result = await sendAlertMail({
+        to: settings.recipients.join(', '),
+        subject: `Low stock: ${product.name} (${stock} left)`,
+        html
+    });
+    if (result.ok) {
+        settings.lowStockLastSent.set(product.name, today);
+        await settings.save();
+    }
+}
+
+// Builds the daily summary email from today's orders (Manila time).
+async function buildDailySummaryEmail() {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const [orders, products] = await Promise.all([
+        Order.find({ date: { $gte: startOfDay } }).lean(),
+        Product.find().lean()
+    ]);
+    const completed = orders.filter(o => o.status !== 'Voided');
+    const total = completed.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+    const paymentSplit = {};
+    completed.forEach(o => {
+        const key = o.paymentMethod || 'Cash';
+        paymentSplit[key] = (paymentSplit[key] || 0) + 1;
+    });
+    const itemCounts = {};
+    completed.forEach(o => (o.items || []).forEach(i => {
+        itemCounts[i.name] = (itemCounts[i.name] || 0) + (Number(i.quantity) || 0);
+    }));
+    const topItems = Object.entries(itemCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const lowStock = products
+        .filter(p => Number(p.stock) < Number(p.lowStockThreshold))
+        .sort((a, b) => Number(a.stock) - Number(b.stock));
+
+    const rows = (list) => list.length
+        ? list.map(([name, qty]) => `<tr><td>${escapeHtmlEmail(name)}</td><td>${qty}</td></tr>`).join('')
+        : '<tr><td colspan="2" style="color:#888">No sales today.</td></tr>';
+    const lowRows = lowStock.length
+        ? lowStock.map(p => `<tr><td>${escapeHtmlEmail(p.name)}</td><td style="color:#c0392b">${Number(p.stock) || 0} / ${Number(p.lowStockThreshold) || 0}</td></tr>`).join('')
+        : '<tr><td colspan="2" style="color:#888">All items healthy.</td></tr>';
+
+    return {
+        subject: `Daily Sales Summary — ${manilaDateStr()}`,
+        html: `
+        <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto">
+            <h2 style="color:#8b5e3c">☕ Daily Sales Summary</h2>
+            <p style="color:#888">${manilaDateStr()} · Season 3 POS</p>
+            <table style="width:100%;border-collapse:collapse;font-size:14px">
+                <tr><td style="padding:6px 0;color:#666">Orders today</td><td style="text-align:right;font-weight:bold">${completed.length}</td></tr>
+                <tr><td style="padding:6px 0;color:#666">Total revenue</td><td style="text-align:right;font-weight:bold">₱${total.toFixed(2)}</td></tr>
+                <tr><td style="padding:6px 0;color:#666">Payment split</td><td style="text-align:right">${Object.entries(paymentSplit).map(([k, v]) => `${escapeHtmlEmail(k)}: ${v}`).join(' · ')}</td></tr>
+            </table>
+            <h3 style="color:#8b5e3c;margin-top:20px">Top items</h3>
+            <table style="width:100%;border-collapse:collapse;font-size:14px">
+                <tr style="border-bottom:1px solid #eee"><th align="left">Item</th><th align="right">Qty</th></tr>
+                ${rows(topItems)}
+            </table>
+            <h3 style="color:#8b5e3c;margin-top:20px">Low stock</h3>
+            <table style="width:100%;border-collapse:collapse;font-size:14px">
+                <tr style="border-bottom:1px solid #eee"><th align="left">Item</th><th align="right">Stock / Threshold</th></tr>
+                ${lowRows}
+            </table>
+        </div>`
+    };
+}
+
+// One daily email per day; safe to call repeatedly (idempotent). Runs the
+// catch-up at startup too, so a sleeping Render instance still delivers.
+async function trySendDailySummary() {
+    if (!isEmailConfigured()) return;
+    const settings = await getOwnerAlertSettings();
+    if (!settings.dailySummaryEnabled || !settings.recipients.length) return;
+    const today = manilaDateStr();
+    if (settings.lastDailySentDate === today) return;
+
+    const email = await buildDailySummaryEmail();
+    const result = await sendAlertMail({ to: settings.recipients.join(', '), ...email });
+    if (result.ok) {
+        settings.lastDailySentDate = today;
+        await settings.save();
+    }
+}
+
+app.get('/api/settings/owner-alerts', authRequired(['Admin']), async (req, res) => {
+    try {
+        const s = await getOwnerAlertSettings();
+        res.json({
+            recipients: s.recipients,
+            lowStockEnabled: s.lowStockEnabled,
+            dailySummaryEnabled: s.dailySummaryEnabled,
+            dailySummaryHour: s.dailySummaryHour,
+            smtpConfigured: isEmailConfigured()
+        });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+app.put('/api/settings/owner-alerts', authRequired(['Admin']), async (req, res) => {
+    try {
+        const { recipients, lowStockEnabled, dailySummaryEnabled, dailySummaryHour } = req.body || {};
+        if (!Array.isArray(recipients) || !recipients.length) {
+            return res.status(400).json({ error: 'Add at least one recipient email address.' });
+        }
+        if (recipients.length > 5) {
+            return res.status(400).json({ error: 'Maximum of 5 recipient emails.' });
+        }
+        const cleaned = recipients.map(e => String(e).trim()).filter(Boolean);
+        if (cleaned.some(e => !EMAIL_RE.test(e))) {
+            return res.status(400).json({ error: 'One or more recipient emails are invalid.' });
+        }
+        const hour = dailySummaryHour === undefined ? 20 : Number(dailySummaryHour);
+        if (!Number.isInteger(hour) || hour < 0 || hour > 23) {
+            return res.status(400).json({ error: 'Daily summary hour must be an integer from 0 to 23.' });
+        }
+        const s = await getOwnerAlertSettings();
+        s.recipients = [...new Set(cleaned)];
+        s.lowStockEnabled = lowStockEnabled === undefined ? true : Boolean(lowStockEnabled);
+        s.dailySummaryEnabled = dailySummaryEnabled === undefined ? true : Boolean(dailySummaryEnabled);
+        s.dailySummaryHour = hour;
+        await s.save();
+        res.json({
+            recipients: s.recipients,
+            lowStockEnabled: s.lowStockEnabled,
+            dailySummaryEnabled: s.dailySummaryEnabled,
+            dailySummaryHour: s.dailySummaryHour,
+            smtpConfigured: isEmailConfigured()
+        });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+const testEmailLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many test emails. Try again in a minute.' }
+});
+app.post('/api/settings/owner-alerts/test', testEmailLimiter, authRequired(['Admin']), async (req, res) => {
+    try {
+        const s = await getOwnerAlertSettings();
+        if (!s.recipients.length) {
+            return res.status(400).json({ error: 'Save a recipient email first.' });
+        }
+        if (!isEmailConfigured()) {
+            return res.status(400).json({ error: 'SMTP is not configured. Add SMTP_HOST, SMTP_USER and SMTP_PASS to the server environment.' });
+        }
+        const result = await sendAlertMail({
+            to: s.recipients[0],
+            subject: 'Test email — Owner Alerts',
+            html: '<p>If you can read this, owner alert emails are working.</p>'
+        });
+        if (result.ok) return res.json({ ok: true });
+        res.status(502).json({ error: `Email failed: ${result.error}` });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ---------------------- SEED DEFAULT ADMIN ----------------------
 // Creates a default admin account on first boot when no users exist.
 // Override credentials with SEED_ADMIN_USERNAME / SEED_ADMIN_PASSWORD in .env
@@ -1439,6 +1657,10 @@ if (require.main === module) {
         console.log(`🚀 Master Back-End Live and Running Cleanly on Port ${PORT}`);
         mongoose.connection.readyState === 1 && seedDefaultAdmin();
         checkRenderStatus();
+        // Owner-alert daily summary: immediate catch-up (covers a sleeping
+        // free-tier instance) + a 60s tick that fires when the hour hits.
+        trySendDailySummary().catch(() => {});
+        setInterval(() => { trySendDailySummary().catch(() => {}); }, 60000);
     });
 }
 
@@ -1463,4 +1685,7 @@ mongoose.connection.once('connected', () => {
 });
 
 module.exports = app;
+// Test hooks — expose the alert pipeline so jest can drive it with a fake
+// mailer and a memory DB (see tests/owner-alerts.test.js).
+app._ownerAlerts = { trySendDailySummary, trySendLowStockAlert, getOwnerAlertSettings, buildDailySummaryEmail };
 

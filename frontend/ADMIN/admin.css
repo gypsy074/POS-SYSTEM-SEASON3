@@ -3673,3 +3673,160 @@ body.dark .waste-top-chip {
     border-color: #57432c;
     color: #e8dccb;
 }
+
+/* ==========================================================================
+   Owner email alerts settings panel
+   ========================================================================== */
+
+.settings-card {
+    background: white;
+    border: 1px solid #eee;
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 640px;
+    margin-top: 16px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+}
+
+.settings-hint {
+    color: #777;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    margin: 0 0 12px 0;
+}
+
+.settings-smtp-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 8px 14px;
+    border-radius: 30px;
+    margin-bottom: 18px;
+}
+
+.settings-smtp-status.ok {
+    background: #e8f7ec;
+    color: #1f7a38;
+}
+
+.settings-smtp-status.err {
+    background: #fdeeee;
+    color: #b84f3f;
+}
+
+.settings-label {
+    display: block;
+    font-weight: 700;
+    font-size: 0.88rem;
+    margin-bottom: 6px;
+    color: var(--dark-brown, #6b4f3b);
+}
+
+.settings-card textarea {
+    width: 100%;
+    font-family: inherit;
+    font-size: 0.9rem;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    resize: vertical;
+    background: #fafaf8;
+}
+
+.settings-toggle-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 18px;
+    margin: 18px 0;
+}
+
+.settings-toggle {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+.settings-toggle input {
+    display: none;
+}
+
+.toggle-track {
+    width: 42px;
+    height: 24px;
+    border-radius: 30px;
+    background: #ccc;
+    position: relative;
+    transition: background 0.2s ease;
+    flex-shrink: 0;
+}
+
+.toggle-track::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: white;
+    transition: transform 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.settings-toggle input:checked + .toggle-track {
+    background: #a07855;
+}
+
+.settings-toggle input:checked + .toggle-track::after {
+    transform: translateX(18px);
+}
+
+.settings-hour-label {
+    font-size: 0.88rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.settings-hour-label select {
+    font-family: inherit;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    background: #fafaf8;
+}
+
+.settings-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+body.dark .settings-card {
+    background: #2b211a;
+    border-color: #57432c;
+}
+
+body.dark .settings-hint { color: #b8a894; }
+
+body.dark .settings-smtp-status.ok { background: #20311f; color: #7fd18c; }
+body.dark .settings-smtp-status.err { background: #3a2220; color: #f19a8e; }
+
+body.dark .settings-label { color: #e8dccb; }
+
+body.dark .settings-card textarea,
+body.dark .settings-hour-label select {
+    background: #241b15;
+    border-color: #57432c;
+    color: #ece4d9;
+}
+
+body.dark .toggle-track { background: #57432c; }
+body.dark .toggle-track::after { background: #e8dccb; }

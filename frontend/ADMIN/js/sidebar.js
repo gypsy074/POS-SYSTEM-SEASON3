@@ -45,6 +45,7 @@ function setupSidebarNavigation() {
             if (activePanelId === "inventory-view") loadLiveInventoryData();
             if (activePanelId === "waste-view") loadWasteData();
             if (activePanelId === "audit-view") loadAuditData();
+            if (activePanelId === "settings-view") loadSettings();
         });
     });
 }

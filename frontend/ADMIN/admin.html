@@ -25,6 +25,7 @@
                 <button class="nav-btn" data-target="inventory-view"><i class="fas fa-boxes-stacked"></i> Inventory</button>
                 <button class="nav-btn" data-target="waste-view"><i class="fas fa-recycle"></i> Waste Food</button>
                 <button class="nav-btn" data-target="audit-view"><i class="fas fa-scroll"></i> Audit Log</button>
+                <button class="nav-btn" data-target="settings-view"><i class="fas fa-gear"></i> Settings</button>
             </nav>
         </aside>
 
@@ -582,6 +583,56 @@
                 </div>
             </div>
 
+            <div id="settings-view" class="admin-panel hidden">
+                <div class="panel-header-title" style="margin-left:20px;">
+                    <h2><i class="fas fa-gear"></i> Settings</h2>
+                </div>
+                <div class="content-wrapper">
+                    <section class="transactions-section">
+                        <div class="section-header">
+                            <i class="fas fa-envelope-open-text"></i> Owner Email Alerts
+                        </div>
+                        <div class="settings-card">
+                            <p class="settings-hint">
+                                Alerts are emailed to the owner when an item drops below its low-stock threshold,
+                                and once per day with a sales summary. Emails are sent from the SMTP account
+                                configured on the server (<code>SMTP_HOST</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code>).
+                            </p>
+                            <div class="settings-smtp-status" id="smtpStatusLine"><i class="fas fa-spinner fa-spin"></i> Checking...</div>
+
+                            <label class="settings-label" for="alertRecipients">Recipient emails (one per line, max 5)</label>
+                            <textarea id="alertRecipients" rows="3" placeholder="owner@example.com&#10;manager@example.com"></textarea>
+
+                            <div class="settings-toggle-row">
+                                <label class="settings-toggle">
+                                    <input type="checkbox" id="lowStockToggle">
+                                    <span class="toggle-track"></span>
+                                    <span>Low stock alerts (real-time)</span>
+                                </label>
+                                <label class="settings-toggle">
+                                    <input type="checkbox" id="dailySummaryToggle">
+                                    <span class="toggle-track"></span>
+                                    <span>Daily sales summary</span>
+                                </label>
+                                <label class="settings-hour-label">
+                                    Send summary at
+                                    <select id="dailySummaryHour"></select>
+                                </label>
+                            </div>
+
+                            <div class="settings-actions">
+                                <button type="button" class="action-btn action-btn-primary" id="saveAlertSettingsBtn">
+                                    <i class="fas fa-save"></i> Save
+                                </button>
+                                <button type="button" class="action-btn action-btn-secondary" id="testAlertEmailBtn">
+                                    <i class="fas fa-paper-plane"></i> Send test email
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
 </main>
     </div>
 
@@ -605,6 +656,7 @@
     <script src="js/inventory.js?v=42"></script>
     <script src="js/restock.js?v=1"></script>
     <script src="js/audit.js?v=41"></script>
+    <script src="js/settings.js?v=1"></script>
     <!-- Main Entry Point (runs last) -->
     <script src="admin.js?v=42"></script>
 

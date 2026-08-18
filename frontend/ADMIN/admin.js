@@ -187,6 +187,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // Server status indicator
     setupServerStatus();
 
+    // Owner email alerts settings panel
+    setupSettingsForm();
+
     // CSV export for Sales Analytics
     const exportBtn = document.getElementById("exportCsvBtn");
     if (exportBtn) exportBtn.addEventListener("click", exportSalesCsv);
