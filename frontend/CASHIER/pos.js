@@ -1062,22 +1062,19 @@ function displayCategoryItems(category, searchTerm = "") {
     // Sold-out items go last so the cashier sees available items first.
     products.sort((a, b) => (productIsSoldOut(a) ? 1 : 0) - (productIsSoldOut(b) ? 1 : 0));
 
-    // Card-by-card transition: the new category's cards unfold one by one
-    // immediately (Android-style staggered list) — no wait for the old
-    // cards. Search typing just fades the results in quickly.
+    // Card-by-card transition: new cards unfold one by one immediately
+    // (Android-style staggered list) — for category switches, search typing
+    // and first load alike. No wait for old cards.
     grid.scrollTop = 0;
 
-    function renderGrid(fade = true, expand = false) {
+    function renderGrid() {
         grid.innerHTML = products.length
             ? products.map((product, index) => {
                 const soldOut = productIsSoldOut(product);
                 const lowStock = productIsLowStock(product);
-                const expandClass = expand ? " menu-card-expand" : "";
-                const expandDelay = expand
-                    ? ` style="animation-delay: ${Math.min(index * 0.035, 0.25).toFixed(3)}s"`
-                    : "";
+                const expandDelay = ` style="animation-delay: ${Math.min(index * 0.035, 0.25).toFixed(3)}s"`;
                 return `
-                <article class="food-card ${soldOut ? "sold-out-card" : ""}${expandClass}"${expandDelay}>
+                <article class="food-card ${soldOut ? "sold-out-card" : ""} menu-card-expand"${expandDelay}>
                     <img src="${escapeHtml(product.image || createPlaceholderImage(product.name))}" alt="${escapeHtml(product.name)}">
                     <div class="food-info">
                         <h4>${escapeHtml(product.name)}</h4>
@@ -1096,7 +1093,7 @@ function displayCategoryItems(category, searchTerm = "") {
                 </article>
             `;
             }).join("")
-            : `<div class="food-card menu-empty-card${expand ? " menu-card-expand" : ""}"><div class="food-info"><h4>No items found</h4><p>Try a different category or search term.</p></div></div>`;
+            : `<div class="food-card menu-empty-card menu-card-expand"><div class="food-info"><h4>No items found</h4><p>Try a different category or search term.</p></div></div>`;
 
         grid.querySelectorAll("[data-product-id]").forEach(button => {
             button.addEventListener("click", event => {
@@ -1104,22 +1101,9 @@ function displayCategoryItems(category, searchTerm = "") {
                 addToCart(button.dataset.productId);
             });
         });
-
-        grid.classList.remove("menu-fade-in");
-        if (fade) {
-            void grid.offsetWidth;
-            grid.classList.add("menu-fade-in");
-        }
     }
 
-    if (normalizedSearch) {
-        // Typing in search: quick uniform fade, no per-card stagger.
-        renderGrid(true, false);
-    } else {
-        // Category switches, first load and refreshes: swap immediately so
-        // the new menu shows right away, then cards unfold one by one.
-        renderGrid(false, true);
-    }
+    renderGrid();
 }
 
 function createPlaceholderImage(label) {
