@@ -1624,21 +1624,22 @@ app.get('/api/diagnostics/smtp', authRequired(['Admin']), async (req, res) => {
     const results = {};
     const probe = (label, host, port, ms = 5000) => new Promise(resolve => {
         const t0 = Date.now();
-        const sock = net.connect({ host, port, family: 4, timeout: ms });
+        // AbortSignal.timeout aborts a *pending* connect (socket timeout only
+        // fires after connect — useless for blackholed SYN attempts).
+        const sock = net.connect({ host, port, family: 4, signal: AbortSignal.timeout(ms) });
         const done = status => { results[label] = `${status} (${Date.now() - t0}ms)`; try { sock.destroy(); } catch (e) {} };
         sock.once('connect', () => done('CONNECTED'));
-        sock.once('timeout', () => done('TIMEOUT'));
-        sock.once('error', e => done(`ERR ${e.code || e.message}`));
+        sock.once('error', e => done(e.name === 'AbortError' ? 'TIMEOUT' : `ERR ${e.code || e.message}`));
     });
     const ip = await new Promise(resolve => dns.lookup('smtp.gmail.com', { family: 4 }, (e, a) => resolve(e ? null : a)));
     results.resolvedIPv4 = ip || 'NONE';
-    if (ip) {
-        await probe('gmail-465', ip, 465);
-        await probe('gmail-587', ip, 587);
-        await probe('gmail-25', ip, 25);
-    }
-    await probe('google-443-control', '142.250.72.206', 443);
-    await probe('render-api-control', 'api.render.com', 443, 4000);
+    await Promise.all([
+        ip ? probe('gmail-465', ip, 465) : Promise.resolve(),
+        ip ? probe('gmail-587', ip, 587) : Promise.resolve(),
+        ip ? probe('gmail-25', ip, 25) : Promise.resolve(),
+        probe('google-443-control', '142.250.72.206', 443),
+        probe('render-api-443-control', 'api.render.com', 443, 4000)
+    ]);
     res.json(results);
 });
 
