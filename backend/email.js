@@ -4,6 +4,7 @@
 // isEmailConfigured() reports false so the admin UI can show the state.
 
 const nodemailer = require("nodemailer");
+const dns = require("dns");
 
 let transporter = null;
 
@@ -13,6 +14,12 @@ function isEmailConfigured() {
         process.env.SMTP_USER &&
         process.env.SMTP_PASS
     );
+}
+
+// Force IPv4 — Render's network cannot reach Gmail over IPv6, and nodemailer
+// tries IPv6 first, which hangs until timeout (ENETUNREACH 2607:...).
+function ipv4Lookup(hostname, options, callback) {
+    dns.lookup(hostname, { ...options, family: 4 }, callback);
 }
 
 function getTransporter() {
@@ -25,6 +32,7 @@ function getTransporter() {
             host: process.env.SMTP_HOST,
             port,
             secure: port === 465,
+            lookup: ipv4Lookup,
             auth: {
                 user: process.env.SMTP_USER,
                 pass: process.env.SMTP_PASS,

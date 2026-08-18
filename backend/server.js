@@ -22,6 +22,11 @@ dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 
+// Render sits behind a proxy — express-rate-limit validates X-Forwarded-For
+// and throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR (intermittent 500s) unless
+// the app trusts the proxy hop.
+app.set('trust proxy', 1);
+
 // JWT signing secret — never run on Render with the public dev fallback.
 // Render services always set RENDER=true, so a missing JWT_SECRET there is
 // a fatal misconfiguration, not a local convenience.
