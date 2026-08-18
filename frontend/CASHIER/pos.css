@@ -859,7 +859,9 @@ body.banner-visible .app-container {
        content height so long carts scroll instead of being clipped
        behind the checkout area. */
     flex: 1 1 0;
-    min-height: 0;
+    /* Floor: even with the checkout block fully expanded (senior discount
+       fields open) the cart keeps enough height to stay visible. */
+    min-height: 90px;
     overflow-y: auto;
     margin-bottom: 20px;
 }
@@ -1172,7 +1174,7 @@ payment-details-section h3 {
 /*7. "Swipe to Confirm" Slide Button Animation*/
 .checkout-area {
     margin-top: auto;   /* Added: pushes this area to the bottom */
-    padding-top: 20px;
+    padding-top: 14px;
     border-top: 1px solid #eee;
     background: var(--white);   
 }
@@ -1194,46 +1196,46 @@ payment-details-section h3 {
 }
 
 .senior-discount-box {
-    margin-bottom: 16px;
-    padding: 12px;
+    margin-bottom: 12px;
+    padding: 8px 10px;
     border: 1px solid #eee;
-    border-radius: 12px;
+    border-radius: 10px;
     background: var(--soft-bg, #faf7f2);
 }
 
 .senior-discount-toggle {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     cursor: pointer;
     user-select: none;
 }
 
 .senior-discount-toggle input {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     accent-color: var(--accent-brown, #8b5e3c);
 }
 
 .senior-discount-label {
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.82rem;
     color: var(--dark-brown, #4a2c17);
 }
 
 .senior-discount-fields {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    margin-top: 10px;
+    gap: 6px;
+    margin-top: 8px;
 }
 
 .senior-discount-fields input {
     width: 100%;
-    padding: 9px 12px;
+    padding: 7px 10px;
     border: 1px solid #ddd;
-    border-radius: 10px;
-    font-size: 0.9rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
     background: #fff;
     outline: none;
 }
