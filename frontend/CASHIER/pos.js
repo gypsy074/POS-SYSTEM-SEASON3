@@ -9,6 +9,9 @@ let selectedMode = "Dine In";
 let selectedPayment = "cash";
 let currentOrderId = generateOrderId();
 
+const CART_PREVIEW_MAX = 6;
+let cartDrawerExpanded = false;
+
 // ── Receipt printer settings ─────────────────────────────────────────────
 // mode: "dialog" = browser print dialog (default), "bridge" = silent print
 // via a local Bluetooth-thermal helper app (the app exposes an HTTP endpoint
@@ -1059,12 +1062,18 @@ function displayCategoryItems(category, searchTerm = "") {
     // Sold-out items go last so the cashier sees available items first.
     products.sort((a, b) => (productIsSoldOut(a) ? 1 : 0) - (productIsSoldOut(b) ? 1 : 0));
 
+    // Category switches get a staggered cascade; live search typing gets a
+    // quick uniform fade so every keystroke stays snappy.
+    const searching = Boolean(normalizedSearch);
+    grid.scrollTop = 0;
+
     grid.innerHTML = products.length
-        ? products.map(product => {
+        ? products.map((product, index) => {
             const soldOut = productIsSoldOut(product);
             const lowStock = productIsLowStock(product);
+            const delay = searching ? 0.02 : Math.min(index * 0.045, 0.45);
             return `
-            <article class="food-card ${soldOut ? "sold-out-card" : ""}">
+            <article class="food-card ${soldOut ? "sold-out-card" : ""}" style="animation-delay: ${delay.toFixed(3)}s">
                 <img src="${escapeHtml(product.image || createPlaceholderImage(product.name))}" alt="${escapeHtml(product.name)}">
                 <div class="food-info">
                     <h4>${escapeHtml(product.name)}</h4>
@@ -1083,7 +1092,7 @@ function displayCategoryItems(category, searchTerm = "") {
             </article>
         `;
         }).join("")
-        : `<div class="food-card"><div class="food-info"><h4>No items found</h4><p>Try a different category or search term.</p></div></div>`;
+        : `<div class="food-card menu-empty-card"><div class="food-info"><h4>No items found</h4><p>Try a different category or search term.</p></div></div>`;
 
     grid.querySelectorAll("[data-product-id]").forEach(button => {
         button.addEventListener("click", event => {
@@ -1163,8 +1172,12 @@ function renderCart() {
         return;
     }
 
+    const showPreview = cart.length > CART_PREVIEW_MAX && !cartDrawerExpanded;
+    const visibleItems = showPreview ? cart.slice(0, CART_PREVIEW_MAX) : cart;
+    const hiddenCount = cart.length - visibleItems.length;
+
     cartContainer.innerHTML = cart.length
-        ? cart.map((item, index) => `
+        ? visibleItems.map((item, index) => `
             <div class="cart-row">
                 <img class="cart-item-img" src="${escapeHtml(item.image || createPlaceholderImage(item.name))}" alt="${escapeHtml(item.name)}">
                 <div class="cart-row-details">
@@ -1179,7 +1192,33 @@ function renderCart() {
                 <button type="button" class="remove-item-btn" data-cart-action="remove" data-cart-index="${index}">Remove</button>
             </div>
         `).join("")
+        + (showPreview
+            ? `<button type="button" class="cart-drawer-preview-btn" id="cartPreviewExpandBtn">
+                <i class="fa-solid fa-chevron-down"></i>
+                <span>View all items (${hiddenCount} more)</span>
+            </button>`
+            : cartDrawerExpanded
+                ? `<button type="button" class="cart-drawer-preview-btn" id="cartPreviewCollapseBtn">
+                    <i class="fa-solid fa-chevron-up"></i>
+                    <span>Show less</span>
+                </button>`
+                : "")
         : `<div class="cart-row"><div class="cart-row-details"><h5>Your cart is empty</h5><p>Tap a menu item to add it here.</p></div></div>`;
+
+    const expandBtn = document.getElementById("cartPreviewExpandBtn");
+    if (expandBtn) {
+        expandBtn.addEventListener("click", () => {
+            cartDrawerExpanded = true;
+            renderCart();
+        });
+    }
+    const collapseBtn = document.getElementById("cartPreviewCollapseBtn");
+    if (collapseBtn) {
+        collapseBtn.addEventListener("click", () => {
+            cartDrawerExpanded = false;
+            renderCart();
+        });
+    }
 
     cartContainer.querySelectorAll("[data-cart-action]").forEach(button => {
         button.addEventListener("click", () => {
@@ -2210,6 +2249,7 @@ function cancelOrder(silent = false) {
     cart = [];
     resetSeniorDiscount();
     setCartDrawerOpen(false);
+    cartDrawerExpanded = false;
     currentOrderId = generateOrderId(); // fresh ID for next order
     renderOrderId();
     renderCart();
