@@ -65,6 +65,8 @@ document.addEventListener("DOMContentLoaded", () => {
     setupCalculatorModal();
     setupSeniorDiscount();
     setupCartDrawer();
+    setupCashierDarkMode();
+    setupServerStatus();
     setupKeyboardShortcuts();
     updateCalculatorVisibility();
     updateChangeCalculator();
@@ -354,6 +356,72 @@ function setupOfflineSupport() {
     updateOfflineBanner();
     // Recovered orders from a previous session sync as soon as we're online.
     flushOfflineOrders();
+}
+
+// Dark mode toggle — shares the posDarkMode key with the admin panel, so
+// the preference follows the user between pages.
+function setupCashierDarkMode() {
+    const btn = document.getElementById("cashierDarkModeBtn");
+    if (!btn) return;
+
+    const icon = btn.querySelector("i");
+    const apply = dark => {
+        document.body.classList.toggle("dark", dark);
+        if (icon) icon.className = dark ? "fa-solid fa-sun" : "fa-solid fa-moon";
+    };
+
+    apply(localStorage.getItem("posDarkMode") === "1");
+
+    btn.addEventListener("click", () => {
+        const dark = !document.body.classList.contains("dark");
+        localStorage.setItem("posDarkMode", dark ? "1" : "0");
+        apply(dark);
+    });
+}
+
+// Online/offline indicator — same pill as the admin header. Polls the
+// backend health endpoint, and snaps to offline instantly when the browser
+// loses connectivity (the offline banner listeners also refresh it).
+let serverStatusPending = false;
+function setServerStatus(state, label) {
+    const statusEl = document.getElementById("cashierServerStatus");
+    if (!statusEl) return;
+    statusEl.classList.remove("online", "offline", "waking");
+    if (state) statusEl.classList.add(state);
+    const text = statusEl.querySelector(".status-text");
+    if (text) text.textContent = label;
+}
+
+async function refreshServerStatus() {
+    const statusEl = document.getElementById("cashierServerStatus");
+    if (!statusEl || serverStatusPending) return;
+    if (!navigator.onLine) {
+        setServerStatus("offline", "Offline");
+        return;
+    }
+    serverStatusPending = true;
+    setServerStatus("waking", "Checking...");
+    try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 10000);
+        const response = await fetch(`${getApiBaseUrl()}/api/health`, { signal: controller.signal });
+        clearTimeout(timer);
+        const data = response.ok ? await response.json() : null;
+        setServerStatus(data && data.ok ? "online" : "offline", data && data.ok ? "Online" : "Offline");
+    } catch (err) {
+        setServerStatus("offline", "Offline");
+    } finally {
+        serverStatusPending = false;
+    }
+}
+
+function setupServerStatus() {
+    refreshServerStatus();
+    setInterval(refreshServerStatus, 30000);
+    // Keep the pill in sync with the browser's connectivity events (which
+    // the offline banner already listens to).
+    window.addEventListener("online", refreshServerStatus);
+    window.addEventListener("offline", refreshServerStatus);
 }
 
 function escapeHtml(value) {

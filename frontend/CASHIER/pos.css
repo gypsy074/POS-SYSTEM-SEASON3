@@ -260,6 +260,49 @@ body.banner-visible .app-container {
     transform: scale(0.9);
 }
 
+/* Server status indicator — same pill as the admin header */
+.server-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--white);
+    padding: 10px 16px;
+    border-radius: 30px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--dark-brown);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    white-space: nowrap;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #f59e0b;
+    flex-shrink: 0;
+}
+
+.server-status.online .status-dot {
+    background: #22c55e;
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.7);
+}
+
+.server-status.offline .status-dot {
+    background: #e74c3c;
+    box-shadow: 0 0 6px rgba(231, 76, 60, 0.7);
+}
+
+.server-status.waking .status-dot {
+    background: #f59e0b;
+    animation: status-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+
 .menu-trigger { background: #d7b49a; }
 
 /* Sound toggle — dimmed while muted */
@@ -631,7 +674,7 @@ body.banner-visible .app-container {
     display: flex;
     align-items: center;
     gap: 10px;
-    color: var(--white);
+    color: #fff;
     cursor: pointer;
 }
 
@@ -652,7 +695,7 @@ body.banner-visible .app-container {
     justify-content: center;
     font-weight: bold;
     font-size: 0.8rem;
-    color: var(--white);
+    color: #fff;
 }
 
 .user-meta {
@@ -681,7 +724,7 @@ body.banner-visible .app-container {
 
 .tab-item.active {
     background: var(--accent-brown);
-    color: var(--white);
+    color: #fff;
 }
 
 .tab-item h3 { font-size: 1.1rem; margin-bottom: 5px; }
@@ -813,7 +856,7 @@ body.banner-visible .app-container {
     border: none;
     border-radius: 50%;
     background: var(--accent-brown);
-    color: var(--white);
+    color: #fff;
     transform: rotate(180deg);
     cursor: pointer;
 }
@@ -843,7 +886,7 @@ body.banner-visible .app-container {
 
 .mode-btn.active {
     background: var(--accent-brown);
-    color: var(--white);
+    color: #fff;
     box-shadow: 0 4px 10px rgba(166, 124, 82, 0.3);
 }
 
@@ -1470,7 +1513,7 @@ payment-details-section h3 {
 }
 
 .btn-text {
-    color: var(--white);
+    color: #fff;
     font-weight: bold;
     pointer-events: none;
 }
@@ -2563,4 +2606,91 @@ payment-details-section h3 {
     .offline-banner {
         display: none !important;
     }
+}
+
+/* ==========================================================================
+   DARK MODE — body.dark overrides.
+   Shares the posDarkMode localStorage key with the Admin panel, so the
+   preference follows the user between pages. Print stays light (the print
+   media rules above force #fff).
+   ========================================================================== */
+
+body.dark {
+    --primary-bg: #1e1a15;
+    --card-bg: #2a251f;
+    --white: #2f2a24;
+    --text-dark: #ece4d9;
+    --text-muted: #b8ac9e;
+    --dark-brown: #e8dcc9;
+    --accent-brown: #c2905e;
+}
+
+/* Brown-on-brown components that must keep a dark brown face */
+body.dark .user-avatar { background: #6b4f3b; border-color: #6b4f3b; }
+body.dark .offline-banner.offline { background: #5d4430; }
+
+/* Hardcoded light surfaces */
+body.dark .search-container input,
+body.dark .input-field input,
+body.dark .input-field select,
+body.dark .waste-log-form input,
+body.dark .waste-log-form select,
+body.dark .waste-log-form textarea,
+body.dark .history-search-wrap input,
+body.dark .senior-discount-panel input,
+body.dark .senior-discount-panel select,
+body.dark .calc-modal-card input {
+    background: #241f1a;
+    border-color: #4a4036;
+    color: var(--text-dark);
+}
+
+body.dark .food-card { background: #3a3128; }
+body.dark .food-card:hover { background: #42382d; }
+body.dark .low-stock-badge { background: #4a3a24; color: #f5c76a; }
+body.dark .sold-out-overlay span { background: rgba(30, 26, 21, 0.85); }
+
+body.dark .order-mode-switcher { background: #241f1a; }
+body.dark .qty-pill { background: #3a332c; }
+body.dark .qty-btn { color: var(--text-dark); }
+body.dark .cart-drawer-preview-btn { background: #262119; border-color: #4a4036; }
+body.dark .cart-drawer-preview-btn:hover { background: #322b23; }
+body.dark .view-cart-btn { background: #3a332c; border-color: #4a4036; color: var(--accent-brown); }
+body.dark .view-cart-btn:hover { background: #443b31; }
+body.dark .cart-drawer-close { background: #3a332c; }
+body.dark .cart-drawer-close:hover { background: #443b31; }
+body.dark .cart-drawer-head { border-bottom-color: #4a4036; }
+body.dark .cart-drawer-foot { border-top-color: #4a4036; }
+body.dark .cart-drawer-total { border-top-color: #4a4036; }
+body.dark .waste-log-form { background: #2a251f; }
+body.dark .cancel-order-btn { background: #4a2a2a; color: #ff8a8a; }
+body.dark .waste-log-btn { background: #2a3a2a; color: #8ae08a; }
+body.dark .sound-toggle-btn.muted { background: #322b24; }
+body.dark .calc-key { background: #241f1a; border-color: #3a332c; color: var(--text-dark); }
+body.dark .calc-key:active { background: #322b23; }
+body.dark .tender-chip { background: #241f1a; }
+body.dark .calc-open-btn { background: var(--accent-brown); color: #fff; }
+body.dark .calc-open-btn:hover { background: var(--dark-brown); color: #1e1a15; }
+body.dark .pos-modal { border-color: #4a4036; }
+body.dark .calc-modal-card { border-color: #4a4036; }
+body.dark .pos-modal-receipt-card { background: #241f1a; border-color: #4a4036; }
+body.dark .waste-save-btn { background: var(--accent-brown); color: #fff; }
+body.dark .waste-save-btn:hover { background: var(--dark-brown); color: #1e1a15; }
+body.dark .pos-modal-btn-primary { background: var(--accent-brown); color: #fff; }
+body.dark .pos-modal-btn-primary:hover { background: var(--dark-brown); color: #1e1a15; }
+body.dark .server-status { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35); }
+body.dark .notification-dropdown,
+body.dark .profile-dropdown,
+body.dark .history-panel {
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+/* Dark scrollbars */
+body.dark ::-webkit-scrollbar-track { background: #241f1a; }
+body.dark ::-webkit-scrollbar-thumb { background: #4a4036; }
+
+/* Narrow cashier screens: status pill collapses to a dot */
+@media (max-width: 1024px) {
+    .server-status { padding: 10px; }
+    .server-status .status-text { display: none; }
 }

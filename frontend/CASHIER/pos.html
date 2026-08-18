@@ -43,8 +43,13 @@
 
                 <div class="nav-controls">
                     <!-- <button class="icon-nav menu-trigger"><i class="fa-solid fa-bars"></i></button> -->
+                    <button class="icon-nav" id="cashierDarkModeBtn" title="Toggle dark mode"><i class="fa-solid fa-moon"></i></button>
                     <button class="icon-nav" id="soundToggleBtn" title="Mute sounds"><i class="fa-solid fa-volume-high"></i></button>
                     <button class="icon-nav" id="historyTrigger" title="My order history"><i class="fa-solid fa-clock-rotate-left"></i></button>
+                    <div class="server-status" id="cashierServerStatus">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Checking...</span>
+                    </div>
                     <div class="notification-wrap">
                         <button class="icon-nav notification-trigger" id="notificationTrigger">
                             <i class="fa-solid fa-bell"></i>
