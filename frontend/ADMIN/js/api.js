@@ -3,11 +3,23 @@
    ========================================================================== */
 
 function getApiBaseUrl() {
-    // When the frontend is served from a file:// (opened directly in a browser)
+    // file:// (opened directly in a browser, no server) → the local dev backend.
     if (window.location.protocol === "file:") {
         return "http://localhost:3000";
     }
-    // When served by the backend itself (same origin)
+    const host = window.location.hostname;
+    const port = window.location.port;
+    // The live site serves its own API — never fall back, so a sleeping
+    // free-tier instance is never misdetected as "no backend".
+    if (host.endsWith(".onrender.com")) {
+        return window.location.origin;
+    }
+    // Local static dev servers (VS Code Live Server :5500, python http.server,
+    // …) have no /api — only the real backend (default port 3000) does.
+    if ((host === "localhost" || host === "127.0.0.1" || host === "::1") && (port || "80") !== "3000") {
+        return "http://localhost:3000";
+    }
+    // When served by the backend itself (same origin).
     return window.location.origin;
 }
 

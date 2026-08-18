@@ -71,8 +71,19 @@ function getApiBaseUrl() {
     if (window.location.protocol === "file:") {
         return "http://localhost:3000";
     }
-    // Served by the backend itself (local dev on :3000 or a live deploy) —
-    // always use the same origin so the cashier works on any host.
+    const host = window.location.hostname;
+    const port = window.location.port;
+    // The live site serves its own API — never fall back, so a sleeping
+    // free-tier instance is never misdetected as "no backend".
+    if (host.endsWith(".onrender.com")) {
+        return window.location.origin;
+    }
+    // Local static dev servers (VS Code Live Server :5500, python http.server,
+    // …) have no /api — only the real backend (default port 3000) does.
+    if ((host === "localhost" || host === "127.0.0.1" || host === "::1") && (port || "80") !== "3000") {
+        return "http://localhost:3000";
+    }
+    // Same origin — the backend itself serves this page.
     return window.location.origin;
 }
 

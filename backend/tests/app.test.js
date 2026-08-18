@@ -376,12 +376,20 @@ describe('Security hardening', () => {
         expect(res.status).toBe(201);
     });
 
-    test('no CORS header on API responses', async () => {
+    test('CORS header follows the configured CORS_ORIGIN policy', async () => {
         const res = await request(app)
             .get('/api/health')
             .set('Origin', 'https://evil.example');
         expect(res.status).toBe(200);
-        expect(res.headers['access-control-allow-origin']).toBeUndefined();
+        const allowed = (process.env.CORS_ORIGIN || '').split(',').map(s => s.trim()).filter(Boolean);
+        const header = res.headers['access-control-allow-origin'];
+        if (allowed.includes('*')) {
+            expect(header).toBe('*'); // local dev opts into open CORS
+        } else if (allowed.length === 0) {
+            expect(header).toBeUndefined(); // no CORS by default (e.g. live deploy)
+        } else {
+            expect(allowed).toContain(header); // explicit origin list
+        }
     });
 });
 

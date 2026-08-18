@@ -37,9 +37,12 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
 // The frontend is served same-origin by this Express app, so CORS is not
 // needed at all — default to no cross-origin access. Override via the
 // CORS_ORIGIN env var (comma-separated list) if a real client ever needs it.
-const corsOrigin = process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(',').map(s => s.trim())
-    : false;
+const rawCorsOrigin = (process.env.CORS_ORIGIN || '').split(',').map(s => s.trim()).filter(Boolean);
+// The cors package only treats a plain '*' as the wildcard — a '*' inside an
+// array is compared literally and never matches. Normalize it up front.
+const corsOrigin = rawCorsOrigin.length === 0
+    ? false
+    : (rawCorsOrigin.includes('*') ? '*' : rawCorsOrigin);
 
 app.use(cors({ origin: corsOrigin }));
 app.use(helmet({

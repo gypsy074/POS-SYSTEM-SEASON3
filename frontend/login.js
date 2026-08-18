@@ -4,9 +4,23 @@
    ========================================================================== */
 
 function getApiBaseUrl() {
+    // file:// (opened directly from disk, no server) → the local dev backend.
     if (window.location.protocol === "file:") {
         return "http://localhost:3000";
     }
+    const host = window.location.hostname;
+    const port = window.location.port;
+    // The live site serves its own API — never fall back, so a sleeping
+    // free-tier instance is never misdetected as "no backend".
+    if (host.endsWith(".onrender.com")) {
+        return window.location.origin;
+    }
+    // Local static dev servers (VS Code Live Server :5500, python http.server,
+    // …) have no /api — only the real backend (default port 3000) does.
+    if ((host === "localhost" || host === "127.0.0.1" || host === "::1") && (port || "80") !== "3000") {
+        return "http://localhost:3000";
+    }
+    // Same origin — the backend itself serves this page.
     return window.location.origin;
 }
 
@@ -62,9 +76,12 @@ function setLoading(isLoading) {
 }
 
 // ── Form Submit ─────────────────────────────────────────────────────────────
-async function handleLogin(e) {
+let loginRetryCount = 0;
+
+async function handleLogin(e, isRetry = false) {
     e.preventDefault();
     clearError();
+    if (!isRetry) loginRetryCount = 0;
 
     const username = document.getElementById("username").value.trim();
     const password = document.getElementById("password").value;
@@ -116,7 +133,18 @@ async function handleLogin(e) {
         }
 
     } catch (err) {
-        showError("Cannot connect to the server. Make sure the backend is running on port 3000.");
+        // A sleeping free-tier backend can take ~1 min to wake on first
+        // contact — give it a couple of short retries before giving up.
+        if (loginRetryCount < 2) {
+            loginRetryCount++;
+            setLoading(true);
+            setTimeout(() => handleLogin(e, true), 3000);
+            return;
+        }
+        const isLocalBackend = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/.test(API_BASE);
+        showError(isLocalBackend
+            ? `Cannot connect to ${API_BASE} — make sure the backend is running on port 3000.`
+            : `Cannot connect to ${API_BASE} — the backend may still be starting. Press Log In to retry.`);
     } finally {
         setLoading(false);
     }
