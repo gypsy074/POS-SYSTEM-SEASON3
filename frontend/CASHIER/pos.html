@@ -144,6 +144,7 @@
                 <div class="receipt-title">
                     <h2>Order Summary</h2>
                 </div>
+                <button class="view-cart-btn" id="cartViewAllBtn" type="button" title="View full order"><i class="fa-solid fa-list-ul"></i></button>
                 <button class="cancel-order-btn" id="cancelOrderBtn" type="button">Cancel</button>
                 <button class="cancel-order-btn waste-log-btn" id="logWasteBtn" type="button"><i class="fa-solid fa-recycle"></i> Waste</button>
             </div>
@@ -326,6 +327,18 @@
 
         <div class="history-order-list" id="historyOrderList"></div>
         <div class="history-detail" id="historyDetail"></div>
+    </aside>
+
+    <!-- Full current-order slide-out panel (opens from the list icon) -->
+    <div class="cart-drawer-backdrop" id="cartDrawerBackdrop"></div>
+    <aside class="cart-drawer" id="cartDrawer" aria-hidden="true">
+        <div class="cart-drawer-head">
+            <h3><i class="fa-solid fa-cart-shopping"></i> Full Order</h3>
+            <span class="order-id" id="cartDrawerOrderId">generating...</span>
+            <button type="button" class="cart-drawer-close" id="cartDrawerCloseBtn" title="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="cart-drawer-list" id="cartDrawerList"></div>
+        <div class="cart-drawer-foot" id="cartDrawerFoot"></div>
     </aside>
 
             <script src="pos.js"></script>

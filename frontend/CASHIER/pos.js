@@ -64,6 +64,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupQuickTenderChips();
     setupCalculatorModal();
     setupSeniorDiscount();
+    setupCartDrawer();
     setupKeyboardShortcuts();
     updateCalculatorVisibility();
     updateChangeCalculator();
@@ -452,9 +453,34 @@ function generateOrderId() {
     return id;
 }
 
+function setCartDrawerOpen(open) {
+    const drawer = document.getElementById("cartDrawer");
+    const backdrop = document.getElementById("cartDrawerBackdrop");
+    if (drawer) {
+        drawer.classList.toggle("open", open);
+        drawer.setAttribute("aria-hidden", String(!open));
+    }
+    if (backdrop) backdrop.classList.toggle("show", open);
+    if (open) {
+        const list = document.getElementById("cartDrawerList");
+        if (list) list.scrollTop = list.scrollHeight;
+    }
+}
+
+function setupCartDrawer() {
+    const trigger = document.getElementById("cartViewAllBtn");
+    const closeBtn = document.getElementById("cartDrawerCloseBtn");
+    const backdrop = document.getElementById("cartDrawerBackdrop");
+    if (trigger) trigger.addEventListener("click", () => setCartDrawerOpen(true));
+    if (closeBtn) closeBtn.addEventListener("click", () => setCartDrawerOpen(false));
+    if (backdrop) backdrop.addEventListener("click", () => setCartDrawerOpen(false));
+}
+
 function renderOrderId() {
     const el = document.getElementById("currentOrderId");
     if (el) el.textContent = currentOrderId;
+    const drawerId = document.getElementById("cartDrawerOrderId");
+    if (drawerId) drawerId.textContent = currentOrderId;
 }
 
 function updateDateLabel() {
@@ -1144,6 +1170,7 @@ function addToCart(productId) {
 
 function renderCart() {
     const cartContainer = document.getElementById("cartContainer");
+    const drawerList = document.getElementById("cartDrawerList");
     const totalPrice = document.getElementById("totalPrice");
 
     if (!cartContainer || !totalPrice) {
@@ -1154,8 +1181,7 @@ function renderCart() {
     const visibleItems = showPreview ? cart.slice(0, CART_PREVIEW_MAX) : cart;
     const hiddenCount = cart.length - visibleItems.length;
 
-    cartContainer.innerHTML = cart.length
-        ? visibleItems.map((item, index) => `
+    const rowHtml = item => `
             <div class="cart-row">
                 <img class="cart-item-img" src="${escapeHtml(item.image || createPlaceholderImage(item.name))}" alt="${escapeHtml(item.name)}">
                 <div class="cart-row-details">
@@ -1163,25 +1189,34 @@ function renderCart() {
                     <p>₱${Number(item.price || 0).toFixed(2)}</p>
                 </div>
                 <div class="qty-control-pill">
-                    <button type="button" class="qty-btn" data-cart-action="decrease" data-cart-index="${index}">-</button>
+                    <button type="button" class="qty-btn" data-cart-action="decrease" data-cart-index="${cart.indexOf(item)}">-</button>
                     <span class="qty-number">${item.quantity}</span>
-                    <button type="button" class="qty-btn" data-cart-action="increase" data-cart-index="${index}">+</button>
+                    <button type="button" class="qty-btn" data-cart-action="increase" data-cart-index="${cart.indexOf(item)}">+</button>
                 </div>
-                <button type="button" class="remove-item-btn" data-cart-action="remove" data-cart-index="${index}">Remove</button>
+                <button type="button" class="remove-item-btn" data-cart-action="remove" data-cart-index="${cart.indexOf(item)}">Remove</button>
             </div>
-        `).join("")
-        + (showPreview
-            ? `<button type="button" class="cart-drawer-preview-btn" id="cartPreviewExpandBtn">
-                <i class="fa-solid fa-chevron-down"></i>
-                <span>View all items (${hiddenCount} more)</span>
-            </button>`
-            : cartDrawerExpanded
-                ? `<button type="button" class="cart-drawer-preview-btn" id="cartPreviewCollapseBtn">
-                    <i class="fa-solid fa-chevron-up"></i>
-                    <span>Show less</span>
+        `;
+
+    const emptyRow = `<div class="cart-row"><div class="cart-row-details"><h5>Your cart is empty</h5><p>Tap a menu item to add it here.</p></div></div>`;
+
+    cartContainer.innerHTML = cart.length
+        ? visibleItems.map(rowHtml).join("")
+            + (showPreview
+                ? `<button type="button" class="cart-drawer-preview-btn" id="cartPreviewExpandBtn">
+                    <i class="fa-solid fa-chevron-down"></i>
+                    <span>View all items (${hiddenCount} more)</span>
                 </button>`
-                : "")
-        : `<div class="cart-row"><div class="cart-row-details"><h5>Your cart is empty</h5><p>Tap a menu item to add it here.</p></div></div>`;
+                : cartDrawerExpanded
+                    ? `<button type="button" class="cart-drawer-preview-btn" id="cartPreviewCollapseBtn">
+                        <i class="fa-solid fa-chevron-up"></i>
+                        <span>Show less</span>
+                    </button>`
+                    : "")
+        : emptyRow;
+
+    if (drawerList) {
+        drawerList.innerHTML = cart.length ? cart.map(rowHtml).join("") : emptyRow;
+    }
 
     const expandBtn = document.getElementById("cartPreviewExpandBtn");
     if (expandBtn) {
@@ -1198,19 +1233,33 @@ function renderCart() {
         });
     }
 
-    cartContainer.querySelectorAll("[data-cart-action]").forEach(button => {
-        button.addEventListener("click", () => {
-            const index = Number(button.dataset.cartIndex);
-            const action = button.dataset.cartAction;
+    [cartContainer, drawerList].forEach(container => {
+        if (!container) return;
+        container.querySelectorAll("[data-cart-action]").forEach(button => {
+            button.addEventListener("click", () => {
+                const index = Number(button.dataset.cartIndex);
+                const action = button.dataset.cartAction;
 
-            if (action === "increase") changeQuantity(index, 1);
-            if (action === "decrease") changeQuantity(index, -1);
-            if (action === "remove") removeCartItem(index);
+                if (action === "increase") changeQuantity(index, 1);
+                if (action === "decrease") changeQuantity(index, -1);
+                if (action === "remove") removeCartItem(index);
+            });
         });
     });
 
     const total = cartOrderTotal();
     totalPrice.textContent = `₱${total.toFixed(2)}`;
+
+    const drawerFoot = document.getElementById("cartDrawerFoot");
+    if (drawerFoot) {
+        const subtotal = cartSubtotal();
+        const discount = cartDiscountAmount();
+        drawerFoot.innerHTML = cart.length ? `
+            <div class="cart-drawer-subtotal"><span>Subtotal</span><strong>₱${subtotal.toFixed(2)}</strong></div>
+            ${seniorDiscountActive && discount > 0 ? `<div class="cart-drawer-discount"><span>Senior Discount (20%)</span><strong>−₱${discount.toFixed(2)}</strong></div>` : ""}
+            <div class="cart-drawer-total"><span>Total</span><strong>₱${total.toFixed(2)}</strong></div>
+        ` : "";
+    }
 
     const seniorChip = document.getElementById("seniorDiscountChip");
     if (seniorChip) {
@@ -2101,6 +2150,12 @@ function setupKeyboardShortcuts() {
                 event.preventDefault();
                 return;
             }
+            const cartDrawer = document.getElementById("cartDrawer");
+            if (cartDrawer && cartDrawer.classList.contains("open")) {
+                setCartDrawerOpen(false);
+                event.preventDefault();
+                return;
+            }
             const dropdown = document.getElementById("cashierDropdown");
             if (dropdown && dropdown.classList.contains("show")) {
                 dropdown.classList.remove("show");
@@ -2194,6 +2249,7 @@ function cancelOrder(silent = false) {
     }
     cart = [];
     resetSeniorDiscount();
+    setCartDrawerOpen(false);
     cartDrawerExpanded = false;
     currentOrderId = generateOrderId(); // fresh ID for next order
     renderOrderId();
