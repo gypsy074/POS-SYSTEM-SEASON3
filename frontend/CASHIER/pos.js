@@ -61,6 +61,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupQuickTenderChips();
     setupCalculatorModal();
     setupSeniorDiscount();
+    setupCartDrawer();
     setupKeyboardShortcuts();
     updateCalculatorVisibility();
     updateChangeCalculator();
@@ -449,9 +450,34 @@ function generateOrderId() {
     return id;
 }
 
+function setCartDrawerOpen(open) {
+    const drawer = document.getElementById("cartDrawer");
+    const backdrop = document.getElementById("cartDrawerBackdrop");
+    if (drawer) {
+        drawer.classList.toggle("open", open);
+        drawer.setAttribute("aria-hidden", String(!open));
+    }
+    if (backdrop) backdrop.classList.toggle("show", open);
+    if (open) {
+        const list = document.getElementById("cartContainer");
+        if (list) list.scrollTop = list.scrollHeight;
+    }
+}
+
+function setupCartDrawer() {
+    const strip = document.getElementById("cartStripBtn");
+    const closeBtn = document.getElementById("cartDrawerCloseBtn");
+    const backdrop = document.getElementById("cartDrawerBackdrop");
+    if (strip) strip.addEventListener("click", () => setCartDrawerOpen(true));
+    if (closeBtn) closeBtn.addEventListener("click", () => setCartDrawerOpen(false));
+    if (backdrop) backdrop.addEventListener("click", () => setCartDrawerOpen(false));
+}
+
 function renderOrderId() {
     const el = document.getElementById("currentOrderId");
     if (el) el.textContent = currentOrderId;
+    const drawerId = document.getElementById("cartDrawerOrderId");
+    if (drawerId) drawerId.textContent = currentOrderId;
 }
 
 function updateDateLabel() {
@@ -1169,6 +1195,37 @@ function renderCart() {
     const total = cartOrderTotal();
     totalPrice.textContent = `₱${total.toFixed(2)}`;
 
+    const strip = document.getElementById("cartStripBtn");
+    const stripText = document.getElementById("cartStripText");
+    const stripTotal = document.getElementById("cartStripTotal");
+    if (stripText && stripTotal) {
+        if (cart.length === 0) {
+            stripText.textContent = "Cart is empty";
+            stripTotal.textContent = "₱0.00";
+        } else {
+            const count = cart.reduce((sum, item) => sum + item.quantity, 0);
+            stripText.textContent = `${count} item${count === 1 ? "" : "s"}`;
+            stripTotal.textContent = `₱${total.toFixed(2)}`;
+        }
+    }
+
+    const drawerFoot = document.getElementById("cartDrawerFoot");
+    if (drawerFoot) {
+        const subtotal = cartSubtotal();
+        const discount = cartDiscountAmount();
+        drawerFoot.innerHTML = cart.length ? `
+            <div class="cart-drawer-subtotal"><span>Subtotal</span><strong>₱${subtotal.toFixed(2)}</strong></div>
+            ${seniorDiscountActive && discount > 0 ? `<div class="cart-drawer-discount"><span>Senior Discount (20%)</span><strong>−₱${discount.toFixed(2)}</strong></div>` : ""}
+            <div class="cart-drawer-total"><span>Total</span><strong>₱${total.toFixed(2)}</strong></div>
+            <div class="cart-drawer-note">Adjust the details in the checkout panel, then swipe to place the order.</div>
+        ` : "";
+    }
+
+    const seniorChip = document.getElementById("seniorDiscountChip");
+    if (seniorChip) {
+        seniorChip.classList.toggle("active", seniorDiscountActive);
+    }
+
     const discountSummary = document.getElementById("discountSummary");
     const discountLabel = document.getElementById("discountAmountLabel");
     if (discountSummary && discountLabel) {
@@ -1481,6 +1538,16 @@ function setupCalculatorModal() {
 }
 
 function setupSeniorDiscount() {
+    const chip = document.getElementById("seniorDiscountChip");
+    const panel = document.getElementById("seniorDiscountPanel");
+    if (chip) {
+        chip.addEventListener("click", () => {
+            const expanded = panel && !panel.classList.contains("hidden");
+            if (panel) panel.classList.toggle("hidden", expanded);
+            chip.setAttribute("aria-expanded", String(!expanded));
+        });
+    }
+
     const toggle = document.getElementById("seniorDiscountToggle");
     const fields = document.getElementById("seniorDiscountFields");
     if (!toggle) return;
@@ -1512,10 +1579,17 @@ function setupSeniorDiscount() {
 
 function resetSeniorDiscount() {
     seniorDiscountActive = false;
+    const chip = document.getElementById("seniorDiscountChip");
+    const panel = document.getElementById("seniorDiscountPanel");
     const toggle = document.getElementById("seniorDiscountToggle");
     const fields = document.getElementById("seniorDiscountFields");
     const idInput = document.getElementById("seniorIdInput");
     const nameInput = document.getElementById("seniorNameInput");
+    if (chip) {
+        chip.setAttribute("aria-expanded", "false");
+        chip.classList.remove("active");
+    }
+    if (panel) panel.classList.add("hidden");
     if (toggle) toggle.checked = false;
     if (fields) fields.classList.add("hidden");
     if (idInput) idInput.value = "";
@@ -2036,6 +2110,12 @@ function setupKeyboardShortcuts() {
                 event.preventDefault();
                 return;
             }
+            const cartDrawer = document.getElementById("cartDrawer");
+            if (cartDrawer && cartDrawer.classList.contains("open")) {
+                setCartDrawerOpen(false);
+                event.preventDefault();
+                return;
+            }
             const dropdown = document.getElementById("cashierDropdown");
             if (dropdown && dropdown.classList.contains("show")) {
                 dropdown.classList.remove("show");
@@ -2129,6 +2209,7 @@ function cancelOrder(silent = false) {
     }
     cart = [];
     resetSeniorDiscount();
+    setCartDrawerOpen(false);
     currentOrderId = generateOrderId(); // fresh ID for next order
     renderOrderId();
     renderCart();

@@ -171,7 +171,12 @@
                 </div>
             </div>
 
-            <div class="cart-items" id="cartContainer"></div>
+            <button type="button" class="cart-strip" id="cartStripBtn" title="View current order">
+                <i class="fa-solid fa-cart-shopping"></i>
+                <span class="cart-strip-text" id="cartStripText">Cart is empty</span>
+                <span class="cart-strip-total" id="cartStripTotal">₱0.00</span>
+                <i class="fa-solid fa-chevron-right cart-strip-chevron"></i>
+            </button>
 
 <div class="checkout-area">
                 <div class="total-summary">
@@ -183,10 +188,15 @@
                     <span class="discount-amount" id="discountAmountLabel">−₱0.00</span>
                 </div>
 
-                <div class="senior-discount-box">
+                <button type="button" class="senior-discount-chip" id="seniorDiscountChip" aria-expanded="false">
+                    <i class="fa-solid fa-id-card"></i>
+                    <span>Senior (20%)</span>
+                    <i class="fa-solid fa-chevron-down senior-chip-chevron"></i>
+                </button>
+                <div class="senior-discount-panel hidden" id="seniorDiscountPanel">
                     <label class="senior-discount-toggle">
                         <input type="checkbox" id="seniorDiscountToggle">
-                        <span class="senior-discount-label">Senior Discount (20%)</span>
+                        <span class="senior-discount-label">Apply 20% discount</span>
                     </label>
                     <div class="senior-discount-fields hidden" id="seniorDiscountFields">
                         <input type="text" id="seniorIdInput" placeholder="SC/PWD ID number" maxlength="40" autocomplete="off">
@@ -321,6 +331,18 @@
 
         <div class="history-order-list" id="historyOrderList"></div>
         <div class="history-detail" id="historyDetail"></div>
+    </aside>
+
+    <!-- Cart drawer (full current-order view, opens from the cart strip) -->
+    <div class="cart-drawer-backdrop" id="cartDrawerBackdrop"></div>
+    <aside class="cart-drawer" id="cartDrawer" aria-hidden="true">
+        <div class="cart-drawer-head">
+            <h3><i class="fa-solid fa-cart-shopping"></i> Current Order</h3>
+            <span class="order-id" id="cartDrawerOrderId">generating...</span>
+            <button type="button" class="cart-drawer-close" id="cartDrawerCloseBtn" title="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="cart-drawer-list" id="cartContainer"></div>
+        <div class="cart-drawer-foot" id="cartDrawerFoot"></div>
     </aside>
 
             <script src="pos.js"></script>
