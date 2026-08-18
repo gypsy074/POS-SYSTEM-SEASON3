@@ -688,14 +688,9 @@ body.banner-visible .app-container {
 .tab-item p { font-size: 0.85rem; opacity: 0.7; }
 
 /* 4. Food Items Grid Area */
-@keyframes menuSlideOut {
-    from { transform: translateX(0); opacity: 1; }
-    to { transform: translateX(-40px); opacity: 0; }
-}
-
-@keyframes menuSlideIn {
-    from { transform: translateX(48px); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
+@keyframes menuFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .menu-grid {
@@ -712,15 +707,12 @@ body.banner-visible .app-container {
     align-content: start;
 }
 
-/* Carousel-style transitions when the menu re-renders */
-.menu-grid.menu-slide-out { animation: menuSlideOut 0.16s ease-in forwards; }
-.menu-grid.menu-slide-in { animation: menuSlideIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+/* Search typing and first load fade in quickly; category switches use a
+   measured max-height collapse/expand driven from displayCategoryItems. */
+.menu-grid.menu-fade-in { animation: menuFadeIn 0.18s ease-out; }
 
 @media (prefers-reduced-motion: reduce) {
-    .menu-grid.menu-slide-out,
-    .menu-grid.menu-slide-in {
-        animation: none;
-    }
+    .menu-grid.menu-fade-in { animation: none; }
 }
 
 /* Scrollbar styling so it doesn't eat space */

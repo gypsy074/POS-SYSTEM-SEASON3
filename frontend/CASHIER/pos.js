@@ -11,6 +11,7 @@ let currentOrderId = generateOrderId();
 
 const CART_PREVIEW_MAX = 6;
 let cartDrawerExpanded = false;
+let menuTransitionTimer = null;
 
 // ── Receipt printer settings ─────────────────────────────────────────────
 // mode: "dialog" = browser print dialog (default), "bridge" = silent print
@@ -1063,12 +1064,12 @@ function displayCategoryItems(category, searchTerm = "") {
     // Sold-out items go last so the cashier sees available items first.
     products.sort((a, b) => (productIsSoldOut(a) ? 1 : 0) - (productIsSoldOut(b) ? 1 : 0));
 
-    // Carousel transition: category switches slide the whole menu out to the
-    // left, then the new grid slides in from the right. Search typing and
-    // refreshes skip the out-phase and just slide the new grid in quickly.
+    // Collapse transition: switching categories folds the current grid up
+    // (max-height → 0), swaps the content, then unfolds the new grid down.
+    // Search typing and refreshes just fade the new results in quickly.
     grid.scrollTop = 0;
 
-    function renderGrid() {
+    function renderGrid(fade = true) {
         grid.innerHTML = products.length
             ? products.map(product => {
                 const soldOut = productIsSoldOut(product);
@@ -1102,23 +1103,52 @@ function displayCategoryItems(category, searchTerm = "") {
             });
         });
 
-        grid.classList.remove("menu-slide-out");
-        grid.classList.add("menu-slide-in");
+        grid.classList.remove("menu-fade-in");
+        if (fade) {
+            void grid.offsetWidth;
+            grid.classList.add("menu-fade-in");
+        }
     }
 
-    if (isCategorySwitch && grid.children.length) {
-        grid.classList.remove("menu-slide-in");
-        grid.classList.add("menu-slide-out");
+    if (menuTransitionTimer) {
+        clearTimeout(menuTransitionTimer);
+        menuTransitionTimer = null;
+        grid.classList.remove("menu-fade-in");
+    }
 
-        let swapped = false;
-        const swap = () => {
-            if (swapped) return;
-            swapped = true;
-            grid.removeEventListener("animationend", swap);
-            renderGrid();
-        };
-        grid.addEventListener("animationend", swap);
-        setTimeout(swap, 300);
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (isCategorySwitch && grid.children.length && !reduceMotion) {
+        // Collapse: measure the current height, then fold to zero.
+        const currentHeight = grid.offsetHeight;
+        grid.style.maxHeight = `${currentHeight}px`;
+        grid.style.overflow = "hidden";
+        grid.style.paddingBottom = "0px";
+        grid.style.transition = "max-height 0.18s ease-in, opacity 0.18s ease-in";
+        void grid.offsetHeight;
+        grid.style.maxHeight = "0px";
+        grid.style.opacity = "0";
+
+        menuTransitionTimer = setTimeout(() => {
+            menuTransitionTimer = null;
+            grid.classList.remove("menu-fade-in");
+            renderGrid(false);
+
+            // Expand: swap happened while collapsed, now unfold downward.
+            grid.style.maxHeight = "0px";
+            grid.style.opacity = "0";
+            grid.style.transition = "max-height 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease-out";
+            void grid.offsetHeight;
+            grid.style.maxHeight = "58vh";
+            grid.style.opacity = "1";
+
+            setTimeout(() => {
+                grid.style.maxHeight = "";
+                grid.style.opacity = "";
+                grid.style.transition = "";
+                grid.style.overflow = "";
+                grid.style.paddingBottom = "";
+            }, 340);
+        }, 200);
     } else {
         renderGrid();
     }
