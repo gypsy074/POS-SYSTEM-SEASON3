@@ -693,22 +693,12 @@ body.banner-visible .app-container {
     to { opacity: 1; }
 }
 
-/* Card-by-card transitions: category switches fold the old cards up one by
-   one, then the new cards unfold one by one (Android-style staggered list).
-   Stagger delays are set inline per card by displayCategoryItems. */
-@keyframes menuCardCollapse {
-    from { opacity: 1; transform: scaleY(1); }
-    to { opacity: 0; transform: scaleY(0); }
-}
-
+/* Card-by-card transition: new cards unfold one by one when the menu
+   renders (Android-style staggered list). Stagger delays are set inline
+   per card by displayCategoryItems. */
 @keyframes menuCardExpand {
     from { opacity: 0; transform: scaleY(0) translateY(10px); }
     to { opacity: 1; transform: scaleY(1) translateY(0); }
-}
-
-.menu-card-collapse {
-    transform-origin: top;
-    animation: menuCardCollapse 0.16s ease-in forwards;
 }
 
 .menu-card-expand {
@@ -730,12 +720,11 @@ body.banner-visible .app-container {
     align-content: start;
 }
 
-/* Search typing and first load fade in quickly. */
+/* Search typing fades in quickly. */
 .menu-grid.menu-fade-in { animation: menuFadeIn 0.18s ease-out; }
 
 @media (prefers-reduced-motion: reduce) {
     .menu-grid.menu-fade-in { animation: none; }
-    .menu-card-collapse,
     .menu-card-expand { animation: none; }
 }
 

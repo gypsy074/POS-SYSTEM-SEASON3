@@ -11,7 +11,6 @@ let currentOrderId = generateOrderId();
 
 const CART_PREVIEW_MAX = 6;
 let cartDrawerExpanded = false;
-let menuTransitionTimer = null;
 
 // ── Receipt printer settings ─────────────────────────────────────────────
 // mode: "dialog" = browser print dialog (default), "bridge" = silent print
@@ -1041,7 +1040,6 @@ function productIsLowStock(product) {
 }
 
 function displayCategoryItems(category, searchTerm = "") {
-    const isCategorySwitch = category !== activeCategory;
     activeCategory = category;
     renderCategoryTabs();
 
@@ -1064,10 +1062,9 @@ function displayCategoryItems(category, searchTerm = "") {
     // Sold-out items go last so the cashier sees available items first.
     products.sort((a, b) => (productIsSoldOut(a) ? 1 : 0) - (productIsSoldOut(b) ? 1 : 0));
 
-    // Card-by-card transition: switching categories collapses the current
-    // cards one by one (staggered), swaps the content, then the new cards
-    // unfold one by one — Android-style dynamic list animation. Search
-    // typing and refreshes just fade the new results in quickly.
+    // Card-by-card transition: the new category's cards unfold one by one
+    // immediately (Android-style staggered list) — no wait for the old
+    // cards. Search typing just fades the results in quickly.
     grid.scrollTop = 0;
 
     function renderGrid(fade = true, expand = false) {
@@ -1115,35 +1112,12 @@ function displayCategoryItems(category, searchTerm = "") {
         }
     }
 
-    if (menuTransitionTimer) {
-        clearTimeout(menuTransitionTimer);
-        menuTransitionTimer = null;
-        grid.classList.remove("menu-fade-in");
-        grid.querySelectorAll(".menu-card-collapse").forEach(card => {
-            card.classList.remove("menu-card-collapse");
-            card.style.animationDelay = "";
-        });
-    }
-
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (isCategorySwitch && grid.children.length && !reduceMotion) {
-        // Collapse phase: fold every current card up one by one.
-        const cards = [...grid.querySelectorAll(".food-card")];
-        const lastCollapseDelay = Math.min((cards.length - 1) * 0.03, 0.21);
-        cards.forEach((card, index) => {
-            card.style.animationDelay = `${Math.min(index * 0.03, 0.21).toFixed(3)}s`;
-            card.classList.add("menu-card-collapse");
-        });
-
-        menuTransitionTimer = setTimeout(() => {
-            menuTransitionTimer = null;
-            renderGrid(false, true);
-        }, (lastCollapseDelay + 0.16) * 1000 + 30);
-    } else if (normalizedSearch) {
+    if (normalizedSearch) {
         // Typing in search: quick uniform fade, no per-card stagger.
         renderGrid(true, false);
     } else {
-        // First load / data refresh: cards unfold one by one.
+        // Category switches, first load and refreshes: swap immediately so
+        // the new menu shows right away, then cards unfold one by one.
         renderGrid(false, true);
     }
 }
