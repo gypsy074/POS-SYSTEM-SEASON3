@@ -14,7 +14,6 @@ const dns = require('dns');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
-const net = require('net');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 // Prefer IPv4 — Atlas `mongodb+srv` lookups can hang on Windows Node when
@@ -1617,40 +1616,6 @@ app.post('/api/settings/owner-alerts/test', testEmailLimiter, authRequired(['Adm
         if (result.ok) return res.json({ ok: true });
         res.status(502).json({ error: `Email failed: ${result.error}` });
     } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ---------------------- TEMP: SMTP CONNECTIVITY DIAGNOSTICS (REMOVE AFTER) -----
-app.get('/api/diagnostics/smtp', authRequired(['Admin']), async (req, res) => {
-    const results = {};
-    const probe = (label, host, port, ms = 5000) => new Promise(resolve => {
-        const t0 = Date.now();
-        const sock = net.connect({ host, port, family: 4 });
-        let settled = false;
-        // An explicit timer is the only reliable way to time out a pending
-        // connect — socket 'timeout' and AbortSignal do not fire while the
-        // SYN is blackholed on Render's network.
-        const timer = setTimeout(() => finish('TIMEOUT'), ms);
-        const finish = status => {
-            if (settled) return;
-            settled = true;
-            clearTimeout(timer);
-            results[label] = `${status} (${Date.now() - t0}ms)`;
-            try { sock.destroy(); } catch (e) {}
-            resolve();
-        };
-        sock.once('connect', () => finish('CONNECTED'));
-        sock.once('error', e => finish(`ERR ${e.code || e.message}`));
-    });
-    const ip = await new Promise(resolve => dns.lookup('smtp.gmail.com', { family: 4 }, (e, a) => resolve(e ? null : a)));
-    results.resolvedIPv4 = ip || 'NONE';
-    await Promise.all([
-        ip ? probe('gmail-465', ip, 465) : Promise.resolve(),
-        ip ? probe('gmail-587', ip, 587) : Promise.resolve(),
-        ip ? probe('gmail-25', ip, 25) : Promise.resolve(),
-        probe('google-443-control', '142.250.72.206', 443),
-        probe('render-api-443-control', 'api.render.com', 443, 4000)
-    ]);
-    res.json(results);
 });
 
 // ---------------------- SEED DEFAULT ADMIN ----------------------
