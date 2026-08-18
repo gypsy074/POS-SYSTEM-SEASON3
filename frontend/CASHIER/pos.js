@@ -1064,18 +1064,23 @@ function displayCategoryItems(category, searchTerm = "") {
     // Sold-out items go last so the cashier sees available items first.
     products.sort((a, b) => (productIsSoldOut(a) ? 1 : 0) - (productIsSoldOut(b) ? 1 : 0));
 
-    // Collapse transition: switching categories folds the current grid up
-    // (max-height → 0), swaps the content, then unfolds the new grid down.
-    // Search typing and refreshes just fade the new results in quickly.
+    // Card-by-card transition: switching categories collapses the current
+    // cards one by one (staggered), swaps the content, then the new cards
+    // unfold one by one — Android-style dynamic list animation. Search
+    // typing and refreshes just fade the new results in quickly.
     grid.scrollTop = 0;
 
-    function renderGrid(fade = true) {
+    function renderGrid(fade = true, expand = false) {
         grid.innerHTML = products.length
-            ? products.map(product => {
+            ? products.map((product, index) => {
                 const soldOut = productIsSoldOut(product);
                 const lowStock = productIsLowStock(product);
+                const expandClass = expand ? " menu-card-expand" : "";
+                const expandDelay = expand
+                    ? ` style="animation-delay: ${Math.min(index * 0.05, 0.45).toFixed(3)}s"`
+                    : "";
                 return `
-                <article class="food-card ${soldOut ? "sold-out-card" : ""}">
+                <article class="food-card ${soldOut ? "sold-out-card" : ""}${expandClass}"${expandDelay}>
                     <img src="${escapeHtml(product.image || createPlaceholderImage(product.name))}" alt="${escapeHtml(product.name)}">
                     <div class="food-info">
                         <h4>${escapeHtml(product.name)}</h4>
@@ -1094,7 +1099,7 @@ function displayCategoryItems(category, searchTerm = "") {
                 </article>
             `;
             }).join("")
-            : `<div class="food-card menu-empty-card"><div class="food-info"><h4>No items found</h4><p>Try a different category or search term.</p></div></div>`;
+            : `<div class="food-card menu-empty-card${expand ? " menu-card-expand" : ""}"><div class="food-info"><h4>No items found</h4><p>Try a different category or search term.</p></div></div>`;
 
         grid.querySelectorAll("[data-product-id]").forEach(button => {
             button.addEventListener("click", event => {
@@ -1114,43 +1119,32 @@ function displayCategoryItems(category, searchTerm = "") {
         clearTimeout(menuTransitionTimer);
         menuTransitionTimer = null;
         grid.classList.remove("menu-fade-in");
+        grid.querySelectorAll(".menu-card-collapse").forEach(card => {
+            card.classList.remove("menu-card-collapse");
+            card.style.animationDelay = "";
+        });
     }
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (isCategorySwitch && grid.children.length && !reduceMotion) {
-        // Collapse: measure the current height, then fold to zero.
-        const currentHeight = grid.offsetHeight;
-        grid.style.maxHeight = `${currentHeight}px`;
-        grid.style.overflow = "hidden";
-        grid.style.paddingBottom = "0px";
-        grid.style.transition = "max-height 0.18s ease-in, opacity 0.18s ease-in";
-        void grid.offsetHeight;
-        grid.style.maxHeight = "0px";
-        grid.style.opacity = "0";
+        // Collapse phase: fold every current card up one by one.
+        const cards = [...grid.querySelectorAll(".food-card")];
+        const lastCollapseDelay = Math.min((cards.length - 1) * 0.04, 0.4);
+        cards.forEach((card, index) => {
+            card.style.animationDelay = `${Math.min(index * 0.04, 0.4).toFixed(3)}s`;
+            card.classList.add("menu-card-collapse");
+        });
 
         menuTransitionTimer = setTimeout(() => {
             menuTransitionTimer = null;
-            grid.classList.remove("menu-fade-in");
-            renderGrid(false);
-
-            // Expand: swap happened while collapsed, now unfold downward.
-            grid.style.maxHeight = "0px";
-            grid.style.opacity = "0";
-            grid.style.transition = "max-height 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease-out";
-            void grid.offsetHeight;
-            grid.style.maxHeight = "58vh";
-            grid.style.opacity = "1";
-
-            setTimeout(() => {
-                grid.style.maxHeight = "";
-                grid.style.opacity = "";
-                grid.style.transition = "";
-                grid.style.overflow = "";
-                grid.style.paddingBottom = "";
-            }, 340);
-        }, 200);
+            renderGrid(false, true);
+        }, (lastCollapseDelay + 0.22) * 1000 + 30);
+    } else if (normalizedSearch) {
+        // Typing in search: quick uniform fade, no per-card stagger.
+        renderGrid(true, false);
     } else {
-        renderGrid();
+        // First load / data refresh: cards unfold one by one.
+        renderGrid(false, true);
     }
 }
 
