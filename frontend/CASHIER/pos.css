@@ -2228,6 +2228,44 @@ payment-details-section h3 {
     font-size: 0.7rem;
     color: #555;
 }
+.print-cut-line {
+    text-align: center;
+    letter-spacing: 1px;
+    font-size: 0.75rem;
+    color: #888;
+    border-top: 2px dashed #aaa;
+    border-bottom: 2px dashed #aaa;
+    margin: 14px 0;
+    padding: 4px 0;
+}
+.print-receipt.print-kot {
+    border-top: 2px solid #444;
+    padding-top: 10px;
+}
+.print-receipt.print-kot .kot-title {
+    text-align: center;
+    font-size: 1.2rem;
+    font-weight: 900;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+}
+.print-receipt.print-kot .kot-items {
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+.print-receipt.print-kot .kot-items .print-line {
+    padding: 5px 0;
+}
+.print-receipt.print-kot .kot-foot {
+    margin-top: 6px;
+    font-weight: 700;
+}
+.print-receipt.print-kot.thermal-58 .kot-title {
+    font-size: 1.05rem;
+}
+.print-receipt.print-kot.thermal-58 .kot-items {
+    font-size: 0.92rem;
+}
 
 /* 58mm thermal receipt variant (Bluetooth thermal printers).
    The cashier picks "58mm" in the printer settings; printReceipt() adds the

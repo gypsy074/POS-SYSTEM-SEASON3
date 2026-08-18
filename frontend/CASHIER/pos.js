@@ -15,7 +15,7 @@ let currentOrderId = generateOrderId();
 // on the phone, e.g. http://127.0.0.1:8080).
 // width: "80" or "58" (mm) — 58 adds the narrow .thermal-58 layout.
 const PRINT_SETTINGS_KEY = "posPrintSettings";
-const DEFAULT_PRINT_SETTINGS = { mode: "dialog", width: "80", url: "http://127.0.0.1:8080" };
+const DEFAULT_PRINT_SETTINGS = { mode: "dialog", width: "80", url: "http://127.0.0.1:8080", kot: true };
 
 // Senior/PWD discount state — 20% off the whole order, requires the SC/PWD
 // ID + customer name (server re-validates and recomputes every amount).
@@ -1751,7 +1751,8 @@ function printReceipt(order) {
     if (!order) return;
     const settings = getPrintSettings();
 
-    // Silent path: send the receipt to the local Bluetooth-printer helper app.
+    // Silent path: send the receipt + kitchen ticket to the local
+    // Bluetooth-printer helper app in one continuous roll.
     if (settings.mode === "bridge") {
         sendToThermalBridge(order, settings);
         return;
@@ -1799,9 +1800,56 @@ function printReceipt(order) {
                 <div class="print-signature-line">Signature over printed name</div>
             </div>` : ""}
             <div class="print-foot">Thank you for your order!<br>Please come again.</div>
-        </div>`;
+        </div>
+        ${settings.kot === false ? "" : buildKotHtml(order, settings)}`;
 
 window.print();
+}
+
+// ── Kitchen / barista order ticket (KOT) ──────────────────────────────────
+// A second copy of the order for whoever makes it. No prices — just the
+// item names in large readable type. In dialog mode it prints right after
+// the customer receipt, separated by a dashed CUT HERE line, so one roll
+// holds both tickets.
+
+function buildKotHtml(order, settings) {
+    const items = (order.items || []).map(item => `
+        <div class="print-line kot-line"><span>${escapeHtml(item.name)}</span><strong>× ${item.quantity}</strong></div>
+    `).join("");
+    return `
+        <div class="print-cut-line">------ CUT HERE ------</div>
+        <div class="print-receipt print-kot${settings.width === "58" ? " thermal-58" : ""}">
+            <div class="kot-title">*** KITCHEN ORDER ***</div>
+            <div class="print-meta">
+                <div><span>Receipt</span><strong>${escapeHtml(order.receiptId || "")}</strong></div>
+                <div><span>${escapeHtml(order.mode || "Dine In")}</span><strong>${escapeHtml(order.tableNo || "")}</strong></div>
+                <div><span>Customer</span><strong>${escapeHtml(order.customer || "Walk-in Customer")}</strong></div>
+                <div><span>Time</span><strong>${new Date(order.date || Date.now()).toLocaleTimeString()}</strong></div>
+            </div>
+            <div class="print-items kot-items">${items}</div>
+            <div class="print-foot kot-foot">Make it fresh!</div>
+        </div>`;
+}
+
+function buildKotText(order) {
+    const line = "--------------------------------";
+    const meta = [
+        "*** KITCHEN ORDER ***",
+        "Receipt: " + (order.receiptId || ""),
+        (order.mode || "Dine In") + (order.tableNo ? "  Table: " + order.tableNo : ""),
+        "Customer: " + (order.customer || "Walk-in Customer"),
+        "Time: " + new Date(order.date || Date.now()).toLocaleTimeString()
+    ];
+    const items = (order.items || []).map(it => {
+        const name = String(it.name || "");
+        const qty = Number(it.quantity || 0);
+        const left = name.length > 22 ? name.slice(0, 21) + "." : name;
+        const right = "x" + qty;
+        const pad = Math.max(2, 30 - left.length - right.length);
+        return left + " ".repeat(pad) + right;
+    });
+    const foot = ["", line, "   MAKE IT FRESH!", ""];
+    return meta.concat(line, items, foot).join("\n");
 }
 
 // ── Thermal bridge (silent printing via a Bluetooth-printer helper app) ──
@@ -1867,10 +1915,14 @@ async function sendToThermalBridge(order, settings) {
         return;
     }
     try {
+        let body = buildReceiptText(order);
+        if (settings.kot !== false) {
+            body += "\n---- CUT HERE ----\n" + buildKotText(order);
+        }
         const response = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "text/plain" },
-            body: buildReceiptText(order)
+            body
         });
         if (!response.ok) throw new Error("HTTP " + response.status);
         playSound("success");
@@ -1902,6 +1954,8 @@ function setupPrinterSettings() {
     modeSel.value = settings.mode === "bridge" ? "bridge" : "dialog";
     if (urlInput) urlInput.value = settings.url || "";
     if (urlRow) urlRow.hidden = modeSel.value !== "bridge";
+    const kotToggle = document.getElementById("printKotToggle");
+    if (kotToggle) kotToggle.checked = settings.kot !== false;
 
     modeSel.addEventListener("change", () => {
         if (urlRow) urlRow.hidden = modeSel.value !== "bridge";
@@ -1918,7 +1972,8 @@ function setupPrinterSettings() {
     const collect = () => ({
         mode: modeSel.value,
         width: widthSel.value,
-        url: modeSel.value === "bridge" ? String(urlInput ? urlInput.value : "").trim() : DEFAULT_PRINT_SETTINGS.url
+        url: modeSel.value === "bridge" ? String(urlInput ? urlInput.value : "").trim() : DEFAULT_PRINT_SETTINGS.url,
+        kot: kotToggle ? kotToggle.checked : true
     });
 
     saveBtn.addEventListener("click", () => {
