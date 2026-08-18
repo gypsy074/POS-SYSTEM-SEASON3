@@ -171,12 +171,7 @@
                 </div>
             </div>
 
-            <button type="button" class="cart-strip" id="cartStripBtn" title="View current order">
-                <i class="fa-solid fa-cart-shopping"></i>
-                <span class="cart-strip-text" id="cartStripText">Cart is empty</span>
-                <span class="cart-strip-total" id="cartStripTotal">₱0.00</span>
-                <i class="fa-solid fa-chevron-right cart-strip-chevron"></i>
-            </button>
+            <div class="cart-items" id="cartContainer"></div>
 
 <div class="checkout-area">
                 <div class="total-summary">
@@ -331,18 +326,6 @@
 
         <div class="history-order-list" id="historyOrderList"></div>
         <div class="history-detail" id="historyDetail"></div>
-    </aside>
-
-    <!-- Cart drawer (full current-order view, opens from the cart strip) -->
-    <div class="cart-drawer-backdrop" id="cartDrawerBackdrop"></div>
-    <aside class="cart-drawer" id="cartDrawer" aria-hidden="true">
-        <div class="cart-drawer-head">
-            <h3><i class="fa-solid fa-cart-shopping"></i> Current Order</h3>
-            <span class="order-id" id="cartDrawerOrderId">generating...</span>
-            <button type="button" class="cart-drawer-close" id="cartDrawerCloseBtn" title="Close"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-        <div class="cart-drawer-list" id="cartContainer"></div>
-        <div class="cart-drawer-foot" id="cartDrawerFoot"></div>
     </aside>
 
             <script src="pos.js"></script>
