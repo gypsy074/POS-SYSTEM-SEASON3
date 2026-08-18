@@ -708,12 +708,12 @@ body.banner-visible .app-container {
 
 .menu-card-collapse {
     transform-origin: top;
-    animation: menuCardCollapse 0.2s ease-in forwards;
+    animation: menuCardCollapse 0.16s ease-in forwards;
 }
 
 .menu-card-expand {
     transform-origin: top;
-    animation: menuCardExpand 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+    animation: menuCardExpand 0.26s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
 }
 
 .menu-grid {

@@ -1077,7 +1077,7 @@ function displayCategoryItems(category, searchTerm = "") {
                 const lowStock = productIsLowStock(product);
                 const expandClass = expand ? " menu-card-expand" : "";
                 const expandDelay = expand
-                    ? ` style="animation-delay: ${Math.min(index * 0.05, 0.45).toFixed(3)}s"`
+                    ? ` style="animation-delay: ${Math.min(index * 0.035, 0.25).toFixed(3)}s"`
                     : "";
                 return `
                 <article class="food-card ${soldOut ? "sold-out-card" : ""}${expandClass}"${expandDelay}>
@@ -1129,16 +1129,16 @@ function displayCategoryItems(category, searchTerm = "") {
     if (isCategorySwitch && grid.children.length && !reduceMotion) {
         // Collapse phase: fold every current card up one by one.
         const cards = [...grid.querySelectorAll(".food-card")];
-        const lastCollapseDelay = Math.min((cards.length - 1) * 0.04, 0.4);
+        const lastCollapseDelay = Math.min((cards.length - 1) * 0.03, 0.21);
         cards.forEach((card, index) => {
-            card.style.animationDelay = `${Math.min(index * 0.04, 0.4).toFixed(3)}s`;
+            card.style.animationDelay = `${Math.min(index * 0.03, 0.21).toFixed(3)}s`;
             card.classList.add("menu-card-collapse");
         });
 
         menuTransitionTimer = setTimeout(() => {
             menuTransitionTimer = null;
             renderGrid(false, true);
-        }, (lastCollapseDelay + 0.22) * 1000 + 30);
+        }, (lastCollapseDelay + 0.16) * 1000 + 30);
     } else if (normalizedSearch) {
         // Typing in search: quick uniform fade, no per-card stagger.
         renderGrid(true, false);
