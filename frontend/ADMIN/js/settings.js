@@ -35,8 +35,8 @@ async function loadSettings() {
         if (statusLine) {
             statusLine.className = "settings-smtp-status " + (ownerAlertSettings.smtpConfigured ? "ok" : "err");
             statusLine.innerHTML = ownerAlertSettings.smtpConfigured
-                ? '<i class="fas fa-check-circle"></i> SMTP is configured — alerts will be sent.'
-                : '<i class="fas fa-exclamation-triangle"></i> SMTP is NOT configured — add SMTP_HOST, SMTP_USER and SMTP_PASS to the server environment.';
+                ? '<i class="fas fa-check-circle"></i> Email sending is configured — alerts will be sent.'
+                : '<i class="fas fa-exclamation-triangle"></i> Email sending is NOT configured — add SMTP_HOST/SMTP_USER/SMTP_PASS or RESEND_API_KEY + EMAIL_FROM to the server environment.';
         }
     } catch (err) {
         console.error("❌ Load settings error:", err);

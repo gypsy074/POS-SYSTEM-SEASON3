@@ -1607,7 +1607,7 @@ app.post('/api/settings/owner-alerts/test', testEmailLimiter, authRequired(['Adm
             return res.status(400).json({ error: 'Save a recipient email first.' });
         }
         if (!isEmailConfigured()) {
-            return res.status(400).json({ error: 'SMTP is not configured. Add SMTP_HOST, SMTP_USER and SMTP_PASS to the server environment.' });
+            return res.status(400).json({ error: 'Email sending is not configured. Add SMTP_HOST/SMTP_USER/SMTP_PASS (or RESEND_API_KEY + EMAIL_FROM) to the server environment.' });
         }
         const result = await sendAlertMail({
             to: s.recipients[0],
@@ -1624,12 +1624,22 @@ app.get('/api/diagnostics/smtp', authRequired(['Admin']), async (req, res) => {
     const results = {};
     const probe = (label, host, port, ms = 5000) => new Promise(resolve => {
         const t0 = Date.now();
-        // AbortSignal.timeout aborts a *pending* connect (socket timeout only
-        // fires after connect — useless for blackholed SYN attempts).
-        const sock = net.connect({ host, port, family: 4, signal: AbortSignal.timeout(ms) });
-        const done = status => { results[label] = `${status} (${Date.now() - t0}ms)`; try { sock.destroy(); } catch (e) {} };
-        sock.once('connect', () => done('CONNECTED'));
-        sock.once('error', e => done(e.name === 'AbortError' ? 'TIMEOUT' : `ERR ${e.code || e.message}`));
+        const sock = net.connect({ host, port, family: 4 });
+        let settled = false;
+        // An explicit timer is the only reliable way to time out a pending
+        // connect — socket 'timeout' and AbortSignal do not fire while the
+        // SYN is blackholed on Render's network.
+        const timer = setTimeout(() => finish('TIMEOUT'), ms);
+        const finish = status => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            results[label] = `${status} (${Date.now() - t0}ms)`;
+            try { sock.destroy(); } catch (e) {}
+            resolve();
+        };
+        sock.once('connect', () => finish('CONNECTED'));
+        sock.once('error', e => finish(`ERR ${e.code || e.message}`));
     });
     const ip = await new Promise(resolve => dns.lookup('smtp.gmail.com', { family: 4 }, (e, a) => resolve(e ? null : a)));
     results.resolvedIPv4 = ip || 'NONE';
