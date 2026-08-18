@@ -8,6 +8,7 @@
     --text-dark: #3a3a3a;
     --text-muted: #8a8a8a;
     --transition: 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    --banner-h: 48px;
 }
 
 /*Global Page Resets (Screen Setup)*/
@@ -129,9 +130,16 @@ body {
     box-shadow: 0 12px 32px rgba(0,0,0,0.18);
     padding: 8px;
     display: none;
-    z-index: 999;
+    z-index: 1100;
 }
 .profile-dropdown.show { display: block; animation: dropdownIn 0.24s ease-out; transform-origin: top right; }
+
+/* While the offline banner is up, push the whole app below it so the top-bar
+   buttons stay visible/clickable and every dropdown opens clear of the strip. */
+body.banner-visible .app-container {
+    margin-top: var(--banner-h);
+    height: calc(96vh - var(--banner-h));
+}
 
 @keyframes dropdownIn {
     from { opacity: 0; transform: translateY(-10px) scale(0.96); }
@@ -568,7 +576,7 @@ body {
     box-shadow: 0 12px 32px rgba(0,0,0,0.18);
     padding: 8px;
     display: none;
-    z-index: 100;
+    z-index: 1100;
 }
 
 .notification-dropdown.show {

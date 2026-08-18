@@ -270,11 +270,14 @@ function updateOfflineBanner() {
 
     if (navigator.onLine && !queued) {
         banner.style.display = "none";
+        document.body.classList.remove("banner-visible");
         return;
     }
 
     banner.classList.add("offline");
     banner.style.display = "flex";
+    document.body.classList.add("banner-visible");
+    document.body.style.setProperty("--banner-h", banner.offsetHeight + "px");
     if (text) {
         if (queued > 0) {
             const cause = navigator.onLine ? "Connection trouble" : "You're offline";
@@ -298,12 +301,15 @@ function showSyncBanner(message) {
     }
     banner.classList.remove("offline");
     banner.style.display = "flex";
+    document.body.classList.add("banner-visible");
+    document.body.style.setProperty("--banner-h", banner.offsetHeight + "px");
     if (text) {
         text.textContent = `${message}`;
     }
     clearTimeout(syncBannerTimer);
     syncBannerTimer = setTimeout(() => {
         banner.style.display = "none";
+        document.body.classList.remove("banner-visible");
     }, 4000);
 }
 
