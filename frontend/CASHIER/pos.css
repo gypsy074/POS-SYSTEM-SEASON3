@@ -2713,7 +2713,8 @@ body.dark .notification-item span { color: var(--text-muted); }
 body.dark .profile-dropdown-header { border-bottom-color: #4a4036; }
 body.dark .profile-dropdown-header strong { color: var(--text-dark); }
 body.dark .printer-settings { border-color: #4a4036; }
-body.dark .printer-settings-row input {
+body.dark .printer-settings-row input,
+body.dark .printer-settings-row select {
     background: #241f1a;
     border-color: #4a4036;
     color: var(--text-dark);
