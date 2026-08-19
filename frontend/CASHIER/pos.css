@@ -2734,7 +2734,8 @@ body.dark .waste-product-dropdown {
     background: #241f1a;
     border-color: #4a4036;
 }
-body.dark .waste-product-option:hover { background: #322b24; }
+body.dark .waste-product-option:hover,
+body.dark .waste-product-option.selected { background: #322b24; }
 
 /* Modal + payment inputs and displays */
 body.dark .pos-modal-field input,
