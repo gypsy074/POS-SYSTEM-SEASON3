@@ -2784,3 +2784,27 @@ body.dark .print-receipt.print-kot { border-top-color: #4a4036; }
     body.dark .print-cut-line { color: #888; border-color: #aaa; }
     body.dark .print-receipt.print-kot { border-top-color: #444; }
 }
+
+/* ==========================================================================
+   DARK MODE — pass 3: final light surfaces (test-print button, senior
+   discount input, qty pill, modal summary, history close hover).
+   ========================================================================== */
+
+body.dark .printer-settings-test,
+body.dark .printer-settings-test:hover { background: #4a2a2a; color: #ff8a8a; }
+
+body.dark .senior-discount-fields input {
+    background: #241f1a;
+    border-color: #4a4036;
+    color: var(--text-dark);
+}
+
+body.dark .history-close-btn:hover { background: #322b24; color: #ff8a8a; }
+
+body.dark .qty-control-pill {
+    background: #241f1a;
+    border-color: #4a4036;
+}
+
+body.dark .pos-modal-summary { background: #241f1a; }
+
