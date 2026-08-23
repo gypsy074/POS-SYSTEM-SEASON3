@@ -2828,3 +2828,41 @@ body.dark .pos-modal-summary { background: #241f1a; }
 .cart-empty-lottie { width: 140px; height: 105px; margin: 0 auto 6px; }
 .cart-empty-lottie svg { width: 100%; height: 100%; }
 
+/* Menu loading — coffee with steam while /api/products loads */
+.menu-lottie {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 70px 0;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+.menu-lottie-holder { width: 150px; height: 115px; }
+.menu-lottie-holder svg { width: 100%; height: 100%; }
+
+/* Dark-mode toggle sparkle */
+.icon-nav { position: relative; }
+.theme-burst-holder {
+    position: absolute;
+    inset: -7px;
+    pointer-events: none;
+    z-index: 5;
+}
+.theme-burst-holder svg { width: 100%; height: 100%; overflow: visible; }
+
+/* Status pill waking rings — anchored to the dot itself */
+.server-status .status-dot { position: relative; }
+.status-pill-pulse {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 30px;
+    height: 30px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+.status-pill-pulse svg { width: 100%; height: 100%; overflow: visible; }
+

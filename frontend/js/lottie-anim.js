@@ -79,6 +79,89 @@
         ]);
     }
 
+    // Cup + three staggered steam wisps — shown while the menu loads.
+    function coffeeData() {
+        const steamColor = [0.761, 0.565, 0.369, 1];
+        const ease = { i: { x: 0.42, y: 1 }, o: { x: 0.58, y: 0 } };
+        const wispShape = {
+            ty: "sh",
+            ks: stat({
+                i: [[0, 0], [-5, -3], [4, -4], [-4, -3]],
+                o: [[0, 0], [5, 3], [-4, -4], [4, 3]],
+                v: [[0, 0], [-5, -8], [3, -16], [-2, -24]],
+                c: false
+            })
+        };
+        const wispLayer = (ind, x, delay) => layer("steam" + ind, ind, 56, [
+            group([wispShape, stroke(steamColor, 7)])
+        ], {
+            p: { a: 1, k: [
+                { t: delay, s: [x, 74, 0] },
+                Object.assign({ t: delay + 26, s: [x, 46, 0] }, ease),
+                { t: 56, s: [x, 46, 0] }
+            ] },
+            o: { a: 1, k: [
+                { t: delay, s: [0] },
+                Object.assign({ t: delay + 8, s: [85] }, ease),
+                Object.assign({ t: delay + 30, s: [0] }, ease),
+                { t: 56, s: [0] }
+            ] }
+        });
+        return anim(200, 150, 56, [
+            wispLayer(3, 118, 16),
+            wispLayer(2, 99, 8),
+            wispLayer(1, 80, 0),
+            layer("handle", 4, 56, [
+                group([{ ty: "el", p: stat([146, 102]), s: stat([30, 30]) }, stroke([0.42, 0.31, 0.231, 1], 9)])
+            ]),
+            layer("cup", 5, 56, [
+                group([{ ty: "rc", p: stat([100, 106]), s: stat([84, 58]), r: stat(14) }, fill([0.651, 0.486, 0.322, 1])])
+            ])
+        ]);
+    }
+
+    // One-shot sparkle used when switching dark mode on/off.
+    function burstData(rgb) {
+        const rays = [];
+        for (let i = 0; i < 8; i++) {
+            const ang = Math.PI * i / 4;
+            const c = Math.cos(ang), s = Math.sin(ang);
+            rays.push({
+                ty: "sh",
+                ks: stat({
+                    i: [[0, 0], [0, 0]], o: [[0, 0], [0, 0]],
+                    v: [[60 + c * 20, 60 + s * 20], [60 + c * 46, 60 + s * 46]],
+                    c: false
+                })
+            });
+        }
+        const easeOutK = { i: { x: 0.2, y: 1 }, o: { x: 0.4, y: 0 } };
+        return anim(120, 120, 34, [
+            layer("rays", 1, 34, [group(rays.concat([stroke(rgb, 9)]))], {
+                r: { a: 1, k: [{ t: 0, s: [0] }, Object.assign({ t: 32, s: [150] }, easeOutK)] },
+                s: { a: 1, k: [{ t: 0, s: [130, 130, 100] }, Object.assign({ t: 32, s: [40, 40, 100] }, easeOutK)] },
+                o: { a: 1, k: [{ t: 0, s: [100] }, Object.assign({ t: 32, s: [0] }, easeOutK)] }
+            })
+        ]);
+    }
+
+    // Dot + two expanding rings — mirrors the status pill's waking state.
+    function pulseData(liveRgb) {
+        const ring = (ind, delay) => layer("ring" + ind, ind, 70, [
+            group([{ ty: "el", p: stat([70, 70]), s: stat([34, 34]) }, stroke(liveRgb, 6)])
+        ], {
+            s: { a: 1, k: [{ t: delay, s: [80, 80, 100] }, Object.assign({ t: delay + 44, s: [280, 280, 100] }, easeOut)] },
+            o: { a: 1, k: [{ t: delay, s: [85] }, Object.assign({ t: delay + 44, s: [0] }, easeOut)] }
+        });
+        return anim(140, 140, 70, [
+            layer("dot", 3, 70, [
+                group([{ ty: "el", p: stat([70, 70]), s: stat([26, 26]) }, fill(liveRgb)])
+            ]),
+            ring(2, 18),
+            ring(1, 0)
+        ]);
+    }
+
     /* ---- mounting helpers ---- */
 
     async function mountInto(container, dataFactory) {
@@ -128,5 +211,79 @@
         mountInto(el, () => cartData(strokeRgb, bodyRgb));
     }
 
-    window.PosLottie = { enhanceSuccessIcon, mountCartEmpty };
+    // Menu loading state. The loader lives inside #menuGrid, so the next
+    // render wipes it automatically — no manual teardown needed.
+    function showMenuLoader(gridEl) {
+        if (!gridEl || gridEl.querySelector(".menu-lottie")) return;
+        const wrap = document.createElement("div");
+        wrap.className = "menu-lottie";
+        const holder = document.createElement("div");
+        holder.className = "menu-lottie-holder";
+        const label = document.createElement("p");
+        label.textContent = "Brewing your menu…";
+        wrap.appendChild(holder);
+        wrap.appendChild(label);
+        gridEl.innerHTML = "";
+        gridEl.appendChild(wrap);
+        mountInto(holder, coffeeData);
+    }
+
+    // One-shot sparkle over a button (e.g. the dark-mode toggle). Plays once
+    // and removes itself; falls back to a timer in case "complete" never fires.
+    function playThemeBurst(btnEl) {
+        if (!btnEl) return;
+        loadLib().then(() => {
+            if (!(window.lottie && typeof window.lottie.loadAnimation === "function")) return;
+            const old = btnEl.querySelector(".theme-burst-holder");
+            if (old) old.remove();
+            const holder = document.createElement("span");
+            holder.className = "theme-burst-holder";
+            btnEl.appendChild(holder);
+            let done = false;
+            const finish = () => {
+                if (done) return;
+                done = true;
+                try { instance.destroy(); } catch (e) {}
+                holder.remove();
+            };
+            let instance;
+            try {
+                instance = window.lottie.loadAnimation({
+                    container: holder,
+                    renderer: "svg",
+                    loop: false,
+                    autoplay: true,
+                    animationData: burstData([0.761, 0.565, 0.369, 1])
+                });
+                instance.addEventListener("complete", finish);
+            } catch (err) {
+                finish();
+                return;
+            }
+            setTimeout(finish, 900);
+        }).catch(() => {});
+    }
+
+    // Expanding rings behind the status dot while the server is waking.
+    function setPillWaking(statusEl, waking) {
+        if (!statusEl) return;
+        const dot = statusEl.querySelector(".status-dot");
+        if (!dot) return;
+        const existing = dot.querySelector(".status-pill-pulse");
+        if (waking) {
+            if (existing || !window.PosLottie) return;
+            loadLib().then(() => {
+                if (!(window.lottie && typeof window.lottie.loadAnimation === "function")) return;
+                if (dot.querySelector(".status-pill-pulse")) return;
+                const holder = document.createElement("span");
+                holder.className = "status-pill-pulse";
+                dot.appendChild(holder);
+                mountInto(holder, () => pulseData([0.086, 0.639, 0.29, 1]));
+            }).catch(() => {});
+        } else if (existing) {
+            existing.remove();
+        }
+    }
+
+    window.PosLottie = { enhanceSuccessIcon, mountCartEmpty, showMenuLoader, playThemeBurst, setPillWaking };
 })();

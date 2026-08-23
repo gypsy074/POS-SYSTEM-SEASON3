@@ -376,6 +376,7 @@ function setupCashierDarkMode() {
         const dark = !document.body.classList.contains("dark");
         localStorage.setItem("posDarkMode", dark ? "1" : "0");
         apply(dark);
+        if (window.PosLottie) window.PosLottie.playThemeBurst(btn);
     });
 }
 
@@ -388,6 +389,7 @@ function setServerStatus(state, label) {
     if (!statusEl) return;
     statusEl.classList.remove("online", "offline", "waking");
     if (state) statusEl.classList.add(state);
+    if (window.PosLottie) window.PosLottie.setPillWaking(statusEl, state === "waking");
     const text = statusEl.querySelector(".status-text");
     if (text) text.textContent = label;
 }
@@ -696,6 +698,10 @@ async function loadCashierMenu() {
 
 async function refreshCashierProducts() {
     try {
+        if (!allProducts.length && window.PosLottie) {
+            const grid = document.getElementById("menuGrid");
+            if (grid) window.PosLottie.showMenuLoader(grid);
+        }
         const response = await apiFetch("/api/products");
         if (!response.ok) {
             throw new Error("Failed to fetch cashier menu");
