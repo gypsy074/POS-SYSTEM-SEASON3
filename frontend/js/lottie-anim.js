@@ -30,6 +30,14 @@
 
     const easeOut = { i: { x: 0.25, y: 1 }, o: { x: 0.45, y: 0 } };
     const stat = k => ({ a: 0, k });
+    // lottie-web edge case: an animated property whose FIRST keyframe sits
+    // exactly on frame 0 can silently fail to bind when other properties
+    // also animate from frame 0 (verified headlessly). Nudging the first
+    // keyframe to frame 1 is invisible (16 ms) and avoids it entirely.
+    const animProp = k => {
+        if (Array.isArray(k) && k.length && k[0].t === 0) k[0] = Object.assign({}, k[0], { t: 1 });
+        return { a: 1, k };
+    };
     const fill = c => ({ ty: "fl", c: stat(c), o: stat(100) });
     const stroke = (c, w) => ({ ty: "st", c: stat(c), o: stat(100), w: stat(w), lc: 2, lj: 2 });
     const trItem = () => ({ ty: "tr", p: stat([0, 0]), a: stat([0, 0]), s: stat([100, 100]), r: stat(0), o: stat(100) });
@@ -51,7 +59,7 @@
             layer("circle", 1, 90, [
                 group([(({ ty: "el", p: stat([120, 120]), s: stat([150, 150]) })), fill([0.18, 0.49, 0.196, 1])])
             ], {
-                s: { a: 1, k: [{ t: 0, s: [0, 0, 100] }, Object.assign({ t: 16, s: [114, 114, 100] }, easeOut), { t: 26, s: [100, 100, 100] }] },
+                s: animProp([{ t: 0, s: [0, 0, 100] }, Object.assign({ t: 16, s: [114, 114, 100] }, easeOut), { t: 26, s: [100, 100, 100] }]),
                 o: { a: 1, k: [{ t: 76, s: [100] }, { t: 86, s: [0] }] }
             })
         ]);
@@ -72,14 +80,16 @@
                     stroke(strokeRgb, 10)
                 ])
             ], {
-                r: { a: 1, k: [{ t: 0, s: [-6] }, Object.assign({ t: 28, s: [6] }, { i: { x: 0.42, y: 1 }, o: { x: 0.58, y: 0 } }), { t: 56, s: [-6] }] },
+                r: animProp([{ t: 0, s: [-6] }, Object.assign({ t: 28, s: [6] }, { i: { x: 0.42, y: 1 }, o: { x: 0.58, y: 0 } }), { t: 56, s: [-6] }]),
                 a: stat([120, 110, 0]),
                 p: stat([120, 110, 0])
             })
         ]);
     }
 
-    // Cup + three staggered steam wisps — shown while the menu loads.
+    // Cup + three steam wisps — shown while the menu loads. Each wisp uses
+    // the same trim-path draw proven safe in the success tick (single
+    // animated property, window inside the loop), staggered per wisp.
     function coffeeData() {
         const steamColor = [0.761, 0.565, 0.369, 1];
         const ease = { i: { x: 0.42, y: 1 }, o: { x: 0.58, y: 0 } };
@@ -93,23 +103,15 @@
             })
         };
         const wispLayer = (ind, x, delay) => layer("steam" + ind, ind, 56, [
-            group([wispShape, stroke(steamColor, 7)])
+            { ty: "tm", s: stat(0), e: animProp([{ t: delay + 1, s: [0] }, Object.assign({ t: delay + 20, s: [100] }, ease)]), o: stat(0), m: 1 },
+            wispShape,
+            Object.assign(stroke(steamColor, 7), { o: stat(80) })
         ], {
-            p: { a: 1, k: [
-                { t: delay, s: [x, 74, 0] },
-                Object.assign({ t: delay + 26, s: [x, 46, 0] }, ease),
-                { t: 56, s: [x, 46, 0] }
-            ] },
-            o: { a: 1, k: [
-                { t: delay, s: [0] },
-                Object.assign({ t: delay + 8, s: [85] }, ease),
-                Object.assign({ t: delay + 30, s: [0] }, ease),
-                { t: 56, s: [0] }
-            ] }
+            p: stat([x, 66, 0])
         });
         return anim(200, 150, 56, [
-            wispLayer(3, 118, 16),
-            wispLayer(2, 99, 8),
+            wispLayer(3, 118, 14),
+            wispLayer(2, 99, 7),
             wispLayer(1, 80, 0),
             layer("handle", 4, 56, [
                 group([{ ty: "el", p: stat([146, 102]), s: stat([30, 30]) }, stroke([0.42, 0.31, 0.231, 1], 9)])
@@ -120,7 +122,8 @@
         ]);
     }
 
-    // One-shot sparkle used when switching dark mode on/off.
+    // One-shot sparkle used when switching dark mode on/off. Rotation only —
+    // the fade-out is handled in CSS by playThemeBurst's cleanup.
     function burstData(rgb) {
         const rays = [];
         for (let i = 0; i < 8; i++) {
@@ -135,30 +138,31 @@
                 })
             });
         }
-        const easeOutK = { i: { x: 0.2, y: 1 }, o: { x: 0.4, y: 0 } };
         return anim(120, 120, 34, [
-            layer("rays", 1, 34, [group(rays.concat([stroke(rgb, 9)]))], {
-                r: { a: 1, k: [{ t: 0, s: [0] }, Object.assign({ t: 32, s: [150] }, easeOutK)] },
-                s: { a: 1, k: [{ t: 0, s: [130, 130, 100] }, Object.assign({ t: 32, s: [40, 40, 100] }, easeOutK)] },
-                o: { a: 1, k: [{ t: 0, s: [100] }, Object.assign({ t: 32, s: [0] }, easeOutK)] }
+            layer("rays", 1, 34, [group(rays.concat([Object.assign(stroke(rgb, 9), { o: stat(90) })]))], {
+                r: animProp([{ t: 0, s: [0] }, Object.assign({ t: 32, s: [150] }, { i: { x: 0.2, y: 1 }, o: { x: 0.4, y: 0 } })])
             })
         ]);
     }
 
     // Dot + two expanding rings — mirrors the status pill's waking state.
+    // Rings scale only (single animated property each); depth comes from
+    // constant, different stroke opacities instead of an opacity animation.
     function pulseData(liveRgb) {
-        const ring = (ind, delay) => layer("ring" + ind, ind, 70, [
-            group([{ ty: "el", p: stat([70, 70]), s: stat([34, 34]) }, stroke(liveRgb, 6)])
+        const ring = (ind, delay, opacity) => layer("ring" + ind, ind, 70, [
+            group([
+                { ty: "el", p: stat([70, 70]), s: stat([34, 34]) },
+                Object.assign(stroke(liveRgb, 6), { o: stat(opacity) })
+            ])
         ], {
-            s: { a: 1, k: [{ t: delay, s: [80, 80, 100] }, Object.assign({ t: delay + 44, s: [280, 280, 100] }, easeOut)] },
-            o: { a: 1, k: [{ t: delay, s: [85] }, Object.assign({ t: delay + 44, s: [0] }, easeOut)] }
+            s: animProp([{ t: delay + 1, s: [80, 80, 100] }, Object.assign({ t: delay + 44, s: [280, 280, 100] }, easeOut)])
         });
         return anim(140, 140, 70, [
             layer("dot", 3, 70, [
                 group([{ ty: "el", p: stat([70, 70]), s: stat([26, 26]) }, fill(liveRgb)])
             ]),
-            ring(2, 18),
-            ring(1, 0)
+            ring(2, 16, 40),
+            ring(1, 0, 75)
         ]);
     }
 
@@ -244,7 +248,8 @@
                 if (done) return;
                 done = true;
                 try { instance.destroy(); } catch (e) {}
-                holder.remove();
+                holder.style.opacity = "0";
+                setTimeout(() => holder.remove(), 220);
             };
             let instance;
             try {
@@ -285,5 +290,14 @@
         }
     }
 
-    window.PosLottie = { enhanceSuccessIcon, mountCartEmpty, showMenuLoader, playThemeBurst, setPillWaking };
+    // _debug exposes the raw builders so the animation data can be tested
+    // outside a browser (headless checks) without duplicating the specs.
+    window.PosLottie = {
+        enhanceSuccessIcon,
+        mountCartEmpty,
+        showMenuLoader,
+        playThemeBurst,
+        setPillWaking,
+        _debug: { successData, cartData, coffeeData, burstData, pulseData }
+    };
 })();
