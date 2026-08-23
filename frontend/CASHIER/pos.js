@@ -1265,7 +1265,7 @@ function renderCart() {
             </div>
         `;
 
-    const emptyRow = `<div class="cart-row"><div class="cart-row-details"><h5>Your cart is empty</h5><p>Tap a menu item to add it here.</p></div></div>`;
+    const emptyRow = `<div class="cart-row cart-row-empty"><div class="cart-empty-lottie"></div><div class="cart-row-details"><h5>Your cart is empty</h5><p>Tap a menu item to add it here.</p></div></div>`;
 
     cartContainer.innerHTML = cart.length
         ? visibleItems.map(rowHtml).join("")
@@ -1285,6 +1285,10 @@ function renderCart() {
     if (drawerList) {
         drawerList.innerHTML = cart.length ? cart.map(rowHtml).join("") : emptyRow;
     }
+
+    document.querySelectorAll(".cart-empty-lottie").forEach(el => {
+        if (window.PosLottie) window.PosLottie.mountCartEmpty(el);
+    });
 
     const expandBtn = document.getElementById("cartPreviewExpandBtn");
     if (expandBtn) {
@@ -2307,6 +2311,10 @@ function showPosAlert({ title, icon = "fa-circle-check", iconClass = "success", 
         });
 
         overlay.classList.add("show");
+        if (iconClass === "success" && window.PosLottie) {
+            const bigIcon = body.querySelector(".pos-modal-success-icon");
+            if (bigIcon) window.PosLottie.enhanceSuccessIcon(bigIcon);
+        }
         if (typeof afterDom === "function") afterDom(body);
     });
 }

@@ -2810,3 +2810,21 @@ body.dark .qty-control-pill {
 
 body.dark .pos-modal-summary { background: #241f1a; }
 
+/* ==========================================================================
+   Lottie touches — animated success icon + empty-cart art.
+   The library loads lazily; if it fails these rules simply never apply and
+   the static icons remain.
+   ========================================================================== */
+
+.pos-modal-success-icon.lottified {
+    background: transparent;
+    box-shadow: none;
+    animation: none;
+}
+.pos-modal-success-icon-lottie { width: 110px; height: 110px; }
+.pos-modal-success-icon-lottie svg { width: 100%; height: 100%; }
+
+.cart-row-empty { display: block; text-align: center; padding: 18px 10px; }
+.cart-empty-lottie { width: 140px; height: 105px; margin: 0 auto 6px; }
+.cart-empty-lottie svg { width: 100%; height: 100%; }
+
