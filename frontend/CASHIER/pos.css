@@ -898,6 +898,16 @@ body.banner-visible .app-container {
     margin-bottom: 20px;
 }
 
+.customer-name-row {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.customer-name-row .input-field,
+.customer-name-row input {
+    min-width: 0;
+    box-sizing: border-box;
+}
+
 .input-field label {
     display: block;
     font-size: 0.75rem;
@@ -911,6 +921,87 @@ body.banner-visible .app-container {
     border: 1.5px solid #f0f0f0;
     border-radius: 12px;
     font-size: 0.9rem;
+    outline-color: var(--accent-brown);
+}
+
+.senior-discount-chip {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid #d9c6b2;
+    border-radius: 12px;
+    background: #fffaf5;
+    color: var(--dark-brown);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.senior-discount-chip:hover,
+.senior-discount-chip.active {
+    background: #fdf0df;
+    border-color: var(--accent-brown);
+    color: var(--accent-brown);
+}
+
+.senior-chip-chevron {
+    margin-left: auto;
+    transition: transform 0.2s ease;
+}
+
+.senior-discount-chip[aria-expanded="true"] .senior-chip-chevron {
+    transform: rotate(180deg);
+}
+
+.senior-discount-panel {
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 8px;
+    padding: 10px;
+    border: 1px solid #ead9c8;
+    border-radius: 12px;
+    background: #fffaf5;
+}
+
+.senior-discount-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: var(--dark-brown);
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.senior-discount-toggle input {
+    width: auto;
+    accent-color: var(--accent-brown);
+}
+
+.senior-discount-fields {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+    min-width: 0;
+}
+
+.senior-discount-fields input {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 9px 10px;
+    border: 1px solid #e1d3c5;
+    border-radius: 9px;
+    background: #fff;
+    color: var(--text-dark);
+    font: inherit;
+    font-size: 0.8rem;
     outline-color: var(--accent-brown);
 }
 
@@ -1259,15 +1350,25 @@ body.banner-visible .app-container {
 }
 
 .remove-item-btn {
-    color: #ff4d4d;
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 32px;
+    border: 1px solid #e8caca;
+    border-radius: 8px;
+    background: transparent;
+    color: #c0392b;
     cursor: pointer;
-    margin-left: 10px;
-    font-size: 0.9rem;
-    transition: transform 0.2s;
+    margin-left: 8px;
+    font-size: 0.82rem;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
 .remove-item-btn:hover {
-    transform: scale(1.2);
+    background: #fdeaea;
+    border-color: #c0392b;
+    transform: translateY(-1px);
 }
 
 .cart-item-row {
@@ -1364,210 +1465,36 @@ payment-details-section h3 {
     box-shadow: inset 0 0 0 3px white;
 }
 
-/*7. "Swipe to Confirm" Slide Button Animation*/
-.checkout-area {
-    margin-top: auto;   /* Added: pushes this area to the bottom */
-    padding-top: 14px;
-    border-top: 1px solid #eee;
-    background: var(--white);   
-}
-
-.total-summary {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 20px;
-    font-weight: bold;
-}
-
-.discount-summary {
-    display: flex;
-    justify-content: space-between;
-    margin: -10px 0 14px 0;
-    font-size: 0.86rem;
-    color: var(--pos-warn, #b45309);
-    font-weight: 600;
-}
-
-.senior-discount-chip {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    margin: 0 0 12px auto;
-    padding: 7px 12px;
-    border: 1px solid #e6d9cc;
-    border-radius: 999px;
-    background: var(--white);
-    color: var(--dark-brown);
-    font-family: inherit;
-    font-size: 0.8rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-.senior-discount-chip:hover { background: var(--soft-bg, #faf7f2); }
-.senior-discount-chip.active {
-    background: color-mix(in srgb, var(--accent-brown, #8b5e3c) 12%, white);
-    border-color: var(--accent-brown);
-    color: var(--accent-brown);
-}
-.senior-discount-chip .senior-chip-chevron {
-    font-size: 0.7rem;
-    transition: transform 0.2s ease;
-}
-.senior-discount-chip[aria-expanded="true"] .senior-chip-chevron {
-    transform: rotate(180deg);
-}
-
-.senior-discount-panel {
-    margin-bottom: 12px;
-    padding: 10px;
-    border: 1px solid #eee;
-    border-radius: 10px;
-    background: var(--soft-bg, #faf7f2);
-    animation: dropdownIn 0.2s ease-out;
-}
-
-.senior-discount-toggle {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    user-select: none;
-}
-
-.senior-discount-toggle input {
-    width: 16px;
-    height: 16px;
-    accent-color: var(--accent-brown, #8b5e3c);
-}
-
-.senior-discount-label {
-    font-weight: 600;
-    font-size: 0.82rem;
-    color: var(--dark-brown, #4a2c17);
-}
-
-.senior-discount-fields {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-top: 8px;
-}
-
-.senior-discount-fields input {
+.place-order-btn {
     width: 100%;
-    padding: 7px 10px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    background: #fff;
-    outline: none;
-}
-
-.senior-discount-fields input:focus {
-    border-color: var(--accent-brown, #8b5e3c);
-}
-
-.slide-button-container {
-    position: relative;
-}
-
-.slide-track {
-    width: 100%;
-    height: 60px;
-    background: var(--accent-brown);
-    border-radius: 50px;
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    user-select: none;
-    overflow: hidden;
-}
-
-.slider-thumb {
-    position: absolute;
-    left: 5px;
-    width: 50px;
-    height: 50px;
-    background: var(--white);
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    color: var(--accent-brown);
-    cursor: grab;
-    z-index: 10;
-    transition: transform 0.15s ease-out;
-}
-
-.slider-thumb:active {
-    cursor: grabbing;
-}
-
-.slider-thumb.dragging {
-    transition: none;
-    cursor: grabbing;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
-    animation: none;
-}
-
-.btn-text {
-    color: #fff;
-    font-weight: bold;
-    pointer-events: none;
-}
-
-/* ── Slide button animations ─────────────────────────────── */
-@keyframes thumbGlow {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.55); }
-    50%      { box-shadow: 0 0 0 11px rgba(255, 255, 255, 0); }
-}
-
-@keyframes nudgeRight {
-    0%, 100% { transform: translateX(0); }
-    50%      { transform: translateX(5px); }
-}
-
-@keyframes trackGlowPulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(122, 82, 48, 0.28); }
-    50%      { box-shadow: 0 0 24px 5px rgba(122, 82, 48, 0.42); }
-}
-
-@keyframes processingPop {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(46, 125, 50, 0.5); }
-    50%      { box-shadow: 0 0 0 12px rgba(46, 125, 50, 0); }
-}
-
-/* Cart has items → gently breathe to invite the swipe */
-.slide-track.ready:not(.processing) {
-    animation: trackGlowPulse 2s ease-in-out infinite;
-}
-.slide-track.ready:not(.processing) .slider-thumb {
-    animation: thumbGlow 2s ease-in-out infinite;
-}
-.slide-track.ready:not(.processing) .slider-thumb i {
-    animation: nudgeRight 1.2s ease-in-out infinite;
-}
-
-.slide-track.processing .slider-thumb {
-    background: #2e7d32;
+    border: none;
+    border-radius: 16px;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, var(--accent-brown), #a86f4d);
     color: white;
-    cursor: wait;
-    animation: processingPop 0.7s ease-in-out infinite;
+    font-size: 0.96rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    font-family: inherit;
+    cursor: pointer;
+    box-shadow: 0 12px 22px rgba(122, 82, 48, 0.22);
+    transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
 
-.slide-track.processing .slider-thumb i {
-    animation: none;
+.place-order-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 26px rgba(122, 82, 48, 0.28);
+    filter: brightness(1.04);
 }
 
-/* Swap chevron → check while the order is being placed */
-.slide-track.processing .slider-thumb i::before {
-    content: "\f00c";
+.place-order-btn:active:not(:disabled) {
+    transform: translateY(0) scale(0.985);
 }
 
-.slide-track.processing .btn-text {
-    opacity: 0;
+.place-order-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
 }
 
 /* Floating animation overlay when you tap a food card */
@@ -1636,16 +1563,22 @@ payment-details-section h3 {
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
-/* Low-stock pill — sits in the card flow below the price, never covers it */
-.low-stock-badge {
+/* Live stock count — rerendered immediately when cart quantity changes. */
+.stock-badge {
     align-self: flex-start;
-    background: #fff3e0;
-    color: #e67e22;
+    background: #f0eee9;
+    color: #5f625d;
     font-weight: 700;
     font-size: 0.68rem;
     padding: 3px 10px;
     border-radius: 20px;
     width: fit-content;
+}
+
+/* Low-stock state keeps the existing warning treatment. */
+.stock-badge.low-stock-badge {
+    background: #fff3e0;
+    color: #e67e22;
 }
 
 /* Optional helper badges for Admin inventory table tags */
@@ -2765,6 +2698,22 @@ body.dark .senior-discount-chip.active {
     color: var(--accent-brown);
 }
 
+body.dark .senior-discount-chip,
+body.dark .senior-discount-panel {
+    background: #2a251f;
+    border-color: #4a4036;
+    color: var(--text-dark);
+}
+
+body.dark .senior-discount-chip:hover {
+    background: #322b24;
+    border-color: var(--accent-brown);
+}
+
+body.dark .senior-discount-toggle {
+    color: var(--text-dark);
+}
+
 /* Receipt preview — dark "paper" on screen, stays light when printing */
 body.dark .print-receipt {
     background: #241f1a;
@@ -2806,6 +2755,17 @@ body.dark .history-close-btn:hover { background: #322b24; color: #ff8a8a; }
 body.dark .qty-control-pill {
     background: #241f1a;
     border-color: #4a4036;
+}
+
+body.dark .remove-item-btn {
+    border-color: #6b3a3a;
+    background: transparent;
+    color: #ff8a8a;
+}
+
+body.dark .remove-item-btn:hover {
+    background: #4a2a2a;
+    border-color: #ff8a8a;
 }
 
 body.dark .pos-modal-summary { background: #241f1a; }

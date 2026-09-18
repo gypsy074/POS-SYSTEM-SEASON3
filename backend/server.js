@@ -386,7 +386,7 @@ async function shiftLinkedSupplies(productName, quantity, sign) {
     return supplies;
 }
 
-function normalizeOrderPayload(input) {
+async function normalizeOrderPayload(input) {
     const items = Array.isArray(input.items)
         ? input.items.map(item => ({
             name: String(item.name || "Item").trim(),
@@ -395,10 +395,28 @@ function normalizeOrderPayload(input) {
         }))
         : [];
 
-const computedTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const round2 = n => Math.round(n * 100) / 100;
+    const productNames = [...new Set(items.map(item => item.name).filter(Boolean))];
+    const menuItems = productNames.length
+        ? await Product.find({ name: { $in: productNames } }).lean()
+        : [];
+    const productMap = new Map(menuItems.map(product => [product.name, product]));
 
+    const itemCategories = new Map();
+    for (const item of items) {
+        const product = productMap.get(item.name);
+        const category = String(product && product.category ? product.category : "").trim().toLowerCase();
+        itemCategories.set(item.name, category);
+    }
+
+    const computedSubtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const detectedDrinkSubtotal = items.reduce((sum, item) => {
+        const category = itemCategories.get(item.name) || "";
+        const isDrink = category.includes("drink") || category.includes("beverage") || category.includes("juice") || category.includes("coffee") || category.includes("tea") || category.includes("cold") || category.includes("milk");
+        return sum + (isDrink ? item.price * item.quantity : 0);
+    }, 0);
     const rawDiscountType = String(input.discountType || "").trim();
+    const discountableSubtotal = detectedDrinkSubtotal;
     if (rawDiscountType && rawDiscountType !== "Senior") {
         throw new Error('Unknown discount type. Supported: "Senior".');
     }
@@ -406,15 +424,15 @@ const computedTotal = items.reduce((sum, item) => sum + item.price * item.quanti
     const payloadExtra = {};
     let discountRate = 0;
     let discountAmount = 0;
-    let subtotal = computedTotal;
+    let subtotal = computedSubtotal;
     let total = Number.isFinite(Number(input.total)) && Number(input.total) > 0
         ? Number(input.total)
-        : computedTotal;
+        : computedSubtotal;
 
     if (discountType === "Senior") {
         discountRate = 0.2;
-        subtotal = computedTotal;
-        discountAmount = round2(subtotal * discountRate);
+        subtotal = computedSubtotal;
+        discountAmount = round2(discountableSubtotal * discountRate);
         total = round2(subtotal - discountAmount);
         const discountId = String(input.discountId || "").trim();
         const discountName = String(input.discountName || "").trim();
@@ -759,7 +777,13 @@ app.put('/api/auth/password', authRequired(), async (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-    res.json({ ok: true, mongo: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' });
+    const mongoConnected = mongoose.connection.readyState === 1;
+    const emailConfigured = isEmailConfigured();
+    res.status(mongoConnected ? 200 : 503).json({
+        ok: mongoConnected,
+        mongo: mongoConnected ? 'connected' : 'disconnected',
+        email: emailConfigured ? 'configured' : 'not-configured'
+    });
 });
 
 // ---------------------- ORDER ENDPOINTS (CASHIER / ADMIN) ----------------------
@@ -769,6 +793,9 @@ app.get('/api/orders', authRequired(), async (req, res) => {
         // as the canteen grows; omitted params keep the original full-fetch
         // behavior for any other caller.
         const query = {};
+        if (req.user.role === 'Cashier') {
+            query.cashier = req.user.username;
+        }
         const days = parseInt(req.query.days, 10);
         if (Number.isInteger(days) && days > 0 && days <= 365) {
             query.date = { $gte: new Date(Date.now() - days * 86400000) };
@@ -788,12 +815,17 @@ app.get('/api/orders', authRequired(), async (req, res) => {
 // order instead of creating a duplicate (offline-queue retries).
 app.post('/api/orders', authRequired(), async (req, res) => {
     try {
-const payload = normalizeOrderPayload(req.body);
+const payload = await normalizeOrderPayload(req.body);
         if (!Array.isArray(payload.items) || !payload.items.length) {
             return res.status(400).json({ error: 'Order must include at least one item.' });
         }
-        // The cashier is whoever is authenticated — never a client default.
-        if (!payload.cashier) payload.cashier = req.user.username;
+        // Cashier identity is always taken from the authenticated session.
+        // Admin-created orders may retain an explicit cashier attribution.
+        if (req.user.role === 'Cashier') {
+            payload.cashier = req.user.username;
+        } else if (!payload.cashier) {
+            payload.cashier = req.user.username;
+        }
 
         // 0) Idempotency guard — a retried offline order must not double-save.
         if (payload.clientOrderId) {
@@ -903,6 +935,9 @@ app.patch('/api/orders/:id/void', authRequired(), async (req, res) => {
 
 const order = await Order.findOne(idMatchFilter(req.params.id));
         if (!order) return res.status(404).json({ error: 'Order not found' });
+        if (req.user.role === 'Cashier' && String(order.cashier || '').toLowerCase() !== String(req.user.username || '').toLowerCase()) {
+            return res.status(403).json({ error: 'Cashiers can void only their own orders.' });
+        }
         if (order.status === "Voided") {
             return res.status(409).json({ error: 'Order is already voided.' });
         }

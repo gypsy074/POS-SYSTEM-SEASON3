@@ -72,7 +72,7 @@ MONGO_URI=mongodb://127.0.0.1:27017/pos_season3cafe
 LOCAL_MONGO_URI=mongodb://127.0.0.1:27017/pos_season3cafe
 ATLAS_MONGO_URI=<the cloud URI that was in MONGO_URI>
 JWT_SECRET=<unchanged — keep the one already there>
-CORS_ORIGIN=*
+CORS_ORIGIN=http://localhost:3000,http://127.0.0.1:3000
 PORT=3000
 ```
 
@@ -158,7 +158,7 @@ MONGO_URI=mongodb://127.0.0.1:27017/pos_season3cafe
 LOCAL_MONGO_URI=mongodb://127.0.0.1:27017/pos_season3cafe
 ATLAS_MONGO_URI=<your cloud connection string from Render/Atlas>
 JWT_SECRET=<any long random string — make one up>
-CORS_ORIGIN=*
+CORS_ORIGIN=http://localhost:3000,http://127.0.0.1:3000
 PORT=3000
 ```
 

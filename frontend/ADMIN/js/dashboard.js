@@ -776,6 +776,21 @@ function getChartTheme() {
     };
 }
 
+function filterOrdersByRange(orders, range = activeSalesRange) {
+    if (!Array.isArray(orders) || !orders.length) return [];
+
+    const now = Date.now();
+    const rangeDays = { day: 1, week: 7, month: 30, all: Infinity }[range] || 1;
+    const cutoff = range === "all" ? 0 : now - rangeDays * 24 * 60 * 60 * 1000;
+
+    return orders.filter(order => {
+        if (order.status === "Voided") return false;
+        if (range === "all") return true;
+        const date = new Date(order.date).getTime();
+        return Number.isFinite(date) && date >= cutoff;
+    });
+}
+
 function renderSalesCharts(orders, products, range = activeSalesRange) {
     if (!window.Chart) return;
 
@@ -785,9 +800,9 @@ function renderSalesCharts(orders, products, range = activeSalesRange) {
     const radarCanvas = document.getElementById("itemsRadarChart");
     if (!salesCanvas || !radarCanvas) return;
 
-    // --- Line chart: daily revenue ---
-    const dailyTotals = orders.reduce((acc, order) => {
-        if (order.status === "Voided") return acc;
+    const filteredOrders = filterOrdersByRange(orders, range);
+
+    const dailyTotals = filteredOrders.reduce((acc, order) => {
         const day = new Date(order.date).toLocaleDateString();
         acc[day] = (acc[day] || 0) + Number(order.total || 0);
         return acc;
@@ -796,7 +811,7 @@ function renderSalesCharts(orders, products, range = activeSalesRange) {
     const allDays = Object.keys(dailyTotals);
     const rangeLimit = { day: 7, week: 28, month: 90, all: Infinity }[range] || 7;
     const lineLabels = allDays.slice(-rangeLimit);
-    const lineData   = lineLabels.map(label => dailyTotals[label]);
+    const lineData = lineLabels.map(label => dailyTotals[label]);
 
     if (salesLineChart) salesLineChart.destroy();
 
@@ -824,110 +839,58 @@ function renderSalesCharts(orders, products, range = activeSalesRange) {
         }
     });
 
-    // --- Category drill-down: per-item bars when a category pill is active ---
     const categoryByProduct = (products || []).reduce((map, product) => {
         map[product.name] = product.category || "Unknown";
         return map;
     }, {});
 
     const radarTitleEl = document.getElementById("radarCardTitle");
+    const itemSource = activeRadarCategory !== "All"
+        ? (products || []).filter(product => (product.category || "Unknown") === activeRadarCategory)
+        : (products || []);
 
-    if (activeRadarCategory !== "All") {
-        const itemCounts = {};
-        (products || []).forEach(product => {
-            if ((product.category || "Unknown") === activeRadarCategory) {
-                itemCounts[product.name] = 0;
-            }
-        });
-        (orders || []).forEach(order => {
-            (order.items || []).forEach(item => {
-                const category = categoryByProduct[item.name] || item.category || "Unknown";
-                if (category === activeRadarCategory) {
-                    itemCounts[item.name] = (itemCounts[item.name] || 0) + Number(item.quantity || 0);
-                }
-            });
-        });
+    const itemCounts = {};
+    itemSource.forEach(product => { itemCounts[product.name] = 0; });
 
-        const itemLabels = Object.keys(itemCounts).sort((a, b) => itemCounts[b] - itemCounts[a]);
-        const itemData   = itemLabels.map(name => itemCounts[name]);
-
-        if (radarTitleEl) radarTitleEl.textContent = `${activeRadarCategory} Items`;
-
-        if (itemsRadarChart) itemsRadarChart.destroy();
-
-        itemsRadarChart = new Chart(radarCanvas, {
-            type: "bar",
-            data: {
-                labels: itemLabels,
-                datasets: [{
-                    label: "Quantity sold",
-                    data: itemData,
-                    backgroundColor: "#a67c52",
-                    borderRadius: 6,
-                    barThickness: 18
-                }]
-            },
-            options: {
-                indexAxis: "y",
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { beginAtZero: true, ticks: { precision: 0, color: theme.text }, grid: { color: theme.grid } },
-                    y: { ticks: { autoSkip: false, color: theme.text }, grid: { color: theme.grid } }
-                }
-            }
-        });
-
-        return;
-    }
-
-    // --- Radar chart: items sold by category (from real orders) ---
-    if (radarTitleEl) radarTitleEl.textContent = "Items Performance";
-
-    const categoryCounts = (orders || []).reduce((acc, order) => {
+    filteredOrders.forEach(order => {
         (order.items || []).forEach(item => {
             const category = categoryByProduct[item.name] || item.category || "Unknown";
-            acc[category] = (acc[category] || 0) + Number(item.quantity || 0);
+            if (activeRadarCategory === "All" || category === activeRadarCategory) {
+                const key = item.name || "Unknown";
+                itemCounts[key] = (itemCounts[key] || 0) + Number(item.quantity || 0);
+            }
         });
-        return acc;
-    }, {});
+    });
 
-    if (Object.keys(categoryCounts).length === 0) {
-        (products || []).forEach(product => {
-            const category = product.category || "Unknown";
-            categoryCounts[category] = (categoryCounts[category] || 0);
-        });
+    const chartLabels = Object.keys(itemCounts).sort((a, b) => itemCounts[b] - itemCounts[a]);
+    const chartData = chartLabels.map(label => itemCounts[label]);
+
+    if (radarTitleEl) {
+        radarTitleEl.textContent = activeRadarCategory === "All" ? "Items Performance" : `${activeRadarCategory} Items`;
     }
-
-    const radarLabels = Object.keys(categoryCounts);
-    const radarData   = radarLabels.map(label => categoryCounts[label]);
 
     if (itemsRadarChart) itemsRadarChart.destroy();
 
     itemsRadarChart = new Chart(radarCanvas, {
-        type: "radar",
+        type: "bar",
         data: {
-            labels: radarLabels,
+            labels: chartLabels,
             datasets: [{
-                label: "Items by category",
-                data: radarData,
-                borderColor: "#4e73df",
-                backgroundColor: "rgba(78,115,223,0.2)",
-                pointBackgroundColor: "#4e73df"
+                label: activeRadarCategory === "All" ? "Items sold" : "Quantity sold",
+                data: chartData,
+                backgroundColor: activeRadarCategory === "All" ? "#4e73df" : "#a67c52",
+                borderRadius: 6,
+                barThickness: 18
             }]
         },
         options: {
+            indexAxis: "y",
             responsive: true,
             maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
             scales: {
-                r: {
-                    beginAtZero: true,
-                    ticks: { color: theme.text, backdropColor: theme.backdrop },
-                    pointLabels: { color: theme.strong },
-                    grid: { color: theme.grid },
-                    angleLines: { color: theme.grid }
-                }
+                x: { beginAtZero: true, ticks: { precision: 0, color: theme.text }, grid: { color: theme.grid } },
+                y: { ticks: { autoSkip: false, color: theme.text }, grid: { color: theme.grid } }
             }
         }
     });

@@ -3,7 +3,8 @@
 const API_BASE_URL = getApiBaseUrl();
 
 let allProducts = [];
-let activeCategory = "All";
+let bestSellingCounts = {};
+let activeCategory = "Best Selling Item";
 let cart = [];
 let selectedMode = "Dine In";
 let selectedPayment = "cash";
@@ -20,17 +21,27 @@ let cartDrawerExpanded = false;
 const PRINT_SETTINGS_KEY = "posPrintSettings";
 const DEFAULT_PRINT_SETTINGS = { mode: "dialog", width: "80", url: "http://127.0.0.1:8080", kot: true };
 
-// Senior/PWD discount state — 20% off the whole order, requires the SC/PWD
-// ID + customer name (server re-validates and recomputes every amount).
+// Senior/PWD discount state — 20% off drinks only, requires the SC/PWD ID +
+// customer name (server re-validates and recomputes every amount).
 let seniorDiscountActive = false;
 const SENIOR_DISCOUNT_RATE = 0.2;
+
+function isDrinkItem(item) {
+    const category = String(item && (item.category || item.productCategory || "")).trim().toLowerCase();
+    return category.includes("drink") || category.includes("beverage") || category.includes("juice") || category.includes("coffee") || category.includes("tea") || category.includes("cold") || category.includes("milk");
+}
 
 function cartSubtotal() {
     return cart.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0);
 }
 
+function cartDiscountableSubtotal() {
+    return cart.reduce((sum, item) => sum + (isDrinkItem(item) ? (Number(item.price || 0) * item.quantity) : 0), 0);
+}
+
 function cartDiscountAmount() {
-    return seniorDiscountActive ? Math.round(cartSubtotal() * SENIOR_DISCOUNT_RATE * 100) / 100 : 0;
+    if (!seniorDiscountActive) return 0;
+    return Math.round(cartDiscountableSubtotal() * SENIOR_DISCOUNT_RATE * 100) / 100;
 }
 
 function cartOrderTotal() {
@@ -376,7 +387,6 @@ function setupCashierDarkMode() {
         const dark = !document.body.classList.contains("dark");
         localStorage.setItem("posDarkMode", dark ? "1" : "0");
         apply(dark);
-        if (window.PosLottie) window.PosLottie.playThemeBurst(btn);
     });
 }
 
@@ -571,7 +581,6 @@ function setupCashierControls() {
     const searchInput = document.getElementById("searchInput");
     const notificationTrigger = document.querySelector(".notification-trigger");
     const cancelOrderBtn = document.getElementById("cancelOrderBtn");
-    const swipeTrack = document.getElementById("swipeTrack");
     const modeButtons = document.querySelectorAll(".mode-btn");
     const backButtons = document.querySelectorAll(".circular-back-btn");
 
@@ -667,9 +676,7 @@ function setupCashierControls() {
         });
     });
 
-    if (swipeTrack) {
-        setupSwipeSubmit();
-    }
+    setupSwipeSubmit();
 
     modeButtons.forEach(button => {
         button.addEventListener("click", () => {
@@ -708,6 +715,7 @@ async function refreshCashierProducts() {
         }
 
         allProducts = await response.json();
+        await refreshBestSellingCounts();
         try {
             localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(allProducts));
         } catch {
@@ -735,6 +743,26 @@ async function refreshCashierProducts() {
                 // ignore — no usable cache.
             }
         }
+    }
+}
+
+async function refreshBestSellingCounts() {
+    try {
+        const response = await apiFetch("/api/orders?limit=5000");
+        if (!response.ok) return;
+
+        const orders = await response.json();
+        const counts = {};
+        (Array.isArray(orders) ? orders : []).forEach(order => {
+            if (order.status === "Voided") return;
+            (order.items || []).forEach(item => {
+                const name = String(item.name || "").trim();
+                if (name) counts[name] = (counts[name] || 0) + Number(item.quantity || 0);
+            });
+        });
+        bestSellingCounts = counts;
+    } catch (err) {
+        console.warn("Could not refresh best-selling item counts:", err);
     }
 }
 
@@ -1080,11 +1108,11 @@ function renderCategoryTabs() {
     }
 
     const categories = [...new Set(allProducts.map(product => product.category))].filter(Boolean);
-    const displayTabs = ["All", ...categories];
+    const displayTabs = ["Best Selling Item", ...categories];
 
     tabContainer.innerHTML = displayTabs.length
         ? displayTabs.map(category => {
-            const count = category === "All"
+            const count = category === "Best Selling Item"
                 ? allProducts.length
                 : allProducts.filter(product => product.category === category).length;
             return `
@@ -1097,8 +1125,14 @@ function renderCategoryTabs() {
         : `<div class="tab-item active"><h3>No categories yet</h3><p>Add menu items in the admin panel</p></div>`;
 }
 
+function reservedCartQty(productId) {
+    return cart.reduce((sum, item) => sum + (String(item._id) === String(productId) ? item.quantity : 0), 0);
+}
+
 function productStock(product) {
-    return Number(product && product.stock);
+    if (!product) return 0;
+    const stock = Number(product.stock || 0);
+    return Math.max(0, stock - reservedCartQty(product._id));
 }
 
 function productIsSoldOut(product) {
@@ -1113,7 +1147,7 @@ function productIsLowStock(product) {
     return !productIsSoldOut(product) && productStock(product) <= Number(product.lowStockThreshold ?? 10);
 }
 
-function displayCategoryItems(category, searchTerm = "") {
+function displayCategoryItems(category, searchTerm = "", animate = true) {
     activeCategory = category;
     renderCategoryTabs();
 
@@ -1124,7 +1158,7 @@ function displayCategoryItems(category, searchTerm = "") {
 
     const normalizedSearch = searchTerm.trim().toLowerCase();
     const products = allProducts.filter(product => {
-        const matchesCategory = category === "All" || !category || product.category === category;
+        const matchesCategory = category === "Best Selling Item" || category === "All" || !category || product.category === category;
         const matchesSearch = !normalizedSearch
             || product.name.toLowerCase().includes(normalizedSearch)
             || (product.category || "").toLowerCase().includes(normalizedSearch)
@@ -1133,8 +1167,16 @@ function displayCategoryItems(category, searchTerm = "") {
         return matchesCategory && matchesSearch;
     });
 
-    // Sold-out items go last so the cashier sees available items first.
-    products.sort((a, b) => (productIsSoldOut(a) ? 1 : 0) - (productIsSoldOut(b) ? 1 : 0));
+    if (category === "Best Selling Item" || category === "All") {
+        const soldRank = item => bestSellingCounts[item.name] || 0;
+        products.sort((a, b) => {
+            const delta = soldRank(b) - soldRank(a);
+            if (delta !== 0) return delta;
+            return (productIsSoldOut(a) ? 1 : 0) - (productIsSoldOut(b) ? 1 : 0);
+        });
+    } else {
+        products.sort((a, b) => (productIsSoldOut(a) ? 1 : 0) - (productIsSoldOut(b) ? 1 : 0));
+    }
 
     // Card-by-card transition: new cards unfold one by one immediately
     // (Android-style staggered list) — for category switches, search typing
@@ -1148,7 +1190,7 @@ function displayCategoryItems(category, searchTerm = "") {
                 const lowStock = productIsLowStock(product);
                 const expandDelay = ` style="animation-delay: ${Math.min(index * 0.035, 0.25).toFixed(3)}s"`;
                 return `
-                <article class="food-card ${soldOut ? "sold-out-card" : ""} menu-card-expand"${expandDelay}>
+                <article class="food-card ${soldOut ? "sold-out-card" : ""}${animate ? " menu-card-expand" : ""}"${animate ? expandDelay : ""}>
                     <img src="${escapeHtml(product.image || createPlaceholderImage(product.name))}" alt="${escapeHtml(product.name)}">
                     <div class="food-info">
                         <h4>${escapeHtml(product.name)}</h4>
@@ -1160,14 +1202,12 @@ function displayCategoryItems(category, searchTerm = "") {
                         </div>
                         ${soldOut
                             ? '<div class="sold-out-overlay"><span>OUT OF STOCK</span></div>'
-                            : lowStock
-                                ? `<div class="low-stock-badge">Only ${productStock(product)} left</div>`
-                                : ""}
+                            : `<div class="stock-badge${lowStock ? " low-stock-badge" : ""}">Stock: ${productStock(product)}</div>`}
                     </div>
                 </article>
             `;
             }).join("")
-            : `<div class="food-card menu-empty-card menu-card-expand"><div class="food-info"><h4>No items found</h4><p>Try a different category or search term.</p></div></div>`;
+            : `<div class="food-card menu-empty-card${animate ? " menu-card-expand" : ""}"><div class="food-info"><h4>No items found</h4><p>Try a different category or search term.</p></div></div>`;
 
         grid.querySelectorAll("[data-product-id]").forEach(button => {
             button.addEventListener("click", event => {
@@ -1178,6 +1218,11 @@ function displayCategoryItems(category, searchTerm = "") {
     }
 
     renderGrid();
+}
+
+function refreshCartStockDisplay() {
+    const searchInput = document.getElementById("searchInput");
+    displayCategoryItems(activeCategory, searchInput ? searchInput.value : "", false);
 }
 
 function createPlaceholderImage(label) {
@@ -1203,7 +1248,6 @@ function addToCart(productId) {
         return;
     }
 
-    const available = productStock(product);
     if (productIsSoldOut(product)) {
         showPosAlert({
             title: "Out of Stock",
@@ -1215,16 +1259,6 @@ function addToCart(productId) {
     }
 
     const existingItem = cart.find(item => item._id === productId);
-    const currentQty = existingItem ? existingItem.quantity : 0;
-    if (currentQty >= available) {
-        showPosAlert({
-            title: "Stock Limit Reached",
-            icon: "fa-circle-exclamation",
-            iconClass: "danger",
-            bodyHtml: `<p class="pos-modal-note">Only ${available} left in stock for ${escapeHtml(product.name)}.</p>`
-        });
-        return;
-    }
 
     if (existingItem) {
         existingItem.quantity += 1;
@@ -1234,6 +1268,7 @@ function addToCart(productId) {
 
     playSound("add");
     renderCart();
+    refreshCartStockDisplay();
 
     // Long carts hide newly added items below the fold — keep them visible.
     const cartContainer = document.getElementById("cartContainer");
@@ -1267,7 +1302,9 @@ function renderCart() {
                     <span class="qty-number">${item.quantity}</span>
                     <button type="button" class="qty-btn" data-cart-action="increase" data-cart-index="${cart.indexOf(item)}">+</button>
                 </div>
-                <button type="button" class="remove-item-btn" data-cart-action="remove" data-cart-index="${cart.indexOf(item)}">Remove</button>
+                <button type="button" class="remove-item-btn" data-cart-action="remove" data-cart-index="${cart.indexOf(item)}" aria-label="Remove ${escapeHtml(item.name)}" title="Remove item">
+                    <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+                </button>
             </div>
         `;
 
@@ -1357,41 +1394,10 @@ function renderCart() {
 }
 
 function setupSwipeSubmit() {
-    const swipeTrack = document.getElementById("swipeTrack");
-    const swipeThumb = document.getElementById("swipeThumb");
-    if (!swipeTrack || !swipeThumb) return;
+    const placeOrderBtn = document.getElementById("placeOrderBtn");
+    if (!placeOrderBtn) return;
 
-    let dragging = false;
-    let startX = 0;
-    let thumbStartOffset = 0;
-    let currentOffset = 0;
-    let suppressClick = false;
-
-    // Thumb sits at left:5px; keep a 5px margin on the right too.
-    const maxTravel = () => swipeTrack.clientWidth - swipeThumb.offsetWidth - 10;
-
-    function setThumbOffset(offset) {
-        currentOffset = Math.max(0, Math.min(maxTravel(), offset));
-        swipeThumb.style.transform = `translateX(${currentOffset}px)`;
-    }
-
-    function resetThumb() {
-        currentOffset = 0;
-        swipeThumb.style.transform = "translateX(0px)";
-    }
-
-    async function processSubmit() {
-        swipeTrack.classList.add("processing");
-        playSound("swipe");
-        try {
-            await submitOrder();
-        } finally {
-            setTimeout(() => swipeTrack.classList.remove("processing"), 400);
-        }
-    }
-
-    function beginDrag(clientX) {
-        if (swipeTrack.classList.contains("processing")) return;
+    placeOrderBtn.addEventListener("click", async () => {
         if (!cart.length) {
             showPosAlert({
                 title: "Empty Cart",
@@ -1401,95 +1407,18 @@ function setupSwipeSubmit() {
             });
             return;
         }
-        dragging = true;
-        suppressClick = true;
-        startX = clientX;
-        thumbStartOffset = currentOffset;
-        swipeThumb.classList.add("dragging");
-    }
-
-    function moveDrag(clientX) {
-        if (!dragging) return;
-        setThumbOffset(thumbStartOffset + (clientX - startX));
-    }
-
-    function endDrag() {
-        if (!dragging) return;
-        dragging = false;
-        swipeThumb.classList.remove("dragging");
-
-        const travel = maxTravel();
-        const released = travel > 0 && currentOffset >= travel * 0.85;
-        resetThumb();
-
-        if (released) {
-            // Guard against the synthetic click that follows mouse/touch up.
-            suppressClick = true;
-            setTimeout(() => { suppressClick = false; }, 600);
-            processSubmit();
-        }
-    }
-
-    const handleThumbClick = () => {
-        if (suppressClick) {
-            suppressClick = false;
-            return;
-        }
-        processSubmit();
-    };
-
-    // Mouse drag
-    swipeThumb.addEventListener("mousedown", event => {
-        event.preventDefault();
-        beginDrag(event.clientX);
-    });
-    document.addEventListener("mousemove", event => moveDrag(event.clientX));
-    document.addEventListener("mouseup", () => endDrag());
-
-    // Touch drag (touchscreens)
-    swipeThumb.addEventListener("touchstart", event => {
-        event.preventDefault();
-        beginDrag(event.touches[0].clientX);
-    }, { passive: false });
-    document.addEventListener("touchmove", event => {
-        if (dragging) {
-            event.preventDefault();
-            moveDrag(event.touches[0].clientX);
-        }
-    }, { passive: false });
-    document.addEventListener("touchend", () => endDrag());
-
-    // Fallbacks: a tap on the thumb or anywhere on the track also places the order.
-    swipeThumb.addEventListener("click", event => {
-        event.stopPropagation();
-        handleThumbClick();
-    });
-    swipeTrack.addEventListener("click", () => {
-        if (suppressClick) return;
-        if (!cart.length) {
-            showPosAlert({
-                title: "Empty Cart",
-                icon: "fa-basket-shopping",
-                iconClass: "info",
-                bodyHtml: '<p class="pos-modal-note">Add at least one item before placing an order.</p>'
-            });
-            return;
-        }
-        processSubmit();
+        await submitOrder();
     });
 }
 
 function updateSwipeSummary() {
-    const swipeText = document.getElementById("swipeText");
-    const swipeTrack = document.getElementById("swipeTrack");
+    const placeOrderBtn = document.getElementById("placeOrderBtn");
     const total = cartOrderTotal();
-    if (swipeText) {
-        swipeText.textContent = cart.length
-            ? `Swipe to Place Order (${selectedPayment.toUpperCase()}) ₱${total.toFixed(2)}`
-            : `Add items to begin your order`;
-    }
-    if (swipeTrack) {
-        swipeTrack.classList.toggle("ready", cart.length > 0);
+    if (placeOrderBtn) {
+        placeOrderBtn.disabled = !cart.length;
+        placeOrderBtn.textContent = cart.length
+            ? `Place Order • ${selectedPayment.toUpperCase()} • ₱${total.toFixed(2)}`
+            : "Place Order";
     }
 }
 
@@ -1511,7 +1440,6 @@ function updateChangeCalculator() {
     const input = document.getElementById("amountTenderedInput");
     const changeEl = document.getElementById("changeAmount");
     const breakdownEl = document.getElementById("changeBreakdown");
-    const swipeTrack = document.getElementById("swipeTrack");
     const receivedChip = document.getElementById("cashReceivedChip");
     const changeChip = document.getElementById("cashChangeChip");
     if (!changeEl) {
@@ -1539,14 +1467,6 @@ function updateChangeCalculator() {
             : "";
     } else if (breakdownEl) {
         breakdownEl.innerHTML = "";
-    }
-
-    if (swipeTrack) {
-        const short = selectedPayment === "cash" && tendered > 0 && change < 0;
-        swipeTrack.classList.toggle("insufficient-cash", short);
-        if (short) {
-            swipeTrack.classList.remove("ready");
-        }
     }
 }
 
@@ -1730,7 +1650,7 @@ function changeQuantity(index, delta) {
     const product = allProducts.find(p => p._id === item._id);
     const available = product ? productStock(product) : Infinity;
 
-    if (delta > 0 && item.quantity >= available) {
+    if (delta > 0 && available <= 0) {
         showPosAlert({
             title: "Stock Limit Reached",
             icon: "fa-circle-exclamation",
@@ -1748,12 +1668,14 @@ function changeQuantity(index, delta) {
 
     playSound("qty");
     renderCart();
+    refreshCartStockDisplay();
 }
 
 function removeCartItem(index) {
     cart.splice(index, 1);
     playSound("remove");
     renderCart();
+    refreshCartStockDisplay();
 }
 
 async function submitOrder() {
@@ -1801,9 +1723,8 @@ async function submitOrder() {
     }
 
     const customerInput = document.getElementById("customerNameInput");
-    const tableInput = document.getElementById("tableNoInput");
     const customer = customerInput ? customerInput.value.trim() : "Walk-in Customer";
-    const tableNo = tableInput ? tableInput.value.trim() : "";
+    const tableNo = "";
 
     // Idempotency key: unique per order, stable across sync retries so the
     // backend never saves the same order twice.
@@ -1873,14 +1794,18 @@ async function submitOrder() {
         }
 
         const createdOrder = await response.json();
+        (createdOrder.items || payload.items).forEach(item => {
+            bestSellingCounts[item.name] = (bestSellingCounts[item.name] || 0) + Number(item.quantity || 0);
+        });
         playSound("success");
+        printReceipt(createdOrder);
 
         const changeGiven = selectedPayment === "cash"
             ? `<div class="row"><span>Change</span><strong>₱${Number(createdOrder.change ?? Math.max(0, tenderedAmount - Number(payload.total))).toFixed(2)}</strong></div>`
             : "";
 
         await showPosAlert({
-            title: "Order placed!",
+            title: "Order Placed!",
             icon: "fa-circle-check",
             iconClass: "success",
             bodyHtml: `
@@ -2336,6 +2261,7 @@ function cancelOrder(silent = false) {
     currentOrderId = generateOrderId(); // fresh ID for next order
     renderOrderId();
     renderCart();
+    refreshCartStockDisplay();
     resetChangeCalculator();
 }
 
@@ -2394,6 +2320,17 @@ async function logWasteItems(items, reason) {
 
 let wasteSelectedProductId = null;
 let wasteActiveIndex = 0;
+let wasteSelectedUnitPrice = 0;
+
+function syncWasteTotalCost() {
+    const qtyInput = document.getElementById("wasteQty");
+    const totalInput = document.getElementById("wastePrice");
+    if (!qtyInput || !totalInput || !wasteSelectedProductId) return;
+    const quantity = Number(qtyInput.value || 0);
+    if (quantity > 0) {
+        totalInput.value = (quantity * wasteSelectedUnitPrice).toFixed(2);
+    }
+}
 
 function buildWasteProductSearch() {
     renderWasteProductDropdown(document.getElementById("wasteProductName")?.value || "");
@@ -2460,10 +2397,31 @@ function selectWasteProduct(productId) {
     }
 
     if (nameInput) nameInput.value = product.name;
-    if (priceInput) priceInput.value = Number(product.price || 0).toFixed(2);
+    wasteSelectedUnitPrice = Number(product.price || 0);
+    if (priceInput) priceInput.value = wasteSelectedUnitPrice.toFixed(2);
     wasteSelectedProductId = productId;
+    syncWasteTotalCost();
     if (dropdown) dropdown.style.display = "none";
     playSound("qty");
+}
+
+function resetWasteForm() {
+    const form = document.getElementById("wasteLogForm");
+    const name = document.getElementById("wasteProductName");
+    const qtyInput = document.getElementById("wasteQty");
+    const priceInput = document.getElementById("wastePrice");
+    const reasonSelect = document.getElementById("wasteReason");
+    const dropdown = document.getElementById("wasteProductDropdown");
+
+    if (name) name.value = "";
+    if (qtyInput) qtyInput.value = "";
+    if (priceInput) priceInput.value = "";
+    if (reasonSelect) reasonSelect.value = "Wrong Order";
+    if (dropdown) dropdown.style.display = "none";
+    wasteSelectedProductId = null;
+    wasteActiveIndex = 0;
+    wasteSelectedUnitPrice = 0;
+    if (form) form.style.display = "none";
 }
 
 function setupWasteLogForm() {
@@ -2475,12 +2433,16 @@ function setupWasteLogForm() {
     if (toggleBtn) {
         toggleBtn.addEventListener("click", () => {
             if (form) form.style.display = form.style.display === "none" ? "block" : "none";
+            if (form && form.style.display !== "none") {
+                const name = document.getElementById("wasteProductName");
+                if (name) name.focus();
+            }
         });
     }
 
     if (cancelBtn) {
         cancelBtn.addEventListener("click", () => {
-            if (form) form.style.display = "none";
+            resetWasteForm();
         });
     }
 
@@ -2515,6 +2477,11 @@ function setupWasteLogForm() {
                 if (dropdown) dropdown.style.display = "none";
             }
         });
+    }
+
+    const qtyInput = document.getElementById("wasteQty");
+    if (qtyInput) {
+        qtyInput.addEventListener("input", syncWasteTotalCost);
     }
 
     // Close the dropdown when clicking anywhere outside it.
@@ -2555,11 +2522,12 @@ function setupWasteLogForm() {
                 return;
             }
 
+            const totalCost = Number(priceInput ? priceInput.value : 0);
             const payload = {
                 productName,
                 cashier: getCashierName(),
                 quantity,
-                price,
+                price: quantity > 0 ? totalCost / quantity : 0,
                 reason: reasonSelect ? reasonSelect.value : "Other"
             };
             try {
@@ -2575,10 +2543,7 @@ function setupWasteLogForm() {
                     iconClass: "success",
                     bodyHtml: '<p class="pos-modal-note">Waste logged successfully.</p>'
                 });
-                if (form) form.style.display = "none";
-                if (name) name.value = "";
-                if (qtyInput) qtyInput.value = "";
-                if (priceInput) priceInput.value = "";
+                resetWasteForm();
             } catch (err) {
                 console.error("❌ Waste save failed:", err);
                 // Server unreachable — save for automatic sync later.
@@ -2590,10 +2555,7 @@ function setupWasteLogForm() {
                     iconClass: "info",
                     bodyHtml: '<p class="pos-modal-note">Could not reach the server — the waste entry was saved on this device and will sync automatically.</p>'
                 });
-                if (form) form.style.display = "none";
-                if (name) name.value = "";
-                if (qtyInput) qtyInput.value = "";
-                if (priceInput) priceInput.value = "";
+                resetWasteForm();
             }
         });
     }
@@ -2642,6 +2604,8 @@ function setupCashierProfile() {
 
     if (logoutBtn) {
         logoutBtn.addEventListener("click", () => {
+            wrap.classList.remove("open");
+            if (dropdown) dropdown.classList.remove("show");
             apiFetch("/api/logout", { method: "POST" }).catch(() => {});
             let name = "";
             try {

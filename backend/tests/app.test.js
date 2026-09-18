@@ -65,11 +65,11 @@ afterAll(async () => {
     if (mongod) await mongod.stop();
 }, 120000);
 
-async function createProduct(name, price, stock) {
+async function createProduct(name, price, stock, category = 'Test') {
     const res = await request(app)
         .post('/api/products')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name, price, stock, category: 'Test' });
+        .send({ name, price, stock, category });
     expect([201, 200]).toContain(res.status);
     return res.body;
 }
@@ -101,6 +101,40 @@ describe('Auth', () => {
 });
 
 describe('Orders & stock', () => {
+    test('cashier identity is server-controlled and order history is isolated', async () => {
+        const userRes = await request(app)
+            .post('/api/users')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ username: 'othercashier', password: 'tester123', role: 'Cashier' });
+        expect([201, 409]).toContain(userRes.status);
+        const otherLogin = await login('othercashier', 'tester123');
+        expect(otherLogin.status).toBe(200);
+
+        await createProduct('TestIdentityDish', 75, 3);
+        const created = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                cashier: 'othercashier',
+                items: [{ name: 'TestIdentityDish', quantity: 1, price: 75 }],
+                total: 75
+            });
+        expect(created.status).toBe(201);
+        expect(created.body.cashier).toBe('tester');
+
+        const otherOrders = await request(app)
+            .get('/api/orders')
+            .set('Authorization', `Bearer ${otherLogin.token}`);
+        expect(otherOrders.status).toBe(200);
+        expect(otherOrders.body.some(order => String(order._id) === String(created.body._id))).toBe(false);
+
+        const adminOrders = await request(app)
+            .get('/api/orders')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(adminOrders.status).toBe(200);
+        expect(adminOrders.body.some(order => String(order._id) === String(created.body._id))).toBe(true);
+    });
+
     test('placing an order deducts menu stock', async () => {
         await createProduct('TestPancit', 120, 5);
 
@@ -211,6 +245,24 @@ describe('Waste & stock', () => {
 });
 
 describe('Order void', () => {
+    test('cashier cannot void another cashier order', async () => {
+        const otherLogin = await login('othercashier', 'tester123');
+        expect(otherLogin.status).toBe(200);
+        await createProduct('TestOwnershipDish', 85, 2);
+
+        const created = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({ items: [{ name: 'TestOwnershipDish', quantity: 1, price: 85 }], total: 85 });
+        expect(created.status).toBe(201);
+
+        const voidRes = await request(app)
+            .patch(`/api/orders/${created.body._id}/void`)
+            .set('Authorization', `Bearer ${otherLogin.token}`);
+        expect(voidRes.status).toBe(403);
+        expect((await getProduct('TestOwnershipDish')).stock).toBe(1);
+    });
+
     test('voiding restores stock, rejects double-void, needs auth', async () => {
         await createProduct('TestHaloHalo', 95, 4);
 
@@ -463,14 +515,14 @@ describe('Category management', () => {
 });
 
 describe('Senior discount', () => {
-    test('Senior order: total is 80% of the subtotal, amounts server-computed', async () => {
-        await createProduct('TestSeniorMeal', 100, 3);
+    test('Senior order: drinks receive 20% discount and amounts are server-computed', async () => {
+        await createProduct('TestSeniorDrink', 100, 3, 'Drinks');
         const res = await request(app)
             .post('/api/orders')
             .set('Authorization', `Bearer ${cashierToken}`)
             .send({
                 cashier: 'tester',
-                items: [{ name: 'TestSeniorMeal', quantity: 2, price: 100 }],
+                items: [{ name: 'TestSeniorDrink', quantity: 2, price: 100 }],
                 total: 9999, // must be ignored — server recomputes
                 discountType: 'Senior',
                 discountId: 'SC-123456789',
@@ -490,7 +542,7 @@ describe('Senior discount', () => {
             .set('Authorization', `Bearer ${cashierToken}`)
             .send({
                 cashier: 'tester',
-                items: [{ name: 'TestSeniorMeal', quantity: 1, price: 100 }],
+                items: [{ name: 'TestSeniorDrink', quantity: 1, price: 100 }],
                 discountType: 'Senior',
                 discountName: 'Lola Maria'
             });
@@ -504,24 +556,28 @@ describe('Senior discount', () => {
             .set('Authorization', `Bearer ${cashierToken}`)
             .send({
                 cashier: 'tester',
-                items: [{ name: 'TestSeniorMeal', quantity: 1, price: 100 }],
+                items: [{ name: 'TestSeniorDrink', quantity: 1, price: 100 }],
                 discountType: 'PWD'
             });
         expect(res.status).toBe(400);
     });
 
-    test('non-discount orders keep the old client-total behavior', async () => {
+    test('Senior discount does not apply to meals', async () => {
         const res = await request(app)
             .post('/api/orders')
             .set('Authorization', `Bearer ${cashierToken}`)
             .send({
                 cashier: 'tester',
                 items: [{ name: 'TestSeniorMeal', quantity: 1, price: 100 }],
-                total: 123
+                total: 123,
+                discountType: 'Senior',
+                discountId: 'SC-MEAL',
+                discountName: 'Lola Maria'
             });
         expect(res.status).toBe(201);
-        expect(Number(res.body.total)).toBe(123);
-        expect(res.body.discountType).toBe('');
+        expect(Number(res.body.total)).toBe(100);
+        expect(Number(res.body.discountAmount)).toBe(0);
+        expect(res.body.discountType).toBe('Senior');
     });
 });
 

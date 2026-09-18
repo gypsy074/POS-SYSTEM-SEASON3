@@ -134,14 +134,10 @@
                 <button class="mode-btn" data-mode="Online Order">Online Order</button>
             </nav>
 
-            <div class="form-row">
-                <div class="input-field">
+            <div class="form-row customer-name-row">
+                <div class="input-field" style="width: 100%;">
                     <label>Customer's name</label>
                     <input type="text" id="customerNameInput" placeholder="Name">
-                </div>
-                <div class="input-field">
-                    <label>Table No.</label>
-                    <input type="text" id="tableNoInput" placeholder="00">
                 </div>
             </div>
 
@@ -169,7 +165,7 @@
                 </select>
                 <div class="waste-row">
                     <input type="number" id="wasteQty" placeholder="Qty" min="0" step="0.01">
-                    <input type="number" id="wastePrice" placeholder="Unit price" min="0" step="0.01">
+                    <input type="number" id="wastePrice" placeholder="Total cost" min="0" step="0.01">
                 </div>
                 <div class="waste-actions">
                     <button type="button" class="waste-save-btn" id="wasteSaveBtn">Save Waste</button>
@@ -227,14 +223,7 @@
                     <span class="cash-chip">Change <strong id="cashChangeChip">₱0.00</strong></span>
                 </div>
 
-                <div class="slide-button-container">
-                    <div class="slide-track" id="swipeTrack">
-                        <div class="slider-thumb" id="swipeThumb">
-                            <i class="fa-solid fa-chevron-right"></i>
-                        </div>
-                        <span class="btn-text" id="swipeText">Swipe to Place Order ₱0.00</span>
-                    </div>
-                </div>
+                <button type="button" class="place-order-btn" id="placeOrderBtn">Place Order</button>
             </div>
         </aside>
     </div>
@@ -316,12 +305,12 @@
             <div class="history-stat">
                 <span>Today</span>
                 <strong id="historyTodayCount">0</strong>
-                <small>orders placed</small>
+                <small>Orders Placed</small>
             </div>
             <div class="history-stat">
                 <span>Today's sales</span>
                 <strong id="historyTodayRevenue">₱0.00</strong>
-                <small>my revenue</small>
+                <small>My revenue</small>
             </div>
         </div>
 
