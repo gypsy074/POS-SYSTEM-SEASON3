@@ -181,4 +181,17 @@ describe('POST /api/ai/report endpoint', () => {
         expect(res.body.report.length).toBeGreaterThan(10);
         expect(typeof res.body.generatedAt).toBe('string');
     });
+
+    test('rate-limits after 5 requests per minute → 429', async () => {
+        // Order-tolerant: keep calling until the shared per-IP budget (5/min)
+        // is exhausted — earlier tests in this file already burned some.
+        let got429 = null;
+        for (let i = 0; i < 6; i++) {
+            const res = await request(app)
+                .post('/api/ai/report')
+                .set('Authorization', `Bearer ${adminToken}`);
+            if (res.status === 429) { got429 = i + 1; break; }
+        }
+        expect(got429).not.toBeNull();
+    });
 });

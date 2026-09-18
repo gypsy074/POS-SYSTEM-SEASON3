@@ -142,6 +142,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupMenuTableSelection();
     setupMenuActionButtons();
     setupImageUploadEngine();
+    setupCategoryManager();
 
     // Users module
     setupUserTableSelection();
@@ -150,10 +151,20 @@ document.addEventListener("DOMContentLoaded", () => {
     // Inventory module
     setupInventoryTableSelection();
     setupInventoryActionButtons();
+    setupInventoryFilters();
+
+    // Restock flow — menu rows, inventory rows, AI suggestions
+    setupRestockButtons();
+
+    // Waste panel — date filters
+    setupWasteFilters();
 
     // Sales analytics module
     setupSalesFilterTabs();
     setupCalendarControls();
+
+    // Dashboard — recent transactions search
+    setupTransactionSearch();
 
     // Updates card — tap a section header to expand it full-screen
     setupUpdateSectionExpand();
@@ -175,6 +186,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Server status indicator
     setupServerStatus();
+
+    // Owner email alerts settings panel
+    setupSettingsForm();
 
     // CSV export for Sales Analytics
     const exportBtn = document.getElementById("exportCsvBtn");
@@ -199,6 +213,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const menuLoad = loadLiveMenuData();
     Promise.allSettled([dashboardLoad, menuLoad]).then(() => {
         renderSalesCharts(latestOrders, allProducts);
+        populateInventoryLinkSelect();
     });
 
     // Profile + waste modules

@@ -137,9 +137,11 @@ describe('computeWasteInsights', () => {
         expect(out.categories[0].cost).toBe(200);
     });
 
-    test('does not flag items with normal waste', () => {
+    test('reports every wasted item with its ratio so the dashboard can flag heavy waste', () => {
         const out = computeWasteInsights({ A: 100 }, { A: 2 }, []);
-        expect(out.items).toEqual([]);
+        expect(out.items.length).toBe(1);
+        expect(out.items[0].name).toBe('A');
+        expect(out.items[0].ratio).toBe(0.02);
     });
 
     test('flags waste with zero sales as 100%, not Infinity', () => {

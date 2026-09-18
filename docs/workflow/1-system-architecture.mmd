@@ -1,0 +1,39 @@
+flowchart TB
+    subgraph devices["CAFÉ FLOOR — devices (any browser)"]
+        cashier["Cashier App — /CASHIER/pos.html<br/>menu grid · cart · pay · void · waste · offline queue"]
+        admin["Admin App — /ADMIN/admin.html<br/>dashboard · menu · inventory · users · audit · insights"]
+    end
+
+    subgraph backend["BACKEND — Node.js + Express (backend/server.js)"]
+        api["REST API /api/*<br/>auth · orders · waste · products · inventory<br/>dashboard · insights · audit · users · account"]
+        static["Serves the frontend statically"]
+    end
+
+    subgraph cloud["CLOUD MODE — Render + Atlas"]
+        render["Render service — season3-pos.onrender.com"]
+        atlas[("MongoDB Atlas — pos_season3cafe")]
+    end
+
+    subgraph laptop["LAPTOP MODE — café server (brownout-proof)"]
+        local[("MongoDB local — 127.0.0.1:27017")]
+        nssm["NSSM service — Season3POS<br/>auto-starts on boot"]
+    end
+
+    cashier --> api
+    admin --> api
+    static -. serves .-> cashier
+    static -. serves .-> admin
+    api --> atlas
+    api --> local
+    nssm --> local
+    render --> atlas
+
+    backup["backup.js — dump → backend/backup/&lt;date&gt;/*.json"]
+    restore["restore.js — replay JSON → any MongoDB"]
+    mirror["mirror.js — local → Atlas (one command)"]
+    backup -. dumps .-> atlas
+    backup -. dumps .-> local
+    restore -. replays .-> local
+    mirror -. pushes .-> atlas
+
+    keepalive["GitHub keep-alive workflow — pings /api/health every 5 min"] -. pings .-> render

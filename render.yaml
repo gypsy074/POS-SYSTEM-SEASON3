@@ -18,9 +18,13 @@ services:
       # Randomly generated strong secret on first provision — overridable.
       - key: JWT_SECRET
         generateValue: true
-      # "*" = the backend accepts requests from any origin (classroom LAN use).
+      # Explicit origins only. Add a concrete LAN origin when a separately
+      # hosted device must call the API; never use "*" in production.
       - key: CORS_ORIGIN
-        value: '*'
+        value: 'https://season3-pos.onrender.com,http://localhost:3000,http://127.0.0.1:3000'
+      # Add one email provider in the Render dashboard, not in this file:
+      # RESEND_API_KEY + EMAIL_FROM (recommended), or SMTP_HOST/PORT/USER/PASS
+      # + EMAIL_FROM. Never commit provider secrets here.
     # Manual Web Service equivalent:
     #   Root Directory : backend
     #   Build Command  : npm install

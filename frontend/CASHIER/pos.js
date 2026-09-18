@@ -3,11 +3,62 @@
 const API_BASE_URL = getApiBaseUrl();
 
 let allProducts = [];
-let activeCategory = "All";
+let bestSellingCounts = {};
+let activeCategory = "Best Selling Item";
 let cart = [];
 let selectedMode = "Dine In";
 let selectedPayment = "cash";
 let currentOrderId = generateOrderId();
+
+const CART_PREVIEW_MAX = 6;
+let cartDrawerExpanded = false;
+
+// ── Receipt printer settings ─────────────────────────────────────────────
+// mode: "dialog" = browser print dialog (default), "bridge" = silent print
+// via a local Bluetooth-thermal helper app (the app exposes an HTTP endpoint
+// on the phone, e.g. http://127.0.0.1:8080).
+// width: "80" or "58" (mm) — 58 adds the narrow .thermal-58 layout.
+const PRINT_SETTINGS_KEY = "posPrintSettings";
+const DEFAULT_PRINT_SETTINGS = { mode: "dialog", width: "80", url: "http://127.0.0.1:8080", kot: true };
+
+// Senior/PWD discount state — 20% off drinks only, requires the SC/PWD ID +
+// customer name (server re-validates and recomputes every amount).
+let seniorDiscountActive = false;
+const SENIOR_DISCOUNT_RATE = 0.2;
+
+function isDrinkItem(item) {
+    const category = String(item && (item.category || item.productCategory || "")).trim().toLowerCase();
+    return category.includes("drink") || category.includes("beverage") || category.includes("juice") || category.includes("coffee") || category.includes("tea") || category.includes("cold") || category.includes("milk");
+}
+
+function cartSubtotal() {
+    return cart.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0);
+}
+
+function cartDiscountableSubtotal() {
+    return cart.reduce((sum, item) => sum + (isDrinkItem(item) ? (Number(item.price || 0) * item.quantity) : 0), 0);
+}
+
+function cartDiscountAmount() {
+    if (!seniorDiscountActive) return 0;
+    return Math.round(cartDiscountableSubtotal() * SENIOR_DISCOUNT_RATE * 100) / 100;
+}
+
+function cartOrderTotal() {
+    return Math.round((cartSubtotal() - cartDiscountAmount()) * 100) / 100;
+}
+
+function getPrintSettings() {
+    try {
+        return Object.assign({}, DEFAULT_PRINT_SETTINGS, JSON.parse(localStorage.getItem(PRINT_SETTINGS_KEY) || "{}"));
+    } catch (err) {
+        return Object.assign({}, DEFAULT_PRINT_SETTINGS);
+    }
+}
+
+function savePrintSettings(settings) {
+    localStorage.setItem(PRINT_SETTINGS_KEY, JSON.stringify(settings));
+}
 
 document.addEventListener("DOMContentLoaded", () => {
     guardCashierPage();
@@ -15,6 +66,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupCashierControls();
     setupWasteLogForm();
     setupCashierProfile();
+    setupPrinterSettings();
     loadCashierMenu();
     loadCashierHistory();
     updateDateLabel();
@@ -22,6 +74,10 @@ document.addEventListener("DOMContentLoaded", () => {
     renderOrderId();
     setupQuickTenderChips();
     setupCalculatorModal();
+    setupSeniorDiscount();
+    setupCartDrawer();
+    setupCashierDarkMode();
+    setupServerStatus();
     setupKeyboardShortcuts();
     updateCalculatorVisibility();
     updateChangeCalculator();
@@ -32,8 +88,19 @@ function getApiBaseUrl() {
     if (window.location.protocol === "file:") {
         return "http://localhost:3000";
     }
-    // Served by the backend itself (local dev on :3000 or a live deploy) —
-    // always use the same origin so the cashier works on any host.
+    const host = window.location.hostname;
+    const port = window.location.port;
+    // The live site serves its own API — never fall back, so a sleeping
+    // free-tier instance is never misdetected as "no backend".
+    if (host.endsWith(".onrender.com")) {
+        return window.location.origin;
+    }
+    // Local static dev servers (VS Code Live Server :5500, python http.server,
+    // …) have no /api — only the real backend (default port 3000) does.
+    if ((host === "localhost" || host === "127.0.0.1" || host === "::1") && (port || "80") !== "3000") {
+        return "http://localhost:3000";
+    }
+    // Same origin — the backend itself serves this page.
     return window.location.origin;
 }
 
@@ -84,6 +151,8 @@ async function guardCashierPage() {
    ========================================================================== */
 
 const OFFLINE_QUEUE_KEY = "posOfflineOrders";
+const OFFLINE_WASTE_KEY = "posOfflineWaste";
+const PRODUCTS_CACHE_KEY = "posProductsCache";
 
 function getOfflineQueue() {
     try {
@@ -104,6 +173,30 @@ function saveOfflineQueue(queue) {
     }
 }
 
+function getOfflineWasteQueue() {
+    try {
+        const raw = localStorage.getItem(OFFLINE_WASTE_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveOfflineWasteQueue(queue) {
+    try {
+        localStorage.setItem(OFFLINE_WASTE_KEY, JSON.stringify(queue.slice(-10)));
+    } catch {
+        // ignore — storage full means the oldest waste entries are dropped.
+    }
+}
+
+function queueOfflineWaste(payload) {
+    const queue = getOfflineWasteQueue();
+    queue.push(payload);
+    saveOfflineWasteQueue(queue);
+}
+
 function queueOfflineOrder(payload) {
     const queue = getOfflineQueue();
     const existingIndex = queue.findIndex(order => order.clientOrderId === payload.clientOrderId);
@@ -120,11 +213,13 @@ async function flushOfflineOrders() {
         return;
     }
     const queue = getOfflineQueue();
-    if (!queue.length) {
+    const wasteQueue = getOfflineWasteQueue();
+    if (!queue.length && !wasteQueue.length) {
         return;
     }
 
     let synced = 0;
+    let syncedWaste = 0;
     const remaining = [];
 
     for (const payload of queue) {
@@ -145,18 +240,40 @@ async function flushOfflineOrders() {
         }
     }
 
+    const remainingWaste = [];
+    for (const payload of wasteQueue) {
+        try {
+            const response = await apiFetch("/api/waste", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            if (response.ok) {
+                syncedWaste += 1;
+            } else {
+                remainingWaste.push(payload);
+            }
+        } catch (err) {
+            remainingWaste.push(payload);
+        }
+    }
+
     saveOfflineQueue(remaining);
+    saveOfflineWasteQueue(remainingWaste);
     updateOfflineBanner();
 
-    if (synced > 0) {
+    if (synced > 0 || syncedWaste > 0) {
         playSound("success");
         loadCashierHistory();
-        showSyncBanner(synced);
+        const parts = [];
+        if (synced > 0) parts.push(`${synced} order${synced === 1 ? "" : "s"}`);
+        if (syncedWaste > 0) parts.push(`${syncedWaste} waste ${syncedWaste === 1 ? "entry" : "entries"}`);
+        showSyncBanner(`${parts.join(" and ")} synced ✓`);
     }
 }
 
 function getOfflineQueueCount() {
-    return getOfflineQueue().length;
+    return getOfflineQueue().length + getOfflineWasteQueue().length;
 }
 
 function updateOfflineBanner() {
@@ -165,25 +282,35 @@ function updateOfflineBanner() {
         return;
     }
     const text = document.getElementById("offlineBannerText");
+    const syncBtn = document.getElementById("offlineSyncBtn");
     const queued = getOfflineQueueCount();
 
-    if (navigator.onLine) {
+    if (navigator.onLine && !queued) {
         banner.style.display = "none";
+        document.body.classList.remove("banner-visible");
         return;
     }
 
     banner.classList.add("offline");
     banner.style.display = "flex";
+    document.body.classList.add("banner-visible");
+    document.body.style.setProperty("--banner-h", banner.offsetHeight + "px");
     if (text) {
-        text.textContent = queued > 0
-            ? `You're offline — ${queued} order${queued === 1 ? "" : "s"} saved and waiting to sync.`
-            : "You're offline — orders will be saved and synced automatically.";
+        if (queued > 0) {
+            const cause = navigator.onLine ? "Connection trouble" : "You're offline";
+            text.textContent = `${cause} — ${queued} item${queued === 1 ? "" : "s"} saved and waiting to sync.`;
+        } else {
+            text.textContent = "You're offline — orders will be saved and synced automatically.";
+        }
+    }
+    if (syncBtn) {
+        syncBtn.style.display = queued > 0 ? "" : "none";
     }
 }
 
 // Green confirmation strip shown briefly after queued orders finish syncing.
 let syncBannerTimer = null;
-function showSyncBanner(count) {
+function showSyncBanner(message) {
     const banner = document.getElementById("offlineBanner");
     const text = document.getElementById("offlineBannerText");
     if (!banner) {
@@ -191,12 +318,15 @@ function showSyncBanner(count) {
     }
     banner.classList.remove("offline");
     banner.style.display = "flex";
+    document.body.classList.add("banner-visible");
+    document.body.style.setProperty("--banner-h", banner.offsetHeight + "px");
     if (text) {
-        text.textContent = `${count} offline order${count === 1 ? "" : "s"} synced ✓`;
+        text.textContent = `${message}`;
     }
     clearTimeout(syncBannerTimer);
     syncBannerTimer = setTimeout(() => {
         banner.style.display = "none";
+        document.body.classList.remove("banner-visible");
     }, 4000);
 }
 
@@ -217,9 +347,93 @@ function setupOfflineSupport() {
         updateOfflineBanner();
     });
 
+    const syncBtn = document.getElementById("offlineSyncBtn");
+    if (syncBtn) {
+        syncBtn.addEventListener("click", async () => {
+            syncBtn.disabled = true;
+            await flushOfflineOrders();
+            syncBtn.disabled = false;
+        });
+    }
+
+    // Server-down recovery: even while the device stays online, retry the
+    // queue every 30s so orders sync without waiting for a page reload.
+    setInterval(() => {
+        if (navigator.onLine && getOfflineQueueCount() > 0) {
+            flushOfflineOrders();
+        }
+    }, 30000);
+
     updateOfflineBanner();
     // Recovered orders from a previous session sync as soon as we're online.
     flushOfflineOrders();
+}
+
+// Dark mode toggle — shares the posDarkMode key with the admin panel, so
+// the preference follows the user between pages.
+function setupCashierDarkMode() {
+    const btn = document.getElementById("cashierDarkModeBtn");
+    if (!btn) return;
+
+    const icon = btn.querySelector("i");
+    const apply = dark => {
+        document.body.classList.toggle("dark", dark);
+        if (icon) icon.className = dark ? "fa-solid fa-sun" : "fa-solid fa-moon";
+    };
+
+    apply(localStorage.getItem("posDarkMode") === "1");
+
+    btn.addEventListener("click", () => {
+        const dark = !document.body.classList.contains("dark");
+        localStorage.setItem("posDarkMode", dark ? "1" : "0");
+        apply(dark);
+    });
+}
+
+// Online/offline indicator — same pill as the admin header. Polls the
+// backend health endpoint, and snaps to offline instantly when the browser
+// loses connectivity (the offline banner listeners also refresh it).
+let serverStatusPending = false;
+function setServerStatus(state, label) {
+    const statusEl = document.getElementById("cashierServerStatus");
+    if (!statusEl) return;
+    statusEl.classList.remove("online", "offline", "waking");
+    if (state) statusEl.classList.add(state);
+    if (window.PosLottie) window.PosLottie.setPillWaking(statusEl, state === "waking");
+    const text = statusEl.querySelector(".status-text");
+    if (text) text.textContent = label;
+}
+
+async function refreshServerStatus() {
+    const statusEl = document.getElementById("cashierServerStatus");
+    if (!statusEl || serverStatusPending) return;
+    if (!navigator.onLine) {
+        setServerStatus("offline", "Offline");
+        return;
+    }
+    serverStatusPending = true;
+    setServerStatus("waking", "Checking...");
+    try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 10000);
+        const response = await fetch(`${getApiBaseUrl()}/api/health`, { signal: controller.signal });
+        clearTimeout(timer);
+        const data = response.ok ? await response.json() : null;
+        setServerStatus(data && data.ok ? "online" : "offline", data && data.ok ? "Online" : "Offline");
+    } catch (err) {
+        setServerStatus("offline", "Offline");
+    } finally {
+        serverStatusPending = false;
+    }
+}
+
+function setupServerStatus() {
+    refreshServerStatus();
+    setInterval(refreshServerStatus, 30000);
+    // Keep the pill in sync with the browser's connectivity events (which
+    // the offline banner already listens to).
+    window.addEventListener("online", refreshServerStatus);
+    window.addEventListener("offline", refreshServerStatus);
 }
 
 function escapeHtml(value) {
@@ -319,9 +533,34 @@ function generateOrderId() {
     return id;
 }
 
+function setCartDrawerOpen(open) {
+    const drawer = document.getElementById("cartDrawer");
+    const backdrop = document.getElementById("cartDrawerBackdrop");
+    if (drawer) {
+        drawer.classList.toggle("open", open);
+        drawer.setAttribute("aria-hidden", String(!open));
+    }
+    if (backdrop) backdrop.classList.toggle("show", open);
+    if (open) {
+        const list = document.getElementById("cartDrawerList");
+        if (list) list.scrollTop = list.scrollHeight;
+    }
+}
+
+function setupCartDrawer() {
+    const trigger = document.getElementById("cartViewAllBtn");
+    const closeBtn = document.getElementById("cartDrawerCloseBtn");
+    const backdrop = document.getElementById("cartDrawerBackdrop");
+    if (trigger) trigger.addEventListener("click", () => setCartDrawerOpen(true));
+    if (closeBtn) closeBtn.addEventListener("click", () => setCartDrawerOpen(false));
+    if (backdrop) backdrop.addEventListener("click", () => setCartDrawerOpen(false));
+}
+
 function renderOrderId() {
     const el = document.getElementById("currentOrderId");
     if (el) el.textContent = currentOrderId;
+    const drawerId = document.getElementById("cartDrawerOrderId");
+    if (drawerId) drawerId.textContent = currentOrderId;
 }
 
 function updateDateLabel() {
@@ -342,7 +581,6 @@ function setupCashierControls() {
     const searchInput = document.getElementById("searchInput");
     const notificationTrigger = document.querySelector(".notification-trigger");
     const cancelOrderBtn = document.getElementById("cancelOrderBtn");
-    const swipeTrack = document.getElementById("swipeTrack");
     const modeButtons = document.querySelectorAll(".mode-btn");
     const backButtons = document.querySelectorAll(".circular-back-btn");
 
@@ -438,11 +676,7 @@ function setupCashierControls() {
         });
     });
 
-=======
-    if (swipeTrack) {
-        setupSwipeSubmit();
-    }
->>>>>>> 9fb30f6d5acec0eb394e92ec305f50e2086f1471
+    setupSwipeSubmit();
 
     modeButtons.forEach(button => {
         button.addEventListener("click", () => {
@@ -461,124 +695,6 @@ function setupCashierControls() {
     if (backButtons[1]) {
         backButtons[1].addEventListener("click", cancelOrder);
     }
-
-    // ── Profile Dropdown ─────────────────────────────────────────────────────
-    setupCashierDropdown();
-
-    // ── Swipe-to-Place-Order drag slider ────────────────────────────────────
-    setupSwipeSlider();
-}
-
-// ── Cashier Dropdown ─────────────────────────────────────────────────────────
-function setupCashierDropdown() {
-    const container  = document.getElementById("cashierDropdownContainer");
-    const badge      = document.getElementById("cashierBadge");
-    const menu       = document.getElementById("cashierDropdownMenu");
-    const logoutBtn  = document.getElementById("cashierLogoutBtn");
-
-    if (!container || !badge || !menu) return;
-
-    // Populate username from server login response stored in sessionStorage (if available)
-    const savedName = sessionStorage.getItem("posUsername");
-    const savedRole = sessionStorage.getItem("posRole");
-    const usernameEl = document.getElementById("cashierUsername");
-    const roleEl     = document.getElementById("cashierRole");
-    if (savedName && usernameEl) usernameEl.textContent = savedName;
-    if (savedRole && roleEl)     roleEl.textContent = savedRole;
-
-    badge.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const isOpen = container.classList.toggle("open");
-        menu.classList.toggle("open", isOpen);
-    });
-
-    document.addEventListener("click", () => {
-        container.classList.remove("open");
-        menu.classList.remove("open");
-    });
-
-    if (logoutBtn) {
-        logoutBtn.addEventListener("click", () => {
-            sessionStorage.clear();
-            window.location.href = "../login.html";
-        });
-    }
-}
-
-// ── Swipe Slider Drag Logic ───────────────────────────────────────────────────
-function setupSwipeSlider() {
-    const track = document.getElementById("swipeTrack");
-    const thumb = document.getElementById("swipeThumb");
-    if (!track || !thumb) return;
-
-    let isDragging = false;
-    let startX     = 0;
-    let currentX   = 0;
-
-    function getTrackWidth() {
-        return track.offsetWidth - thumb.offsetWidth - 10; // max travel
-    }
-
-    function setThumbPosition(px) {
-        const clamped = Math.max(0, Math.min(px, getTrackWidth()));
-        thumb.style.transform = `translateX(${clamped}px)`;
-        currentX = clamped;
-
-        // Fade out text as thumb moves right
-        const progress = clamped / getTrackWidth();
-        const textEl = document.getElementById("swipeText");
-        if (textEl) textEl.style.opacity = 1 - progress * 0.8;
-    }
-
-    function startDrag(clientX) {
-        if (!cart.length) return;
-        isDragging = true;
-        startX = clientX - currentX;
-        track.classList.add("drag-active");
-    }
-
-    async function endDrag() {
-        if (!isDragging) return;
-        isDragging = false;
-        track.classList.remove("drag-active");
-
-        const threshold = getTrackWidth() * 0.78;
-        if (currentX >= threshold) {
-            // SUCCESS — reached end
-            track.classList.add("processing");
-            setThumbPosition(getTrackWidth());
-            await submitOrder();
-            setTimeout(() => {
-                track.classList.remove("processing");
-                setThumbPosition(0);
-                const textEl = document.getElementById("swipeText");
-                if (textEl) textEl.style.opacity = 1;
-            }, 500);
-        } else {
-            // Snap back to start
-            track.classList.add("snap-back");
-            setThumbPosition(0);
-            const textEl = document.getElementById("swipeText");
-            if (textEl) textEl.style.opacity = 1;
-            setTimeout(() => track.classList.remove("snap-back"), 400);
-        }
-    }
-
-    function onMove(clientX) {
-        if (!isDragging) return;
-        const pos = clientX - startX;
-        setThumbPosition(pos);
-    }
-
-    // Mouse events
-    thumb.addEventListener("mousedown", (e) => { e.preventDefault(); startDrag(e.clientX); });
-    document.addEventListener("mousemove", (e) => onMove(e.clientX));
-    document.addEventListener("mouseup",   () => endDrag());
-
-    // Touch events
-    thumb.addEventListener("touchstart", (e) => { e.preventDefault(); startDrag(e.touches[0].clientX); }, { passive: false });
-    document.addEventListener("touchmove",  (e) => { if (isDragging) { e.preventDefault(); onMove(e.touches[0].clientX); } }, { passive: false });
-    document.addEventListener("touchend",   () => endDrag());
 }
 
 async function loadCashierMenu() {
@@ -589,12 +705,22 @@ async function loadCashierMenu() {
 
 async function refreshCashierProducts() {
     try {
+        if (!allProducts.length && window.PosLottie) {
+            const grid = document.getElementById("menuGrid");
+            if (grid) window.PosLottie.showMenuLoader(grid);
+        }
         const response = await apiFetch("/api/products");
         if (!response.ok) {
             throw new Error("Failed to fetch cashier menu");
         }
 
         allProducts = await response.json();
+        await refreshBestSellingCounts();
+        try {
+            localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(allProducts));
+        } catch {
+            // Cache is best-effort — ignore storage failures.
+        }
         const searchInput = document.getElementById("searchInput");
         renderCategoryTabs();
         displayCategoryItems(activeCategory, searchInput ? searchInput.value : "");
@@ -602,6 +728,41 @@ async function refreshCashierProducts() {
         buildWasteProductSearch();
     } catch (err) {
         console.error("❌ Failed to refresh cashier menu:", err);
+        // Offline fallback — serve the last known menu from storage so a
+        // fresh offline open can still take orders.
+        if (!allProducts.length) {
+            try {
+                const cached = JSON.parse(localStorage.getItem(PRODUCTS_CACHE_KEY) || "[]");
+                if (Array.isArray(cached) && cached.length) {
+                    allProducts = cached;
+                    renderCategoryTabs();
+                    displayCategoryItems(activeCategory, "");
+                    buildWasteProductSearch();
+                }
+            } catch {
+                // ignore — no usable cache.
+            }
+        }
+    }
+}
+
+async function refreshBestSellingCounts() {
+    try {
+        const response = await apiFetch("/api/orders?limit=5000");
+        if (!response.ok) return;
+
+        const orders = await response.json();
+        const counts = {};
+        (Array.isArray(orders) ? orders : []).forEach(order => {
+            if (order.status === "Voided") return;
+            (order.items || []).forEach(item => {
+                const name = String(item.name || "").trim();
+                if (name) counts[name] = (counts[name] || 0) + Number(item.quantity || 0);
+            });
+        });
+        bestSellingCounts = counts;
+    } catch (err) {
+        console.warn("Could not refresh best-selling item counts:", err);
     }
 }
 
@@ -754,7 +915,7 @@ let historySearchTerm = "";
 
 async function loadCashierHistory() {
     try {
-        const response = await apiFetch("/api/orders");
+        const response = await apiFetch("/api/orders?days=7");
         if (!response.ok) {
             return;
         }
@@ -947,11 +1108,11 @@ function renderCategoryTabs() {
     }
 
     const categories = [...new Set(allProducts.map(product => product.category))].filter(Boolean);
-    const displayTabs = ["All", ...categories];
+    const displayTabs = ["Best Selling Item", ...categories];
 
     tabContainer.innerHTML = displayTabs.length
         ? displayTabs.map(category => {
-            const count = category === "All"
+            const count = category === "Best Selling Item"
                 ? allProducts.length
                 : allProducts.filter(product => product.category === category).length;
             return `
@@ -964,19 +1125,29 @@ function renderCategoryTabs() {
         : `<div class="tab-item active"><h3>No categories yet</h3><p>Add menu items in the admin panel</p></div>`;
 }
 
+function reservedCartQty(productId) {
+    return cart.reduce((sum, item) => sum + (String(item._id) === String(productId) ? item.quantity : 0), 0);
+}
+
 function productStock(product) {
-    return Number(product && product.stock);
+    if (!product) return 0;
+    const stock = Number(product.stock || 0);
+    return Math.max(0, stock - reservedCartQty(product._id));
 }
 
 function productIsSoldOut(product) {
-    return !product || productStock(product) <= 0;
+    if (!product) return true;
+    // Admin can flag an item as sold out in the Menu Manager even when it
+    // still has stock — honor that, not just the numeric stock count.
+    if (String(product.status || "").toLowerCase() === "out of stock") return true;
+    return productStock(product) <= 0;
 }
 
 function productIsLowStock(product) {
     return !productIsSoldOut(product) && productStock(product) <= Number(product.lowStockThreshold ?? 10);
 }
 
-function displayCategoryItems(category, searchTerm = "") {
+function displayCategoryItems(category, searchTerm = "", animate = true) {
     activeCategory = category;
     renderCategoryTabs();
 
@@ -987,7 +1158,7 @@ function displayCategoryItems(category, searchTerm = "") {
 
     const normalizedSearch = searchTerm.trim().toLowerCase();
     const products = allProducts.filter(product => {
-        const matchesCategory = category === "All" || !category || product.category === category;
+        const matchesCategory = category === "Best Selling Item" || category === "All" || !category || product.category === category;
         const matchesSearch = !normalizedSearch
             || product.name.toLowerCase().includes(normalizedSearch)
             || (product.category || "").toLowerCase().includes(normalizedSearch)
@@ -996,49 +1167,62 @@ function displayCategoryItems(category, searchTerm = "") {
         return matchesCategory && matchesSearch;
     });
 
-    grid.innerHTML = products.length
-<<<<<<< HEAD
-        ? products.map(product => `
-            <article class="food-card ${product.status === "Out of Stock" ? "sold-out-card" : ""}" data-product-id="${product._id}" ${product.status === "Out of Stock" ? "" : "role=\"button\" tabindex=\"0\""}>
-/* BEGIN incoming (reyn/ulan)
-        ? products.map(product => {
-            const soldOut = productIsSoldOut(product);
-            const lowStock = productIsLowStock(product);
-            return `
-            <article class="food-card ${soldOut ? "sold-out-card" : ""}">
-END incoming (reyn/ulan) */
-                <img src="${escapeHtml(product.image || createPlaceholderImage(product.name))}" alt="${escapeHtml(product.name)}">
-                <div class="food-info">
-                    <h4>${escapeHtml(product.name)}</h4>
-                    <div class="price-box">
-                        <span>₱${Number(product.price || 0).toFixed(2)}</span>
-<<<<<<< HEAD
-=======
-                        <button type="button" class="add-circle" data-product-id="${product._id}" ${soldOut ? "disabled" : ""}>
-                            <i class="fa-solid fa-plus"></i>
-                        </button>
->>>>>>> 9fb30f6d5acec0eb394e92ec305f50e2086f1471
-                    </div>
-                    ${soldOut
-                        ? '<div class="sold-out-overlay"><span>OUT OF STOCK</span></div>'
-                        : lowStock
-                            ? `<div class="low-stock-badge">Only ${productStock(product)} left</div>`
-                            : ""}
-                </div>
-            </article>
-        `;
-        }).join("")
-        : `<div class="food-card"><div class="food-info"><h4>No items found</h4><p>Try a different category or search term.</p></div></div>`;
+    if (category === "Best Selling Item" || category === "All") {
+        const soldRank = item => bestSellingCounts[item.name] || 0;
+        products.sort((a, b) => {
+            const delta = soldRank(b) - soldRank(a);
+            if (delta !== 0) return delta;
+            return (productIsSoldOut(a) ? 1 : 0) - (productIsSoldOut(b) ? 1 : 0);
+        });
+    } else {
+        products.sort((a, b) => (productIsSoldOut(a) ? 1 : 0) - (productIsSoldOut(b) ? 1 : 0));
+    }
 
-    grid.querySelectorAll(".food-card[data-product-id]").forEach(card => {
-        if (card.classList.contains("sold-out-card")) return;
-        card.addEventListener("click", () => {
-            addToCart(card.dataset.productId);
+    // Card-by-card transition: new cards unfold one by one immediately
+    // (Android-style staggered list) — for category switches, search typing
+    // and first load alike. No wait for old cards.
+    grid.scrollTop = 0;
+
+    function renderGrid() {
+        grid.innerHTML = products.length
+            ? products.map((product, index) => {
+                const soldOut = productIsSoldOut(product);
+                const lowStock = productIsLowStock(product);
+                const expandDelay = ` style="animation-delay: ${Math.min(index * 0.035, 0.25).toFixed(3)}s"`;
+                return `
+                <article class="food-card ${soldOut ? "sold-out-card" : ""}${animate ? " menu-card-expand" : ""}"${animate ? expandDelay : ""}>
+                    <img src="${escapeHtml(product.image || createPlaceholderImage(product.name))}" alt="${escapeHtml(product.name)}">
+                    <div class="food-info">
+                        <h4>${escapeHtml(product.name)}</h4>
+                        <div class="price-box">
+                            <span>₱${Number(product.price || 0).toFixed(2)}</span>
+                            <button type="button" class="add-circle" data-product-id="${product._id}" ${soldOut ? "disabled" : ""}>
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                        </div>
+                        ${soldOut
+                            ? '<div class="sold-out-overlay"><span>OUT OF STOCK</span></div>'
+                            : `<div class="stock-badge${lowStock ? " low-stock-badge" : ""}">Stock: ${productStock(product)}</div>`}
+                    </div>
+                </article>
+            `;
+            }).join("")
+            : `<div class="food-card menu-empty-card${animate ? " menu-card-expand" : ""}"><div class="food-info"><h4>No items found</h4><p>Try a different category or search term.</p></div></div>`;
+
+        grid.querySelectorAll("[data-product-id]").forEach(button => {
+            button.addEventListener("click", event => {
+                event.stopPropagation();
+                addToCart(button.dataset.productId);
+            });
         });
-        card.addEventListener("keydown", e => {
-            if (e.key === "Enter" || e.key === " ") addToCart(card.dataset.productId);
-        });
-    });
+    }
+
+    renderGrid();
+}
+
+function refreshCartStockDisplay() {
+    const searchInput = document.getElementById("searchInput");
+    displayCategoryItems(activeCategory, searchInput ? searchInput.value : "", false);
 }
 
 function createPlaceholderImage(label) {
@@ -1064,8 +1248,7 @@ function addToCart(productId) {
         return;
     }
 
-    const available = productStock(product);
-    if (available <= 0) {
+    if (productIsSoldOut(product)) {
         showPosAlert({
             title: "Out of Stock",
             icon: "fa-circle-exclamation",
@@ -1076,16 +1259,6 @@ function addToCart(productId) {
     }
 
     const existingItem = cart.find(item => item._id === productId);
-    const currentQty = existingItem ? existingItem.quantity : 0;
-    if (currentQty >= available) {
-        showPosAlert({
-            title: "Stock Limit Reached",
-            icon: "fa-circle-exclamation",
-            iconClass: "danger",
-            bodyHtml: `<p class="pos-modal-note">Only ${available} left in stock for ${escapeHtml(product.name)}.</p>`
-        });
-        return;
-    }
 
     if (existingItem) {
         existingItem.quantity += 1;
@@ -1095,6 +1268,7 @@ function addToCart(productId) {
 
     playSound("add");
     renderCart();
+    refreshCartStockDisplay();
 
     // Long carts hide newly added items below the fold — keep them visible.
     const cartContainer = document.getElementById("cartContainer");
@@ -1105,14 +1279,18 @@ function addToCart(productId) {
 
 function renderCart() {
     const cartContainer = document.getElementById("cartContainer");
+    const drawerList = document.getElementById("cartDrawerList");
     const totalPrice = document.getElementById("totalPrice");
 
     if (!cartContainer || !totalPrice) {
         return;
     }
 
-    cartContainer.innerHTML = cart.length
-        ? cart.map((item, index) => `
+    const showPreview = cart.length > CART_PREVIEW_MAX && !cartDrawerExpanded;
+    const visibleItems = showPreview ? cart.slice(0, CART_PREVIEW_MAX) : cart;
+    const hiddenCount = cart.length - visibleItems.length;
+
+    const rowHtml = item => `
             <div class="cart-row">
                 <img class="cart-item-img" src="${escapeHtml(item.image || createPlaceholderImage(item.name))}" alt="${escapeHtml(item.name)}">
                 <div class="cart-row-details">
@@ -1120,68 +1298,106 @@ function renderCart() {
                     <p>₱${Number(item.price || 0).toFixed(2)}</p>
                 </div>
                 <div class="qty-control-pill">
-                    <button type="button" class="qty-btn" data-cart-action="decrease" data-cart-index="${index}">-</button>
+                    <button type="button" class="qty-btn" data-cart-action="decrease" data-cart-index="${cart.indexOf(item)}">-</button>
                     <span class="qty-number">${item.quantity}</span>
-                    <button type="button" class="qty-btn" data-cart-action="increase" data-cart-index="${index}">+</button>
+                    <button type="button" class="qty-btn" data-cart-action="increase" data-cart-index="${cart.indexOf(item)}">+</button>
                 </div>
-                <button type="button" class="remove-item-btn" data-cart-action="remove" data-cart-index="${index}">Remove</button>
+                <button type="button" class="remove-item-btn" data-cart-action="remove" data-cart-index="${cart.indexOf(item)}" aria-label="Remove ${escapeHtml(item.name)}" title="Remove item">
+                    <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+                </button>
             </div>
-        `).join("")
-        : `<div class="cart-row"><div class="cart-row-details"><h5>Your cart is empty</h5><p>Tap a menu item to add it here.</p></div></div>`;
+        `;
 
-    cartContainer.querySelectorAll("[data-cart-action]").forEach(button => {
-        button.addEventListener("click", () => {
-            const index = Number(button.dataset.cartIndex);
-            const action = button.dataset.cartAction;
+    const emptyRow = `<div class="cart-row cart-row-empty"><div class="cart-empty-lottie"></div><div class="cart-row-details"><h5>Your cart is empty</h5><p>Tap a menu item to add it here.</p></div></div>`;
 
-            if (action === "increase") changeQuantity(index, 1);
-            if (action === "decrease") changeQuantity(index, -1);
-            if (action === "remove") removeCartItem(index);
+    cartContainer.innerHTML = cart.length
+        ? visibleItems.map(rowHtml).join("")
+            + (showPreview
+                ? `<button type="button" class="cart-drawer-preview-btn" id="cartPreviewExpandBtn">
+                    <i class="fa-solid fa-chevron-down"></i>
+                    <span>View all items (${hiddenCount} more)</span>
+                </button>`
+                : cartDrawerExpanded
+                    ? `<button type="button" class="cart-drawer-preview-btn" id="cartPreviewCollapseBtn">
+                        <i class="fa-solid fa-chevron-up"></i>
+                        <span>Show less</span>
+                    </button>`
+                    : "")
+        : emptyRow;
+
+    if (drawerList) {
+        drawerList.innerHTML = cart.length ? cart.map(rowHtml).join("") : emptyRow;
+    }
+
+    document.querySelectorAll(".cart-empty-lottie").forEach(el => {
+        if (window.PosLottie) window.PosLottie.mountCartEmpty(el);
+    });
+
+    const expandBtn = document.getElementById("cartPreviewExpandBtn");
+    if (expandBtn) {
+        expandBtn.addEventListener("click", () => {
+            cartDrawerExpanded = true;
+            renderCart();
+        });
+    }
+    const collapseBtn = document.getElementById("cartPreviewCollapseBtn");
+    if (collapseBtn) {
+        collapseBtn.addEventListener("click", () => {
+            cartDrawerExpanded = false;
+            renderCart();
+        });
+    }
+
+    [cartContainer, drawerList].forEach(container => {
+        if (!container) return;
+        container.querySelectorAll("[data-cart-action]").forEach(button => {
+            button.addEventListener("click", () => {
+                const index = Number(button.dataset.cartIndex);
+                const action = button.dataset.cartAction;
+
+                if (action === "increase") changeQuantity(index, 1);
+                if (action === "decrease") changeQuantity(index, -1);
+                if (action === "remove") removeCartItem(index);
+            });
         });
     });
 
-    const total = cart.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0);
+    const total = cartOrderTotal();
     totalPrice.textContent = `₱${total.toFixed(2)}`;
+
+    const drawerFoot = document.getElementById("cartDrawerFoot");
+    if (drawerFoot) {
+        const subtotal = cartSubtotal();
+        const discount = cartDiscountAmount();
+        drawerFoot.innerHTML = cart.length ? `
+            <div class="cart-drawer-subtotal"><span>Subtotal</span><strong>₱${subtotal.toFixed(2)}</strong></div>
+            ${seniorDiscountActive && discount > 0 ? `<div class="cart-drawer-discount"><span>Senior Discount (20%)</span><strong>−₱${discount.toFixed(2)}</strong></div>` : ""}
+            <div class="cart-drawer-total"><span>Total</span><strong>₱${total.toFixed(2)}</strong></div>
+        ` : "";
+    }
+
+    const seniorChip = document.getElementById("seniorDiscountChip");
+    if (seniorChip) {
+        seniorChip.classList.toggle("active", seniorDiscountActive);
+    }
+
+    const discountSummary = document.getElementById("discountSummary");
+    const discountLabel = document.getElementById("discountAmountLabel");
+    if (discountSummary && discountLabel) {
+        const amount = cartDiscountAmount();
+        discountSummary.classList.toggle("hidden", !seniorDiscountActive || amount <= 0);
+        discountLabel.textContent = `−₱${amount.toFixed(2)}`;
+    }
+
     updateSwipeSummary();
     updateChangeCalculator();
 }
 
 function setupSwipeSubmit() {
-    const swipeTrack = document.getElementById("swipeTrack");
-    const swipeThumb = document.getElementById("swipeThumb");
-    if (!swipeTrack || !swipeThumb) return;
+    const placeOrderBtn = document.getElementById("placeOrderBtn");
+    if (!placeOrderBtn) return;
 
-    let dragging = false;
-    let startX = 0;
-    let thumbStartOffset = 0;
-    let currentOffset = 0;
-    let suppressClick = false;
-
-    // Thumb sits at left:5px; keep a 5px margin on the right too.
-    const maxTravel = () => swipeTrack.clientWidth - swipeThumb.offsetWidth - 10;
-
-    function setThumbOffset(offset) {
-        currentOffset = Math.max(0, Math.min(maxTravel(), offset));
-        swipeThumb.style.transform = `translateX(${currentOffset}px)`;
-    }
-
-    function resetThumb() {
-        currentOffset = 0;
-        swipeThumb.style.transform = "translateX(0px)";
-    }
-
-    async function processSubmit() {
-        swipeTrack.classList.add("processing");
-        playSound("swipe");
-        try {
-            await submitOrder();
-        } finally {
-            setTimeout(() => swipeTrack.classList.remove("processing"), 400);
-        }
-    }
-
-    function beginDrag(clientX) {
-        if (swipeTrack.classList.contains("processing")) return;
+    placeOrderBtn.addEventListener("click", async () => {
         if (!cart.length) {
             showPosAlert({
                 title: "Empty Cart",
@@ -1191,95 +1407,18 @@ function setupSwipeSubmit() {
             });
             return;
         }
-        dragging = true;
-        suppressClick = true;
-        startX = clientX;
-        thumbStartOffset = currentOffset;
-        swipeThumb.classList.add("dragging");
-    }
-
-    function moveDrag(clientX) {
-        if (!dragging) return;
-        setThumbOffset(thumbStartOffset + (clientX - startX));
-    }
-
-    function endDrag() {
-        if (!dragging) return;
-        dragging = false;
-        swipeThumb.classList.remove("dragging");
-
-        const travel = maxTravel();
-        const released = travel > 0 && currentOffset >= travel * 0.85;
-        resetThumb();
-
-        if (released) {
-            // Guard against the synthetic click that follows mouse/touch up.
-            suppressClick = true;
-            setTimeout(() => { suppressClick = false; }, 600);
-            processSubmit();
-        }
-    }
-
-    const handleThumbClick = () => {
-        if (suppressClick) {
-            suppressClick = false;
-            return;
-        }
-        processSubmit();
-    };
-
-    // Mouse drag
-    swipeThumb.addEventListener("mousedown", event => {
-        event.preventDefault();
-        beginDrag(event.clientX);
-    });
-    document.addEventListener("mousemove", event => moveDrag(event.clientX));
-    document.addEventListener("mouseup", () => endDrag());
-
-    // Touch drag (touchscreens)
-    swipeThumb.addEventListener("touchstart", event => {
-        event.preventDefault();
-        beginDrag(event.touches[0].clientX);
-    }, { passive: false });
-    document.addEventListener("touchmove", event => {
-        if (dragging) {
-            event.preventDefault();
-            moveDrag(event.touches[0].clientX);
-        }
-    }, { passive: false });
-    document.addEventListener("touchend", () => endDrag());
-
-    // Fallbacks: a tap on the thumb or anywhere on the track also places the order.
-    swipeThumb.addEventListener("click", event => {
-        event.stopPropagation();
-        handleThumbClick();
-    });
-    swipeTrack.addEventListener("click", () => {
-        if (suppressClick) return;
-        if (!cart.length) {
-            showPosAlert({
-                title: "Empty Cart",
-                icon: "fa-basket-shopping",
-                iconClass: "info",
-                bodyHtml: '<p class="pos-modal-note">Add at least one item before placing an order.</p>'
-            });
-            return;
-        }
-        processSubmit();
+        await submitOrder();
     });
 }
 
 function updateSwipeSummary() {
-    const swipeText = document.getElementById("swipeText");
-    const swipeTrack = document.getElementById("swipeTrack");
-    const total = cart.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0);
-    if (swipeText) {
-        swipeText.textContent = cart.length
-            ? `Swipe to Place Order (${selectedPayment.toUpperCase()}) ₱${total.toFixed(2)}`
-            : `Add items to begin your order`;
-    }
-    if (swipeTrack) {
-        swipeTrack.classList.toggle("ready", cart.length > 0);
+    const placeOrderBtn = document.getElementById("placeOrderBtn");
+    const total = cartOrderTotal();
+    if (placeOrderBtn) {
+        placeOrderBtn.disabled = !cart.length;
+        placeOrderBtn.textContent = cart.length
+            ? `Place Order • ${selectedPayment.toUpperCase()} • ₱${total.toFixed(2)}`
+            : "Place Order";
     }
 }
 
@@ -1301,14 +1440,13 @@ function updateChangeCalculator() {
     const input = document.getElementById("amountTenderedInput");
     const changeEl = document.getElementById("changeAmount");
     const breakdownEl = document.getElementById("changeBreakdown");
-    const swipeTrack = document.getElementById("swipeTrack");
     const receivedChip = document.getElementById("cashReceivedChip");
     const changeChip = document.getElementById("cashChangeChip");
     if (!changeEl) {
         return;
     }
 
-    const total = cart.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0);
+    const total = cartOrderTotal();
     const tendered = input ? parseFloat(input.value) || 0 : 0;
     tenderedAmount = tendered;
     const change = tendered - total;
@@ -1329,14 +1467,6 @@ function updateChangeCalculator() {
             : "";
     } else if (breakdownEl) {
         breakdownEl.innerHTML = "";
-    }
-
-    if (swipeTrack) {
-        const short = selectedPayment === "cash" && tendered > 0 && change < 0;
-        swipeTrack.classList.toggle("insufficient-cash", short);
-        if (short) {
-            swipeTrack.classList.remove("ready");
-        }
     }
 }
 
@@ -1445,6 +1575,65 @@ function setupCalculatorModal() {
     }
 }
 
+function setupSeniorDiscount() {
+    const chip = document.getElementById("seniorDiscountChip");
+    const panel = document.getElementById("seniorDiscountPanel");
+    if (chip) {
+        chip.addEventListener("click", () => {
+            const expanded = panel && !panel.classList.contains("hidden");
+            if (panel) panel.classList.toggle("hidden", expanded);
+            chip.setAttribute("aria-expanded", String(!expanded));
+        });
+    }
+
+    const toggle = document.getElementById("seniorDiscountToggle");
+    const fields = document.getElementById("seniorDiscountFields");
+    if (!toggle) return;
+
+    toggle.addEventListener("change", () => {
+        seniorDiscountActive = toggle.checked;
+        if (fields) fields.classList.toggle("hidden", !toggle.checked);
+        if (!toggle.checked) {
+            const idInput = document.getElementById("seniorIdInput");
+            const nameInput = document.getElementById("seniorNameInput");
+            if (idInput) idInput.value = "";
+            if (nameInput) nameInput.value = "";
+        }
+        playSound("qty");
+        resetChangeCalculator();
+        renderCart();
+    });
+
+    const idInput = document.getElementById("seniorIdInput");
+    const nameInput = document.getElementById("seniorNameInput");
+    [idInput, nameInput].forEach(input => {
+        if (!input) return;
+        input.addEventListener("input", () => {
+            renderCart();
+            updateChangeCalculator();
+        });
+    });
+}
+
+function resetSeniorDiscount() {
+    seniorDiscountActive = false;
+    const chip = document.getElementById("seniorDiscountChip");
+    const panel = document.getElementById("seniorDiscountPanel");
+    const toggle = document.getElementById("seniorDiscountToggle");
+    const fields = document.getElementById("seniorDiscountFields");
+    const idInput = document.getElementById("seniorIdInput");
+    const nameInput = document.getElementById("seniorNameInput");
+    if (chip) {
+        chip.setAttribute("aria-expanded", "false");
+        chip.classList.remove("active");
+    }
+    if (panel) panel.classList.add("hidden");
+    if (toggle) toggle.checked = false;
+    if (fields) fields.classList.add("hidden");
+    if (idInput) idInput.value = "";
+    if (nameInput) nameInput.value = "";
+}
+
 function resetChangeCalculator() {
     const input = document.getElementById("amountTenderedInput");
     if (input) input.value = "";
@@ -1461,7 +1650,7 @@ function changeQuantity(index, delta) {
     const product = allProducts.find(p => p._id === item._id);
     const available = product ? productStock(product) : Infinity;
 
-    if (delta > 0 && item.quantity >= available) {
+    if (delta > 0 && available <= 0) {
         showPosAlert({
             title: "Stock Limit Reached",
             icon: "fa-circle-exclamation",
@@ -1479,12 +1668,14 @@ function changeQuantity(index, delta) {
 
     playSound("qty");
     renderCart();
+    refreshCartStockDisplay();
 }
 
 function removeCartItem(index) {
     cart.splice(index, 1);
     playSound("remove");
     renderCart();
+    refreshCartStockDisplay();
 }
 
 async function submitOrder() {
@@ -1500,7 +1691,7 @@ async function submitOrder() {
 
     // Cash guard: the amount received must cover the total.
     if (selectedPayment === "cash") {
-        const orderTotal = cart.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0);
+        const orderTotal = cartOrderTotal();
         if (tenderedAmount < orderTotal) {
             playSound("error");
             await showPosAlert({
@@ -1514,10 +1705,26 @@ async function submitOrder() {
         }
     }
 
+    // Senior discount guard: the SC/PWD ID and customer name are required.
+    const seniorIdInput = document.getElementById("seniorIdInput");
+    const seniorNameInput = document.getElementById("seniorNameInput");
+    const seniorId = seniorIdInput ? seniorIdInput.value.trim() : "";
+    const seniorName = seniorNameInput ? seniorNameInput.value.trim() : "";
+    if (seniorDiscountActive && (!seniorId || !seniorName)) {
+        playSound("error");
+        await showPosAlert({
+            title: "Senior discount details missing",
+            icon: "fa-id-card",
+            iconClass: "danger",
+            bodyHtml: '<p class="pos-modal-error-text">Enter the SC/PWD ID and the customer\'s name to apply the 20% Senior discount.</p>',
+            buttonLabel: "OK"
+        });
+        return;
+    }
+
     const customerInput = document.getElementById("customerNameInput");
-    const tableInput = document.getElementById("tableNoInput");
     const customer = customerInput ? customerInput.value.trim() : "Walk-in Customer";
-    const tableNo = tableInput ? tableInput.value.trim() : "";
+    const tableNo = "";
 
     // Idempotency key: unique per order, stable across sync retries so the
     // backend never saves the same order twice.
@@ -1537,10 +1744,13 @@ async function submitOrder() {
             quantity: item.quantity,
             price: Number(item.price || 0)
         })),
-        total: cart.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0),
+        total: cartOrderTotal(),
+        discountType: seniorDiscountActive ? "Senior" : "",
+        discountId: seniorDiscountActive ? seniorId : "",
+        discountName: seniorDiscountActive ? seniorName : "",
         tendered: selectedPayment === "cash" ? tenderedAmount : 0,
         change: selectedPayment === "cash"
-            ? Math.max(0, tenderedAmount - cart.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0))
+            ? Math.max(0, tenderedAmount - cartOrderTotal())
             : 0
     };
 
@@ -1562,6 +1772,9 @@ async function submitOrder() {
                     <div class="row"><span>Mode</span><strong>${escapeHtml(selectedMode)}</strong></div>
                     <div class="row"><span>Payment</span><strong>${selectedPayment.toUpperCase()}</strong></div>
                     <div class="row"><span>Cashier</span><strong>${escapeHtml(getCashierName())}</strong></div>
+                    ${seniorDiscountActive ? `
+                    <div class="row"><span>Subtotal</span><strong>₱${cartSubtotal().toFixed(2)}</strong></div>
+                    <div class="row"><span>Senior Discount (20%)</span><strong>−₱${cartDiscountAmount().toFixed(2)}</strong></div>` : ""}
                     <div class="pos-modal-total"><span>Total</span><span>₱${Number(payload.total).toFixed(2)}</span></div>
                 </div>`,
             primaryLabel: "Place Order",
@@ -1581,14 +1794,18 @@ async function submitOrder() {
         }
 
         const createdOrder = await response.json();
+        (createdOrder.items || payload.items).forEach(item => {
+            bestSellingCounts[item.name] = (bestSellingCounts[item.name] || 0) + Number(item.quantity || 0);
+        });
         playSound("success");
+        printReceipt(createdOrder);
 
         const changeGiven = selectedPayment === "cash"
             ? `<div class="row"><span>Change</span><strong>₱${Number(createdOrder.change ?? Math.max(0, tenderedAmount - Number(payload.total))).toFixed(2)}</strong></div>`
             : "";
 
         await showPosAlert({
-            title: "Order placed!",
+            title: "Order Placed!",
             icon: "fa-circle-check",
             iconClass: "success",
             bodyHtml: `
@@ -1597,7 +1814,11 @@ async function submitOrder() {
                     <div class="receipt-id">${escapeHtml(createdOrder.receiptId || currentOrderId)}</div>
                     <div class="row"><span>Customer</span><strong>${escapeHtml(payload.customer)}</strong></div>
                     <div class="row"><span>Payment</span><strong>${selectedPayment.toUpperCase()}</strong></div>
-                    <div class="row"><span>Total</span><strong>₱${Number(payload.total).toFixed(2)}</strong></div>
+                    ${createdOrder.discountType ? `
+                    <div class="row"><span>Subtotal</span><strong>₱${Number(createdOrder.subtotal ?? payload.total).toFixed(2)}</strong></div>
+                    <div class="row"><span>Senior Discount</span><strong>−₱${Number(createdOrder.discountAmount || 0).toFixed(2)}</strong></div>
+                    <div class="row"><span>SC/PWD ID</span><strong>${escapeHtml(createdOrder.discountId || "")}</strong></div>` : ""}
+                    <div class="row"><span>Total</span><strong>₱${Number(createdOrder.total ?? payload.total).toFixed(2)}</strong></div>
                     ${changeGiven}
                 </div>
                 <button type="button" class="pos-modal-btn pos-modal-btn-secondary" id="printReceiptBtn">Print receipt</button>`,
@@ -1651,6 +1872,15 @@ async function submitOrder() {
 
 function printReceipt(order) {
     if (!order) return;
+    const settings = getPrintSettings();
+
+    // Silent path: send the receipt + kitchen ticket to the local
+    // Bluetooth-printer helper app in one continuous roll.
+    if (settings.mode === "bridge") {
+        sendToThermalBridge(order, settings);
+        return;
+    }
+
     let host = document.getElementById("printReceiptHost");
     if (!host) {
         host = document.createElement("div");
@@ -1663,7 +1893,7 @@ function printReceipt(order) {
     `).join("");
 
     host.innerHTML = `
-        <div class="print-receipt">
+        <div class="print-receipt${settings.width === "58" ? " thermal-58" : ""}">
             <div class="print-head">
                 <img src="../assets/logo.png" alt="logo">
                 <strong class="print-shop">Season 3 Kitchen &amp; Cafe</strong>
@@ -1678,19 +1908,228 @@ function printReceipt(order) {
             </div>
             <div class="print-items">${items}</div>
             <div class="print-total">
+                ${order.discountType ? `
+                <div><span>Subtotal</span><strong>₱${Number(order.subtotal || order.total || 0).toFixed(2)}</strong></div>
+                <div><span>Senior Discount (20%)</span><strong>−₱${Number(order.discountAmount || 0).toFixed(2)}</strong></div>` : ""}
                 <div><span>Total</span><strong>₱${Number(order.total || 0).toFixed(2)}</strong></div>
                 ${String(order.paymentMethod || "").toLowerCase().includes("cash") ? `
                 <div><span>Tendered</span><strong>₱${Number(order.tendered ?? 0).toFixed(2)}</strong></div>
                 <div><span>Change</span><strong>₱${Number(order.change ?? 0).toFixed(2)}</strong></div>` : ""}
             </div>
+            ${order.discountType ? `
+            <div class="print-senior">
+                <div>SC/PWD ID: ${escapeHtml(order.discountId || "")}</div>
+                <div>Name: ${escapeHtml(order.discountName || "")}</div>
+                <div class="print-signature-line">Signature over printed name</div>
+            </div>` : ""}
             <div class="print-foot">Thank you for your order!<br>Please come again.</div>
-        </div>`;
+        </div>
+        ${settings.kot === false ? "" : buildKotHtml(order, settings)}`;
 
-    window.print();
+window.print();
+}
+
+// ── Kitchen / barista order ticket (KOT) ──────────────────────────────────
+// A second copy of the order for whoever makes it. No prices — just the
+// item names in large readable type. In dialog mode it prints right after
+// the customer receipt, separated by a dashed CUT HERE line, so one roll
+// holds both tickets.
+
+function buildKotHtml(order, settings) {
+    const items = (order.items || []).map(item => `
+        <div class="print-line kot-line"><span>${escapeHtml(item.name)}</span><strong>× ${item.quantity}</strong></div>
+    `).join("");
+    return `
+        <div class="print-cut-line">------ CUT HERE ------</div>
+        <div class="print-receipt print-kot${settings.width === "58" ? " thermal-58" : ""}">
+            <div class="kot-title">*** KITCHEN ORDER ***</div>
+            <div class="print-meta">
+                <div><span>Receipt</span><strong>${escapeHtml(order.receiptId || "")}</strong></div>
+                <div><span>${escapeHtml(order.mode || "Dine In")}</span><strong>${escapeHtml(order.tableNo || "")}</strong></div>
+                <div><span>Customer</span><strong>${escapeHtml(order.customer || "Walk-in Customer")}</strong></div>
+                <div><span>Time</span><strong>${new Date(order.date || Date.now()).toLocaleTimeString()}</strong></div>
+            </div>
+            <div class="print-items kot-items">${items}</div>
+            <div class="print-foot kot-foot">Make it fresh!</div>
+        </div>`;
+}
+
+function buildKotText(order) {
+    const line = "--------------------------------";
+    const meta = [
+        "*** KITCHEN ORDER ***",
+        "Receipt: " + (order.receiptId || ""),
+        (order.mode || "Dine In") + (order.tableNo ? "  Table: " + order.tableNo : ""),
+        "Customer: " + (order.customer || "Walk-in Customer"),
+        "Time: " + new Date(order.date || Date.now()).toLocaleTimeString()
+    ];
+    const items = (order.items || []).map(it => {
+        const name = String(it.name || "");
+        const qty = Number(it.quantity || 0);
+        const left = name.length > 22 ? name.slice(0, 21) + "." : name;
+        const right = "x" + qty;
+        const pad = Math.max(2, 30 - left.length - right.length);
+        return left + " ".repeat(pad) + right;
+    });
+    const foot = ["", line, "   MAKE IT FRESH!", ""];
+    return meta.concat(line, items, foot).join("\n");
+}
+
+// ── Thermal bridge (silent printing via a Bluetooth-printer helper app) ──
+// A small free app on the Android phone exposes an HTTP endpoint
+// (e.g. http://127.0.0.1:8080) and forwards the text to the paired
+// Bluetooth thermal printer. Plain text is used because 58 mm thermal
+// printers commonly garble unicode symbols, so prices use the "P" prefix.
+
+function buildReceiptText(order) {
+    const line = "--------------------------------";
+    const head = [
+        "   Season 3 Kitchen & Cafe",
+        "   " + new Date(order.date || Date.now()).toLocaleString()
+    ];
+    const meta = [
+        "Receipt: " + (order.receiptId || ""),
+        "Cashier: " + (order.cashier || ""),
+        "Customer: " + (order.customer || "Walk-in Customer"),
+        "Mode: " + (order.mode || "Dine In") + "  Payment: " + (order.paymentMethod || "Cash")
+    ];
+    const items = (order.items || []).map(it => {
+        const name = String(it.name || "");
+        const qty = Number(it.quantity || 0);
+        const amt = (Number(it.price || 0) * qty).toFixed(2);
+        const left = name.length > 22 ? name.slice(0, 21) + "." : name;
+        const right = qty + "x  P" + amt;
+        const pad = Math.max(2, 30 - left.length - right.length);
+        return left + " ".repeat(pad) + right;
+    });
+    const total = [
+        "",
+        line
+    ];
+    if (order.discountType) {
+        total.push("SUBTOTAL               P" + Number(order.subtotal || order.total || 0).toFixed(2));
+        total.push("SENIOR DISC(20%)      -P" + Number(order.discountAmount || 0).toFixed(2));
+    }
+    total.push("TOTAL                  P" + Number(order.total || 0).toFixed(2));
+    if (String(order.paymentMethod || "").toLowerCase().includes("cash")) {
+        total.push("Tendered               P" + Number(order.tendered ?? 0).toFixed(2));
+        total.push("Change                 P" + Number(order.change ?? 0).toFixed(2));
+    }
+    if (order.discountType) {
+        total.push(line);
+        total.push("SC/PWD ID: " + String(order.discountId || ""));
+        total.push("Name: " + String(order.discountName || ""));
+        total.push("Signature over printed name");
+    }
+    total.push(line, "  Thank you! Please come again.", "");
+    return head.concat(line, meta, line, items, total).join("\n");
+}
+
+async function sendToThermalBridge(order, settings) {
+    const url = String(settings.url || "").trim();
+    if (!/^https?:\/\/.+/i.test(url)) {
+        playSound("error");
+        showPosAlert({
+            title: "Printer not set up",
+            icon: "fa-print",
+            iconClass: "danger",
+            bodyHtml: '<p class="pos-modal-note">Open the profile menu, then Receipt printer, and enter the printer app address.</p>'
+        });
+        return;
+    }
+    try {
+        let body = buildReceiptText(order);
+        if (settings.kot !== false) {
+            body += "\n---- CUT HERE ----\n" + buildKotText(order);
+        }
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body
+        });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        playSound("success");
+    } catch (err) {
+        playSound("error");
+        showPosAlert({
+            title: "Printer offline",
+            icon: "fa-print",
+            iconClass: "danger",
+            bodyHtml: '<p class="pos-modal-note">Could not reach the printer app at ' + escapeHtml(url) + '. Open the app, pair the printer, and try again.</p>'
+        });
+    }
+}
+
+// ── Printer settings UI (profile dropdown) ────────────────────────────────
+
+function setupPrinterSettings() {
+    const widthSel = document.getElementById("printWidthSel");
+    const modeSel = document.getElementById("printModeSel");
+    const urlInput = document.getElementById("printBridgeUrl");
+    const urlRow = document.getElementById("printBridgeRow");
+    const saveBtn = document.getElementById("printSettingsSave");
+    const testBtn = document.getElementById("printSettingsTest");
+    const statusEl = document.getElementById("printSettingsStatus");
+    if (!widthSel || !modeSel || !saveBtn) return;
+
+    const settings = getPrintSettings();
+    widthSel.value = settings.width === "58" ? "58" : "80";
+    modeSel.value = settings.mode === "bridge" ? "bridge" : "dialog";
+    if (urlInput) urlInput.value = settings.url || "";
+    if (urlRow) urlRow.hidden = modeSel.value !== "bridge";
+    const kotToggle = document.getElementById("printKotToggle");
+    if (kotToggle) kotToggle.checked = settings.kot !== false;
+
+    modeSel.addEventListener("change", () => {
+        if (urlRow) urlRow.hidden = modeSel.value !== "bridge";
+    });
+
+    const flash = (text, ok) => {
+        if (!statusEl) return;
+        statusEl.textContent = text;
+        statusEl.classList.toggle("ok", !!ok);
+        statusEl.classList.toggle("err", !ok);
+        setTimeout(() => { statusEl.textContent = ""; }, 4000);
+    };
+
+    const collect = () => ({
+        mode: modeSel.value,
+        width: widthSel.value,
+        url: modeSel.value === "bridge" ? String(urlInput ? urlInput.value : "").trim() : DEFAULT_PRINT_SETTINGS.url,
+        kot: kotToggle ? kotToggle.checked : true
+    });
+
+    saveBtn.addEventListener("click", () => {
+        savePrintSettings(collect());
+        flash(modeSel.value === "bridge" ? "Saved - receipts will print silently" : "Saved - receipts use the browser dialog", true);
+    });
+
+    if (testBtn) {
+        testBtn.addEventListener("click", () => {
+            savePrintSettings(collect());
+            const sample = {
+                receiptId: "TEST-PRINT",
+                cashier: "Cashier",
+                customer: "Test",
+                mode: "Dine In",
+                paymentMethod: "Cash",
+                total: 123.45,
+                tendered: 200,
+                change: 76.55,
+                items: [{ name: "Chicken Rice", quantity: 1, price: 60 }],
+                date: Date.now()
+            };
+            if (collect().mode === "bridge") {
+                sendToThermalBridge(sample, collect());
+            } else {
+                printReceipt(sample);
+            }
+        });
+    }
 }
 
 /* ==========================================================================
-   Keyboard shortcuts — Enter = exact cash (cash mode), Esc = close overlays
+   Keyboard shortcuts - Enter = exact cash (cash mode), Esc = close overlays
    ========================================================================== */
 
 function setupKeyboardShortcuts() {
@@ -1711,6 +2150,12 @@ function setupKeyboardShortcuts() {
             const historyPanel = document.getElementById("historyPanel");
             if (historyPanel && historyPanel.classList.contains("open")) {
                 setHistoryPanelOpen(false);
+                event.preventDefault();
+                return;
+            }
+            const cartDrawer = document.getElementById("cartDrawer");
+            if (cartDrawer && cartDrawer.classList.contains("open")) {
+                setCartDrawerOpen(false);
                 event.preventDefault();
                 return;
             }
@@ -1797,6 +2242,10 @@ function showPosAlert({ title, icon = "fa-circle-check", iconClass = "success", 
         });
 
         overlay.classList.add("show");
+        if (iconClass === "success" && window.PosLottie) {
+            const bigIcon = body.querySelector(".pos-modal-success-icon");
+            if (bigIcon) window.PosLottie.enhanceSuccessIcon(bigIcon);
+        }
         if (typeof afterDom === "function") afterDom(body);
     });
 }
@@ -1806,38 +2255,56 @@ function cancelOrder(silent = false) {
         playSound("cancel");
     }
     cart = [];
+    resetSeniorDiscount();
+    setCartDrawerOpen(false);
+    cartDrawerExpanded = false;
     currentOrderId = generateOrderId(); // fresh ID for next order
     renderOrderId();
     renderCart();
+    refreshCartStockDisplay();
     resetChangeCalculator();
 }
 
 function getCashierName() {
     const saved = JSON.parse(localStorage.getItem("posUser") || "null");
-    return (saved && saved.username) || "Pranselen";
+    if (saved && saved.username) return saved.username;
+    const admin = JSON.parse(localStorage.getItem("posAdminUser") || "null");
+    return (admin && admin.username) || "Pranselen";
 }
 
 // ── Waste Food Logging ────────────────────────────────────────────────────
 
 async function logWasteItems(items, reason) {
     let logged = 0;
+    let queued = 0;
     for (const item of items || []) {
+        const payload = {
+            productName: item.name,
+            cashier: getCashierName(),
+            quantity: item.quantity,
+            price: Number(item.price || 0),
+            reason
+        };
         try {
             const response = await apiFetch("/api/waste", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    productName: item.name,
-                    cashier: getCashierName(),
-                    quantity: item.quantity,
-                    price: Number(item.price || 0),
-                    reason
-                })
+                body: JSON.stringify(payload)
             });
-            if (response.ok) logged++;
+            if (response.ok) {
+                logged++;
+            } else {
+                queueOfflineWaste(payload);
+                queued++;
+            }
         } catch (err) {
             console.error("❌ Waste log failed:", err);
+            queueOfflineWaste(payload);
+            queued++;
         }
+    }
+    if (queued > 0) {
+        updateOfflineBanner();
     }
     if (logged > 0) {
         showPosAlert({
@@ -1853,6 +2320,17 @@ async function logWasteItems(items, reason) {
 
 let wasteSelectedProductId = null;
 let wasteActiveIndex = 0;
+let wasteSelectedUnitPrice = 0;
+
+function syncWasteTotalCost() {
+    const qtyInput = document.getElementById("wasteQty");
+    const totalInput = document.getElementById("wastePrice");
+    if (!qtyInput || !totalInput || !wasteSelectedProductId) return;
+    const quantity = Number(qtyInput.value || 0);
+    if (quantity > 0) {
+        totalInput.value = (quantity * wasteSelectedUnitPrice).toFixed(2);
+    }
+}
 
 function buildWasteProductSearch() {
     renderWasteProductDropdown(document.getElementById("wasteProductName")?.value || "");
@@ -1919,10 +2397,31 @@ function selectWasteProduct(productId) {
     }
 
     if (nameInput) nameInput.value = product.name;
-    if (priceInput) priceInput.value = Number(product.price || 0).toFixed(2);
+    wasteSelectedUnitPrice = Number(product.price || 0);
+    if (priceInput) priceInput.value = wasteSelectedUnitPrice.toFixed(2);
     wasteSelectedProductId = productId;
+    syncWasteTotalCost();
     if (dropdown) dropdown.style.display = "none";
     playSound("qty");
+}
+
+function resetWasteForm() {
+    const form = document.getElementById("wasteLogForm");
+    const name = document.getElementById("wasteProductName");
+    const qtyInput = document.getElementById("wasteQty");
+    const priceInput = document.getElementById("wastePrice");
+    const reasonSelect = document.getElementById("wasteReason");
+    const dropdown = document.getElementById("wasteProductDropdown");
+
+    if (name) name.value = "";
+    if (qtyInput) qtyInput.value = "";
+    if (priceInput) priceInput.value = "";
+    if (reasonSelect) reasonSelect.value = "Wrong Order";
+    if (dropdown) dropdown.style.display = "none";
+    wasteSelectedProductId = null;
+    wasteActiveIndex = 0;
+    wasteSelectedUnitPrice = 0;
+    if (form) form.style.display = "none";
 }
 
 function setupWasteLogForm() {
@@ -1934,12 +2433,16 @@ function setupWasteLogForm() {
     if (toggleBtn) {
         toggleBtn.addEventListener("click", () => {
             if (form) form.style.display = form.style.display === "none" ? "block" : "none";
+            if (form && form.style.display !== "none") {
+                const name = document.getElementById("wasteProductName");
+                if (name) name.focus();
+            }
         });
     }
 
     if (cancelBtn) {
         cancelBtn.addEventListener("click", () => {
-            if (form) form.style.display = "none";
+            resetWasteForm();
         });
     }
 
@@ -1974,6 +2477,11 @@ function setupWasteLogForm() {
                 if (dropdown) dropdown.style.display = "none";
             }
         });
+    }
+
+    const qtyInput = document.getElementById("wasteQty");
+    if (qtyInput) {
+        qtyInput.addEventListener("input", syncWasteTotalCost);
     }
 
     // Close the dropdown when clicking anywhere outside it.
@@ -2014,17 +2522,19 @@ function setupWasteLogForm() {
                 return;
             }
 
+            const totalCost = Number(priceInput ? priceInput.value : 0);
+            const payload = {
+                productName,
+                cashier: getCashierName(),
+                quantity,
+                price: quantity > 0 ? totalCost / quantity : 0,
+                reason: reasonSelect ? reasonSelect.value : "Other"
+            };
             try {
                 const response = await apiFetch("/api/waste", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        productName,
-                        cashier: getCashierName(),
-                        quantity,
-                        price,
-                        reason: reasonSelect ? reasonSelect.value : "Other"
-                    })
+                    body: JSON.stringify(payload)
                 });
                 if (!response.ok) throw new Error("Failed to log waste");
                 showPosAlert({
@@ -2033,18 +2543,19 @@ function setupWasteLogForm() {
                     iconClass: "success",
                     bodyHtml: '<p class="pos-modal-note">Waste logged successfully.</p>'
                 });
-                if (form) form.style.display = "none";
-                if (name) name.value = "";
-                if (qtyInput) qtyInput.value = "";
-                if (priceInput) priceInput.value = "";
+                resetWasteForm();
             } catch (err) {
                 console.error("❌ Waste save failed:", err);
+                // Server unreachable — save for automatic sync later.
+                queueOfflineWaste(payload);
+                updateOfflineBanner();
                 showPosAlert({
-                    title: "Log Failed",
-                    icon: "fa-circle-exclamation",
-                    iconClass: "danger",
-                    bodyHtml: '<p class="pos-modal-note">Failed to log the waste.</p>'
+                    title: "Saved for Sync",
+                    icon: "fa-circle-info",
+                    iconClass: "info",
+                    bodyHtml: '<p class="pos-modal-note">Could not reach the server — the waste entry was saved on this device and will sync automatically.</p>'
                 });
+                resetWasteForm();
             }
         });
     }
@@ -2060,7 +2571,7 @@ function setupCashierProfile() {
     if (!badge || !wrap) return;
 
     const saved = JSON.parse(localStorage.getItem("posUser") || "null");
-    const username = (saved && saved.username) || "Pranselen";
+    const username = getCashierName();
     const role = (saved && saved.role) || "Cashier";
     const initials = username.slice(0, 2).toUpperCase();
 
@@ -2093,6 +2604,8 @@ function setupCashierProfile() {
 
     if (logoutBtn) {
         logoutBtn.addEventListener("click", () => {
+            wrap.classList.remove("open");
+            if (dropdown) dropdown.classList.remove("show");
             apiFetch("/api/logout", { method: "POST" }).catch(() => {});
             let name = "";
             try {

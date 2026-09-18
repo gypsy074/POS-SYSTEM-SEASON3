@@ -65,11 +65,11 @@ afterAll(async () => {
     if (mongod) await mongod.stop();
 }, 120000);
 
-async function createProduct(name, price, stock) {
+async function createProduct(name, price, stock, category = 'Test') {
     const res = await request(app)
         .post('/api/products')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name, price, stock, category: 'Test' });
+        .send({ name, price, stock, category });
     expect([201, 200]).toContain(res.status);
     return res.body;
 }
@@ -101,6 +101,40 @@ describe('Auth', () => {
 });
 
 describe('Orders & stock', () => {
+    test('cashier identity is server-controlled and order history is isolated', async () => {
+        const userRes = await request(app)
+            .post('/api/users')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ username: 'othercashier', password: 'tester123', role: 'Cashier' });
+        expect([201, 409]).toContain(userRes.status);
+        const otherLogin = await login('othercashier', 'tester123');
+        expect(otherLogin.status).toBe(200);
+
+        await createProduct('TestIdentityDish', 75, 3);
+        const created = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                cashier: 'othercashier',
+                items: [{ name: 'TestIdentityDish', quantity: 1, price: 75 }],
+                total: 75
+            });
+        expect(created.status).toBe(201);
+        expect(created.body.cashier).toBe('tester');
+
+        const otherOrders = await request(app)
+            .get('/api/orders')
+            .set('Authorization', `Bearer ${otherLogin.token}`);
+        expect(otherOrders.status).toBe(200);
+        expect(otherOrders.body.some(order => String(order._id) === String(created.body._id))).toBe(false);
+
+        const adminOrders = await request(app)
+            .get('/api/orders')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(adminOrders.status).toBe(200);
+        expect(adminOrders.body.some(order => String(order._id) === String(created.body._id))).toBe(true);
+    });
+
     test('placing an order deducts menu stock', async () => {
         await createProduct('TestPancit', 120, 5);
 
@@ -211,6 +245,24 @@ describe('Waste & stock', () => {
 });
 
 describe('Order void', () => {
+    test('cashier cannot void another cashier order', async () => {
+        const otherLogin = await login('othercashier', 'tester123');
+        expect(otherLogin.status).toBe(200);
+        await createProduct('TestOwnershipDish', 85, 2);
+
+        const created = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({ items: [{ name: 'TestOwnershipDish', quantity: 1, price: 85 }], total: 85 });
+        expect(created.status).toBe(201);
+
+        const voidRes = await request(app)
+            .patch(`/api/orders/${created.body._id}/void`)
+            .set('Authorization', `Bearer ${otherLogin.token}`);
+        expect(voidRes.status).toBe(403);
+        expect((await getProduct('TestOwnershipDish')).stock).toBe(1);
+    });
+
     test('voiding restores stock, rejects double-void, needs auth', async () => {
         await createProduct('TestHaloHalo', 95, 4);
 
@@ -245,5 +297,382 @@ describe('Order void', () => {
             .patch(`/api/orders/${orderId}/void`)
             .send({ reason: 'no token' });
         expect(noAuth.status).toBe(401);
+    });
+});
+
+describe('Order delete guard', () => {
+    test('admin cannot hard-delete a paid (non-voided) order → 409', async () => {
+        await createProduct('TestDeleteGuard', 80, 3);
+
+        const created = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                cashier: 'tester',
+                items: [{ name: 'TestDeleteGuard', quantity: 1, price: 80 }],
+                total: 80
+            });
+        expect(created.status).toBe(201);
+
+        const del = await request(app)
+            .delete(`/api/orders/${created.body._id}`)
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(del.status).toBe(409);
+
+        const stillThere = await request(app)
+            .get('/api/orders?limit=5000')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect((stillThere.body || []).some(o => String(o._id) === String(created.body._id))).toBe(true);
+    });
+
+    test('admin can hard-delete an already-voided order → 200', async () => {
+        await createProduct('TestDeleteVoided', 70, 3);
+
+        const created = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                cashier: 'tester',
+                items: [{ name: 'TestDeleteVoided', quantity: 1, price: 70 }],
+                total: 70
+            });
+        expect(created.status).toBe(201);
+
+        const voidRes = await request(app)
+            .patch(`/api/orders/${created.body._id}/void`)
+            .set('Authorization', `Bearer ${cashierToken}`);
+        expect(voidRes.status).toBe(200);
+
+        const del = await request(app)
+            .delete(`/api/orders/${created.body._id}`)
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(del.status).toBe(200);
+
+        const gone = await request(app)
+            .delete(`/api/orders/${created.body._id}`)
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(gone.status).toBe(404);
+    });
+});
+
+describe('Orders fetch bounds', () => {
+    test('?limit= caps the number of orders returned', async () => {
+        await createProduct('TestCapper', 30, 20);
+        for (let i = 0; i < 3; i++) {
+            await request(app)
+                .post('/api/orders')
+                .set('Authorization', `Bearer ${cashierToken}`)
+                .send({ cashier: 'tester', items: [{ name: 'TestCapper', quantity: 1, price: 30 }] });
+        }
+
+        const res = await request(app)
+            .get('/api/orders?limit=2')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(res.status).toBe(200);
+        expect(Array.isArray(res.body)).toBe(true);
+        expect(res.body.length).toBeLessThanOrEqual(2);
+    });
+
+    test('out-of-range params are ignored (no 500, no filtering)', async () => {
+        const res = await request(app)
+            .get('/api/orders?days=9999&limit=-5')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(res.status).toBe(200);
+        expect(Array.isArray(res.body)).toBe(true);
+    });
+});
+
+describe('Security hardening', () => {
+    test('password change rejects <8 characters → 400', async () => {
+        const res = await request(app)
+            .put('/api/auth/password')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ currentPassword: 'admin123', newPassword: 'short' });
+        expect(res.status).toBe(400);
+    });
+
+    test('user create rejects <8 character passwords → 400', async () => {
+        const res = await request(app)
+            .post('/api/users')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ username: 'weakuser', password: 'tiny', role: 'Cashier' });
+        expect(res.status).toBe(400);
+    });
+
+    test('user password reset rejects <8 characters → 400', async () => {
+        const created = await request(app)
+            .post('/api/users')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ username: 'pwresetuser', password: 'strongpass1', role: 'Cashier' });
+        expect(created.status).toBe(201);
+
+        const res = await request(app)
+            .put(`/api/users/${created.body._id}`)
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ password: 'tiny' });
+        expect(res.status).toBe(400);
+    });
+
+    test('oversized JSON body → 413', async () => {
+        const res = await request(app)
+            .post('/api/orders')
+            .send({ padding: 'x'.repeat(300000) });
+        expect(res.status).toBe(413);
+    });
+
+    test('product route still accepts a large image payload', async () => {
+        const res = await request(app)
+            .post('/api/products')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ name: 'BigImageDish', category: 'Test', price: 50, image: `data:image/png;base64,${'A'.repeat(200000)}` });
+        expect(res.status).toBe(201);
+    });
+
+    test('CORS header follows the configured CORS_ORIGIN policy', async () => {
+        const res = await request(app)
+            .get('/api/health')
+            .set('Origin', 'https://evil.example');
+        expect(res.status).toBe(200);
+        const allowed = (process.env.CORS_ORIGIN || '').split(',').map(s => s.trim()).filter(Boolean);
+        const header = res.headers['access-control-allow-origin'];
+        if (allowed.includes('*')) {
+            expect(header).toBe('*'); // local dev opts into open CORS
+        } else if (allowed.length === 0) {
+            expect(header).toBeUndefined(); // no CORS by default (e.g. live deploy)
+        } else {
+            expect(allowed).toContain(header); // explicit origin list
+        }
+    });
+});
+
+// Regression suite for the string-_id bug (older data rebuilt from raw JSON
+// backups stores _id as plain strings; mongoose's findById casts to ObjectId
+// and silently misses them — every _id lookup must match both forms).
+describe('Category management', () => {
+    test('creates a category, rejects duplicates', async () => {
+        const created = await request(app)
+            .post('/api/categories')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ name: 'Cat-Test-A' });
+        expect(created.status).toBe(201);
+
+        const dup = await request(app)
+            .post('/api/categories')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ name: 'cat-test-a' }); // case-insensitive
+        expect(dup.status).toBe(409);
+    });
+
+    test('cashier cannot create a category → 403', async () => {
+        const res = await request(app)
+            .post('/api/categories')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({ name: 'Nope' });
+        expect(res.status).toBe(403);
+    });
+
+    test('renaming a category reassigns its products', async () => {
+        const product = await createProduct('CatTestDrink', 40, 5);
+        await request(app)
+            .put(`/api/products/${product._id}`)
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ category: 'Cat-Test-A' });
+
+        const renamed = await request(app)
+            .put('/api/categories/Cat-Test-A')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ name: 'Cat-Test-B' });
+        expect(renamed.status).toBe(200);
+
+        const updated = await getProduct('CatTestDrink');
+        expect(updated.category).toBe('Cat-Test-B');
+    });
+
+    test('deleting a category with products is blocked with a count', async () => {
+        const res = await request(app)
+            .delete('/api/categories/Cat-Test-B')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(res.status).toBe(409);
+        expect(String(res.body.error)).toMatch(/1 product\(s\) still use it/);
+    });
+
+    test('deleting an empty category succeeds', async () => {
+        const product = await getProduct('CatTestDrink');
+        const res = await request(app)
+            .delete('/api/categories/Cat-Test-B')
+            .set('Authorization', `Bearer ${adminToken}`);
+        // Still blocked — the product is still there; move it first.
+        expect(res.status).toBe(409);
+        await request(app)
+            .put(`/api/products/${product._id}`)
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ category: 'Test' });
+        const gone = await request(app)
+            .delete('/api/categories/Cat-Test-B')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(gone.status).toBe(200);
+    });
+});
+
+describe('Senior discount', () => {
+    test('Senior order: drinks receive 20% discount and amounts are server-computed', async () => {
+        await createProduct('TestSeniorDrink', 100, 3, 'Drinks');
+        const res = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                cashier: 'tester',
+                items: [{ name: 'TestSeniorDrink', quantity: 2, price: 100 }],
+                total: 9999, // must be ignored — server recomputes
+                discountType: 'Senior',
+                discountId: 'SC-123456789',
+                discountName: 'Lola Maria'
+            });
+        expect(res.status).toBe(201);
+        expect(Number(res.body.subtotal)).toBe(200);
+        expect(Number(res.body.discountAmount)).toBe(40);
+        expect(Number(res.body.total)).toBe(160);
+        expect(res.body.discountType).toBe('Senior');
+        expect(res.body.discountId).toBe('SC-123456789');
+    });
+
+    test('Senior discount without SC/PWD ID or name → 400', async () => {
+        const res = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                cashier: 'tester',
+                items: [{ name: 'TestSeniorDrink', quantity: 1, price: 100 }],
+                discountType: 'Senior',
+                discountName: 'Lola Maria'
+            });
+        expect(res.status).toBe(400);
+        expect(String(res.body.error)).toMatch(/SC\/PWD ID/);
+    });
+
+    test('unknown discount type → 400', async () => {
+        const res = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                cashier: 'tester',
+                items: [{ name: 'TestSeniorDrink', quantity: 1, price: 100 }],
+                discountType: 'PWD'
+            });
+        expect(res.status).toBe(400);
+    });
+
+    test('Senior discount does not apply to meals', async () => {
+        const res = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                cashier: 'tester',
+                items: [{ name: 'TestSeniorMeal', quantity: 1, price: 100 }],
+                total: 123,
+                discountType: 'Senior',
+                discountId: 'SC-MEAL',
+                discountName: 'Lola Maria'
+            });
+        expect(res.status).toBe(201);
+        expect(Number(res.body.total)).toBe(100);
+        expect(Number(res.body.discountAmount)).toBe(0);
+        expect(res.body.discountType).toBe('Senior');
+    });
+});
+
+describe('String _id compatibility', () => {
+    const STRING_ID = '6a7b094a51820109b91dc302';
+
+    async function insertRaw(collection, doc) {
+        await mongoose.connection.db.collection(collection).insertOne(doc);
+    }
+
+    test('product with a string _id is updated and deleted by id', async () => {
+        await insertRaw('products', {
+            _id: STRING_ID,
+            name: 'String-Id Product',
+            category: 'Test',
+            price: 50,
+            stock: 10,
+            lowStockThreshold: 5,
+            status: 'Available'
+        });
+
+        const listed = await request(app)
+            .get('/api/products')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(listed.status).toBe(200);
+        expect(listed.body.some(p => String(p._id) === STRING_ID)).toBe(true);
+
+        const updated = await request(app)
+            .put(`/api/products/${STRING_ID}`)
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ price: 75 });
+        expect(updated.status).toBe(200);
+        expect(Number(updated.body.price)).toBe(75);
+
+        const deleted = await request(app)
+            .delete(`/api/products/${STRING_ID}`)
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(deleted.status).toBe(200);
+    });
+
+    test('waste entry with a string _id is deleted by id (the original bug)', async () => {
+        await insertRaw('wasteitems', {
+            _id: STRING_ID,
+            productName: 'String-Id Waste',
+            category: 'Test',
+            cashier: 'tester',
+            quantity: 1,
+            price: 10,
+            totalCost: 10,
+            reason: 'string-id regression',
+            date: new Date()
+        });
+
+        const del = await request(app)
+            .delete(`/api/waste/${STRING_ID}`)
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(del.status).toBe(200);
+
+        const after = await request(app)
+            .get('/api/waste')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(after.body.some(w => String(w._id) === STRING_ID)).toBe(false);
+    });
+
+    test('order with a string _id is fetched, voided, and hard-deleted by id', async () => {
+        await insertRaw('orders', {
+            _id: STRING_ID,
+            customer: 'String-Id Customer',
+            cashier: 'tester',
+            mode: 'Dine In',
+            paymentMethod: 'Cash',
+            status: 'Completed',
+            date: new Date(),
+            receiptId: 'STRIDTEST',
+            items: [{ name: 'Anything', quantity: 1, price: 10 }],
+            total: 10,
+            tendered: 10,
+            change: 0
+        });
+
+        const listed = await request(app)
+            .get('/api/orders')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(listed.status).toBe(200);
+        expect(listed.body.some(o => String(o._id) === STRING_ID)).toBe(true);
+
+        const voided = await request(app)
+            .patch(`/api/orders/${STRING_ID}/void`)
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(voided.status).toBe(200);
+        expect(voided.body.status).toBe('Voided');
+
+        const deleted = await request(app)
+            .delete(`/api/orders/${STRING_ID}`)
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(deleted.status).toBe(200);
     });
 });

@@ -7,7 +7,10 @@
     "start": "node server.js",
     "dev": "node server.js",
     "test": "jest --runInBand",
-    "backup": "node scripts/backup.js"
+    "backup": "node scripts/backup.js",
+    "restore": "node scripts/restore.js",
+    "mirror": "node scripts/mirror.js",
+    "reset-admin-password": "node scripts/reset-admin-password.js"
   },
   "keywords": [],
   "author": "",
@@ -15,13 +18,15 @@
   "type": "commonjs",
   "dependencies": {
     "bcryptjs": "^3.0.2",
+    "compression": "^1.8.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.6.2",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "^9.7.1"
+    "mongoose": "^9.7.1",
+    "nodemailer": "^9.1.1"
   },
   "devDependencies": {
     "jest": "^30.4.2",

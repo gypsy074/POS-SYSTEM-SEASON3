@@ -1,15 +1,8 @@
 /* ==========================================================================
    dashboard.js — Dashboard view module
-   Handles: order data fetch, transaction table render, sales charts, calendar.
+   Handles: order data fetch, transaction table render, sales charts.
    ========================================================================== */
 
-// ── Module State ─────────────────────────────────────────────────────────────
-let currentSalesFilter = "Day";
-let currentPillFilter = "Cs & Fs";
-let calendarDate = new Date();
-
-// ── Main Data Loader ─────────────────────────────────────────────────────────
-/* BEGIN incoming (reyn/ulan)
 let activeSalesRange = "day";
 let activeRadarCategory = "All";
 let builtPillCategories = null;
@@ -17,44 +10,39 @@ let calendarViewDate = new Date();
 let latestUsers = [];
 let latestLogins = [];
 let latestLogouts = [];
-END incoming (reyn/ulan) */
-async function loadLiveDashboardData() {
+
+// Orders payload cache — view switches reuse it for 30s; the manual refresh
+// button passes force=true to bypass. Rendering always runs, so the row/card
+// animations replay identically on every load.
+let dashboardOrdersCache = null;
+let dashboardOrdersAt = 0;
+let dashboardFetching = false;
+const DASHBOARD_CACHE_MS = 30000;
+
+async function loadLiveDashboardData(force) {
     try {
-        const [ordersRes, productsRes] = await Promise.all([
-            apiFetch("/api/orders"),
-            apiFetch("/api/products")
-        ]);
-
-        if (!ordersRes.ok) throw new Error("Failed to load orders");
-        if (!productsRes.ok) throw new Error("Failed to load products");
-
-        const orders = await ordersRes.json();
-        const products = await productsRes.json();
-
+        if (dashboardFetching) return;
+        dashboardFetching = true;
+        let orders;
+        if (force || !dashboardOrdersCache || Date.now() - dashboardOrdersAt > DASHBOARD_CACHE_MS) {
+            const response = await apiFetch("/api/orders?days=90&limit=5000");
+            if (!response.ok) throw new Error("Network payload reading failed");
+            orders = await response.json();
+            dashboardOrdersCache = orders;
+            dashboardOrdersAt = Date.now();
+        } else {
+            orders = dashboardOrdersCache;
+        }
         latestOrders = orders;
-        allProducts = products;
 
-        // Dashboard counters
-        const totalRevenueEl = document.getElementById("totalRevenue");
+        const tableBody        = document.getElementById("transactionBody");
+        const totalRevenueEl   = document.getElementById("totalRevenue");
         const todaySalesCountEl = document.getElementById("todaySalesCount");
 
-        if (totalRevenueEl) {
-            const total = orders.reduce((sum, o) => sum + Number(o.total || 0), 0);
-            totalRevenueEl.innerText = `\u20b1${total.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
-        }
-        if (todaySalesCountEl) {
-            const today = new Date().toLocaleDateString();
-            const count = orders.filter(o => new Date(o.date).toLocaleDateString() === today).length;
-            todaySalesCountEl.innerText = `${count} Orders`;
-        }
+        if (!tableBody || !totalRevenueEl || !todaySalesCountEl) return;
 
         renderTransactionTable(orders);
-        renderSalesCharts(orders, products);
-        renderCalendar(orders);
-        setupSalesChartControls(orders, products);
-        setupItemsPillControls(orders, products);
 
-=======
         const revenueAccumulator = orders.reduce(
             (sum, order) => (order.status === "Voided" ? sum : sum + Number(order.total || 0)),
             0
@@ -96,29 +84,13 @@ async function loadLiveDashboardData() {
         renderUsageChart(orders);
         renderCalendar();
         loadInsights();
->>>>>>> 9fb30f6d5acec0eb394e92ec305f50e2086f1471
     } catch (err) {
-        console.error("\u274c Dashboard sync pipeline broken:", err);
+        console.error("❌ Dashboard sync pipeline broken:", err);
+    } finally {
+        dashboardFetching = false;
     }
 }
 
-<<<<<<< HEAD
-// ── Service Type Badge Helper ─────────────────────────────────────────────────
-function getServiceBadge(mode) {
-    if (!mode) return `<span class="service-type-badge service-badge-dine-in">Dine In</span>`;
-    const lower = mode.toLowerCase();
-    if (lower.includes("dine")) {
-        return `<span class="service-type-badge service-badge-dine-in">Dine In</span>`;
-    } else if (lower.includes("go") || lower.includes("take")) {
-        return `<span class="service-type-badge service-badge-to-go">To Go</span>`;
-    } else if (lower.includes("online")) {
-        return `<span class="service-type-badge service-badge-online">Online Order</span>`;
-    }
-    return `<span class="service-type-badge service-badge-dine-in">${escapeHtml(mode)}</span>`;
-}
-
-// ── Transaction Table ─────────────────────────────────────────────────────────
-/* BEGIN incoming (reyn/ulan)
 // Best-effort activity feed — who's logged in / active. Never breaks the dashboard.
 async function loadActivityFeed() {
     try {
@@ -549,12 +521,16 @@ function exportSalesCsv() {
             new Date(order.date).toLocaleString()
         ]));
 
-    const csv = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+    // Neutralize spreadsheet formula injection: cells starting with =, +, -,
+    // or @ would execute as a formula when the CSV is opened in Excel/Sheets.
+    const csv = rows.map(row => row.map(cell =>
+        `"${String(cell).replace(/^[=+\-@]/, "'$&").replace(/"/g, '""')}"`
+    ).join(",")).join("\r\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `season3-sales-${activeSalesRange}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `season3-sales-${activeSalesRange}-${localDateStamp()}.csv`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -562,6 +538,28 @@ function exportSalesCsv() {
 }
 
 // ── Waste Food Panel (view + remove) ───────────────────────────────────────
+
+function setupWasteFilters() {
+    const fromEl = document.getElementById("wasteFrom");
+    const toEl   = document.getElementById("wasteTo");
+    if (fromEl) fromEl.addEventListener("change", renderWasteTable);
+    if (toEl)   toEl.addEventListener("change", renderWasteTable);
+}
+
+// The visible waste set, bounded by the from/to date filters.
+function filteredWaste() {
+    const waste = latestWaste || [];
+    const fromEl = document.getElementById("wasteFrom");
+    const toEl   = document.getElementById("wasteTo");
+    const from = fromEl && fromEl.value ? new Date(fromEl.value + "T00:00:00") : null;
+    const to   = toEl && toEl.value ? new Date(toEl.value + "T23:59:59") : null;
+    return waste.filter(entry => {
+        const d = new Date(entry.date);
+        if (from && d < from) return false;
+        if (to && d > to) return false;
+        return true;
+    });
+}
 
 async function loadWasteData() {
     try {
@@ -594,11 +592,29 @@ function updateWasteStat() {
     }
 }
 
+function renderWasteTopItems(filtered) {
+    const el = document.getElementById("wasteTopItems");
+    if (!el) return;
+    if (!filtered.length) {
+        el.innerHTML = "";
+        return;
+    }
+    const byName = {};
+    filtered.forEach(entry => {
+        byName[entry.productName] = (byName[entry.productName] || 0) + Number(entry.totalCost || 0);
+    });
+    const top = Object.entries(byName).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    el.innerHTML = '<span class="waste-top-label"><i class="fas fa-fire"></i> Top wasted:</span> ' +
+        top.map(([name, cost]) =>
+            `<span class="waste-top-chip">${escapeHtml(name)} · ₱${cost.toFixed(2)}</span>`
+        ).join(" ");
+}
+
 function renderWasteTable() {
     const tbody = document.getElementById("wasteTableBody");
     if (!tbody) return;
 
-    const waste = latestWaste || [];
+    const waste = filteredWaste();
 
     const totalEl = document.getElementById("wasteTotalCost");
     if (totalEl) {
@@ -606,11 +622,13 @@ function renderWasteTable() {
         totalEl.innerText = `Total Waste: ₱${total.toFixed(2)}`;
     }
 
+    renderWasteTopItems(waste);
+
     if (!waste.length) {
         tbody.innerHTML = `
             <tr>
                 <td colspan="8" style="text-align:center; color:#888; padding:22px;">
-                    No food waste logged. Everything looks great!
+                    No food waste logged${latestWaste && latestWaste.length ? " in this date range" : ""}. Everything looks great!
                 </td>
             </tr>`;
         return;
@@ -634,76 +652,118 @@ function renderWasteTable() {
     tbody.querySelectorAll(".resolve-btn").forEach(button => {
         button.addEventListener("click", async () => {
             const entryId = button.dataset.wasteId;
-            if (!confirm("Remove this waste entry from the record?")) return;
-            await removeWasteEntry(entryId);
+            const entry = (latestWaste || []).find(w => w._id === entryId);
+            const confirmed = await showConfirmModal({
+                title: "Remove waste entry?",
+                message: entry
+                    ? `"${entry.productName}" × ${entry.quantity} will be removed from the waste record. This cannot be undone.`
+                    : "This waste entry will be permanently removed. This cannot be undone.",
+                confirmLabel: "Remove",
+                danger: true
+            });
+            if (!confirmed) return;
+            await removeWasteEntry(entryId, button);
         });
     });
 }
 
-async function removeWasteEntry(entryId) {
+async function removeWasteEntry(entryId, button) {
+    const row = button ? button.closest("tr") : null;
+    const originalLabel = button ? button.textContent : "";
+    if (button) {
+        button.disabled = true;
+        button.textContent = "Removing…";
+    }
+    if (row) row.classList.add("removing-row");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
     try {
-        const response = await apiFetch(`/api/waste/${entryId}`, { method: "DELETE" });
+        const response = await apiFetch(`/api/waste/${entryId}`, { method: "DELETE", signal: controller.signal });
         if (!response.ok) throw new Error("Failed to delete waste entry");
 
-        await Promise.all([loadWasteData(), loadLiveDashboardData()]);
+        if (row) row.remove();
+        showToast("Waste entry removed.", "success");
+        await loadWasteData();
+        loadLiveDashboardData();
     } catch (err) {
-        console.error("❌ Waste removal error:", err);
-        showToast("Failed to remove the waste entry.", "error");
+        if (row) row.classList.remove("removing-row");
+        if (err.name === "AbortError") {
+            showToast("The server took too long — refresh to check whether the entry was removed.", "error");
+        } else {
+            console.error("❌ Waste removal error:", err);
+            showToast("Failed to remove the waste entry.", "error");
+        }
+    } finally {
+        clearTimeout(timeoutId);
+        if (button) {
+            button.disabled = false;
+            button.textContent = originalLabel;
+        }
     }
 }
-END incoming (reyn/ulan) */
+
 function renderTransactionTable(orders) {
     const tbody = document.getElementById("transactionBody");
     if (!tbody) return;
 
-    if (!orders.length) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;color:#aaa;">No transactions yet.</td></tr>`;
+    const search = String(transactionSearch || "").trim().toLowerCase();
+    const filtered = search
+        ? orders.filter(order => {
+            const haystack = [
+                order.customer, order.receiptId,
+                ...(order.items || []).map(item => item.name)
+            ].join(" ").toLowerCase();
+            return haystack.includes(search);
+        })
+        : orders;
+
+    // Cap the rendered rows — the table is a glance at the latest activity.
+    const visible = filtered.slice(0, TRANSACTION_ROW_CAP);
+    const countEl = document.getElementById("transactionCount");
+    if (countEl) {
+        countEl.textContent = search
+            ? `${visible.length} of ${filtered.length} matching`
+            : filtered.length > TRANSACTION_ROW_CAP
+                ? `Showing ${visible.length} of ${filtered.length}`
+                : `${filtered.length} order${filtered.length === 1 ? "" : "s"}`;
+    }
+
+    if (!visible.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="tx-empty">${
+            search ? "No transactions match your search." : "No transactions yet."
+        }</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = orders.map(order => `
-        <tr>
-/* BEGIN incoming (reyn/ulan)
-    tbody.innerHTML = orders.map(order => {
+    tbody.innerHTML = visible.map(order => {
         const isVoided = order.status === "Voided";
         return `
         <tr class="${isVoided ? "voided-row" : ""}">
-END incoming (reyn/ulan) */
             <td>${escapeHtml(order.customer)}</td>
             <td>${escapeHtml(order.cashier || "—")}</td>
             <td>${new Date(order.date).toLocaleString()}</td>
             <td>${escapeHtml(order.receiptId)}${isVoided ? ' <span class="voided-badge">VOIDED</span>' : ""}</td>
             <td>${escapeHtml((order.items || []).map(item => item.name).join(", "))}</td>
-            <td>${getServiceBadge(order.mode)}</td>
-            <td>\u20b1${Number(order.total || 0).toFixed(2)}</td>
+            <td>₱${Number(order.total || 0).toFixed(2)}</td>
         </tr>
     `;
     }).join("");
 }
 
-// ── Date Filter Helper ────────────────────────────────────────────────────────
-function filterOrdersByPeriod(orders, period) {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+// ── Recent Transactions search ─────────────────────────────────────────────
+let transactionSearch = "";
+const TRANSACTION_ROW_CAP = 100;
 
-    return orders.filter(o => {
-        const d = new Date(o.date);
-        if (period === "Day") {
-            return d >= today;
-        } else if (period === "Week") {
-            const weekAgo = new Date(today);
-            weekAgo.setDate(today.getDate() - 6);
-            return d >= weekAgo;
-        } else if (period === "Month") {
-            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-        }
-        return true; // All
+function setupTransactionSearch() {
+    const input = document.getElementById("transactionSearch");
+    if (!input) return;
+    input.addEventListener("input", () => {
+        transactionSearch = input.value;
+        clearTimeout(setupTransactionSearch._t);
+        setupTransactionSearch._t = setTimeout(() => renderTransactionTable(latestOrders || []), 150);
     });
 }
 
-// ── Sales Charts ──────────────────────────────────────────────────────────────
-function renderSalesCharts(orders, products) {
-/* BEGIN incoming (reyn/ulan)
 // Chart colors follow the active theme — Chart.js paints on canvas, so CSS
 // dark-mode rules cannot touch it.
 function getChartTheme() {
@@ -716,8 +776,22 @@ function getChartTheme() {
     };
 }
 
+function filterOrdersByRange(orders, range = activeSalesRange) {
+    if (!Array.isArray(orders) || !orders.length) return [];
+
+    const now = Date.now();
+    const rangeDays = { day: 1, week: 7, month: 30, all: Infinity }[range] || 1;
+    const cutoff = range === "all" ? 0 : now - rangeDays * 24 * 60 * 60 * 1000;
+
+    return orders.filter(order => {
+        if (order.status === "Voided") return false;
+        if (range === "all") return true;
+        const date = new Date(order.date).getTime();
+        return Number.isFinite(date) && date >= cutoff;
+    });
+}
+
 function renderSalesCharts(orders, products, range = activeSalesRange) {
-END incoming (reyn/ulan) */
     if (!window.Chart) return;
 
     const theme = getChartTheme();
@@ -726,340 +800,102 @@ END incoming (reyn/ulan) */
     const radarCanvas = document.getElementById("itemsRadarChart");
     if (!salesCanvas || !radarCanvas) return;
 
-    const filtered = filterOrdersByPeriod(orders, currentSalesFilter);
-    const dailyTotals = filtered.reduce((acc, order) => {
-        const day = new Date(order.date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-/* BEGIN incoming (reyn/ulan)
-    // --- Line chart: daily revenue ---
-    const dailyTotals = orders.reduce((acc, order) => {
-        if (order.status === "Voided") return acc;
+    const filteredOrders = filterOrdersByRange(orders, range);
+
+    const dailyTotals = filteredOrders.reduce((acc, order) => {
         const day = new Date(order.date).toLocaleDateString();
-END incoming (reyn/ulan) */
         acc[day] = (acc[day] || 0) + Number(order.total || 0);
         return acc;
     }, {});
 
-    const lineLabels = Object.keys(dailyTotals);
-    const lineData = lineLabels.map(l => dailyTotals[l]);
-/* BEGIN incoming (reyn/ulan)
     const allDays = Object.keys(dailyTotals);
     const rangeLimit = { day: 7, week: 28, month: 90, all: Infinity }[range] || 7;
     const lineLabels = allDays.slice(-rangeLimit);
-    const lineData   = lineLabels.map(label => dailyTotals[label]);
-END incoming (reyn/ulan) */
+    const lineData = lineLabels.map(label => dailyTotals[label]);
 
     if (salesLineChart) salesLineChart.destroy();
 
-    salesLineChart = new Chart(salesCanvas.getContext("2d"), {
+    salesLineChart = new Chart(salesCanvas, {
         type: "line",
         data: {
-            labels: lineLabels.length ? lineLabels : ["No data"],
+            labels: lineLabels,
             datasets: [{
-                label: "Sales (\u20b1)",
-                data: lineData.length ? lineData : [0],
-                borderColor: "#a67c52",
-                backgroundColor: "rgba(166,124,82,0.12)",
+                label: "Sales",
+                data: lineData,
+                borderColor: "#4e73df",
+                backgroundColor: "rgba(78,115,223,0.1)",
                 fill: true,
-                tension: 0.4,
-                pointBackgroundColor: "#a67c52",
-                pointRadius: 5
+                tension: 0.4
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        label: ctx => `\u20b1${Number(ctx.parsed.y).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
-                    }
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: { callback: v => `\u20b1${v.toLocaleString()}` }
-                }
-/* BEGIN incoming (reyn/ulan)
             plugins: { legend: { display: false } },
             scales: {
                 x: { ticks: { color: theme.text }, grid: { color: theme.grid } },
                 y: { beginAtZero: true, ticks: { color: theme.text }, grid: { color: theme.grid } }
-END incoming (reyn/ulan) */
             }
         }
     });
 
-    renderItemsChart(radarCanvas, products);
-}
-
-function renderItemsChart(canvas, products) {
-    const pillMap = {
-        "Cs & Fs": ["coffee", "frappe"],
-        "RMs & Ps": ["rice", "pasta"],
-        "Snacks": ["snack"]
-    };
-
-    const allowedKeys = currentPillFilter ? (pillMap[currentPillFilter] || null) : null;
-    const filtered = allowedKeys
-        ? products.filter(p => allowedKeys.some(k => (p.category || "").toLowerCase().includes(k)))
-        : products;
-
-    const categoryCounts = filtered.reduce((acc, p) => {
-        const cat = p.category || "Unknown";
-        acc[cat] = (acc[cat] || 0) + 1;
-        return acc;
-    }, {});
-
-    const labels = Object.keys(categoryCounts);
-    const data = labels.map(l => categoryCounts[l]);
-/* BEGIN incoming (reyn/ulan)
-    // --- Category drill-down: per-item bars when a category pill is active ---
     const categoryByProduct = (products || []).reduce((map, product) => {
         map[product.name] = product.category || "Unknown";
         return map;
     }, {});
 
     const radarTitleEl = document.getElementById("radarCardTitle");
+    const itemSource = activeRadarCategory !== "All"
+        ? (products || []).filter(product => (product.category || "Unknown") === activeRadarCategory)
+        : (products || []);
 
-    if (activeRadarCategory !== "All") {
-        const itemCounts = {};
-        (products || []).forEach(product => {
-            if ((product.category || "Unknown") === activeRadarCategory) {
-                itemCounts[product.name] = 0;
-            }
-        });
-        (orders || []).forEach(order => {
-            (order.items || []).forEach(item => {
-                const category = categoryByProduct[item.name] || item.category || "Unknown";
-                if (category === activeRadarCategory) {
-                    itemCounts[item.name] = (itemCounts[item.name] || 0) + Number(item.quantity || 0);
-                }
-            });
-        });
+    const itemCounts = {};
+    itemSource.forEach(product => { itemCounts[product.name] = 0; });
 
-        const itemLabels = Object.keys(itemCounts).sort((a, b) => itemCounts[b] - itemCounts[a]);
-        const itemData   = itemLabels.map(name => itemCounts[name]);
-
-        if (radarTitleEl) radarTitleEl.textContent = `${activeRadarCategory} Items`;
-
-        if (itemsRadarChart) itemsRadarChart.destroy();
-
-        itemsRadarChart = new Chart(radarCanvas, {
-            type: "bar",
-            data: {
-                labels: itemLabels,
-                datasets: [{
-                    label: "Quantity sold",
-                    data: itemData,
-                    backgroundColor: "#a67c52",
-                    borderRadius: 6,
-                    barThickness: 18
-                }]
-            },
-            options: {
-                indexAxis: "y",
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { beginAtZero: true, ticks: { precision: 0, color: theme.text }, grid: { color: theme.grid } },
-                    y: { ticks: { autoSkip: false, color: theme.text }, grid: { color: theme.grid } }
-                }
-            }
-        });
-
-        return;
-    }
-
-    // --- Radar chart: items sold by category (from real orders) ---
-    if (radarTitleEl) radarTitleEl.textContent = "Items Performance";
-
-    const categoryCounts = (orders || []).reduce((acc, order) => {
+    filteredOrders.forEach(order => {
         (order.items || []).forEach(item => {
             const category = categoryByProduct[item.name] || item.category || "Unknown";
-            acc[category] = (acc[category] || 0) + Number(item.quantity || 0);
+            if (activeRadarCategory === "All" || category === activeRadarCategory) {
+                const key = item.name || "Unknown";
+                itemCounts[key] = (itemCounts[key] || 0) + Number(item.quantity || 0);
+            }
         });
-        return acc;
-    }, {});
+    });
 
-    if (Object.keys(categoryCounts).length === 0) {
-        (products || []).forEach(product => {
-            const category = product.category || "Unknown";
-            categoryCounts[category] = (categoryCounts[category] || 0);
-        });
+    const chartLabels = Object.keys(itemCounts).sort((a, b) => itemCounts[b] - itemCounts[a]);
+    const chartData = chartLabels.map(label => itemCounts[label]);
+
+    if (radarTitleEl) {
+        radarTitleEl.textContent = activeRadarCategory === "All" ? "Items Performance" : `${activeRadarCategory} Items`;
     }
-
-    const radarLabels = Object.keys(categoryCounts);
-    const radarData   = radarLabels.map(label => categoryCounts[label]);
-END incoming (reyn/ulan) */
 
     if (itemsRadarChart) itemsRadarChart.destroy();
 
-    itemsRadarChart = new Chart(canvas.getContext("2d"), {
-        type: "radar",
+    itemsRadarChart = new Chart(radarCanvas, {
+        type: "bar",
         data: {
-            labels: labels.length ? labels : ["No data"],
+            labels: chartLabels,
             datasets: [{
-                label: "Items by category",
-                data: data.length ? data : [0],
-                borderColor: "#a67c52",
-                backgroundColor: "rgba(166,124,82,0.2)",
-                pointBackgroundColor: "#a67c52"
+                label: activeRadarCategory === "All" ? "Items sold" : "Quantity sold",
+                data: chartData,
+                backgroundColor: activeRadarCategory === "All" ? "#4e73df" : "#a67c52",
+                borderRadius: 6,
+                barThickness: 18
             }]
         },
         options: {
+            indexAxis: "y",
             responsive: true,
             maintainAspectRatio: false,
-            scales: { r: { beginAtZero: true, ticks: { stepSize: 1 } } }
-/* BEGIN incoming (reyn/ulan)
+            plugins: { legend: { display: false } },
             scales: {
-                r: {
-                    beginAtZero: true,
-                    ticks: { color: theme.text, backdropColor: theme.backdrop },
-                    pointLabels: { color: theme.strong },
-                    grid: { color: theme.grid },
-                    angleLines: { color: theme.grid }
-                }
+                x: { beginAtZero: true, ticks: { precision: 0, color: theme.text }, grid: { color: theme.grid } },
+                y: { ticks: { autoSkip: false, color: theme.text }, grid: { color: theme.grid } }
             }
-END incoming (reyn/ulan) */
         }
     });
 }
 
-// ── Chart Filter Controls ─────────────────────────────────────────────────────
-function setupSalesChartControls(orders, products) {
-    document.querySelectorAll(".filter-tabs .tab").forEach(tab => {
-        const fresh = tab.cloneNode(true);
-        tab.parentNode.replaceChild(fresh, tab);
-        fresh.addEventListener("click", () => {
-            document.querySelectorAll(".filter-tabs .tab").forEach(t => t.classList.remove("active"));
-            fresh.classList.add("active");
-            currentSalesFilter = fresh.textContent.trim();
-            renderSalesCharts(orders, products);
-        });
-    });
-}
-
-function setupItemsPillControls(orders, products) {
-    document.querySelectorAll(".category-pills .pill").forEach(pill => {
-        const fresh = pill.cloneNode(true);
-        pill.parentNode.replaceChild(fresh, pill);
-        fresh.addEventListener("click", () => {
-            const wasActive = fresh.classList.contains("active");
-            document.querySelectorAll(".category-pills .pill").forEach(p => p.classList.remove("active"));
-            if (!wasActive) {
-                fresh.classList.add("active");
-                currentPillFilter = fresh.textContent.trim();
-            } else {
-                currentPillFilter = null;
-            }
-            const radarCanvas = document.getElementById("itemsRadarChart");
-            if (radarCanvas) renderItemsChart(radarCanvas, products);
-        });
-    });
-}
-
-// ── Dynamic Calendar ──────────────────────────────────────────────────────────
-function renderCalendar(orders) {
-    const grid = document.getElementById("calendarGrid");
-    const monthDisplay = document.getElementById("monthDisplay");
-    const yearSelect = document.getElementById("yearSelect");
-    const prevBtn = document.getElementById("prevMonthBtn");
-    const nextBtn = document.getElementById("nextMonthBtn");
-
-    if (!grid || !monthDisplay) return;
-
-    // Populate year select once
-    if (yearSelect && !yearSelect.dataset.populated) {
-        yearSelect.dataset.populated = "1";
-        const thisYear = new Date().getFullYear();
-        for (let y = thisYear - 3; y <= thisYear + 1; y++) {
-            const opt = document.createElement("option");
-            opt.value = y;
-            opt.textContent = y;
-            if (y === calendarDate.getFullYear()) opt.selected = true;
-            yearSelect.appendChild(opt);
-        }
-        yearSelect.addEventListener("change", () => {
-            calendarDate.setFullYear(Number(yearSelect.value));
-            renderCalendar(latestOrders);
-        });
-        if (prevBtn) prevBtn.addEventListener("click", () => {
-            calendarDate.setMonth(calendarDate.getMonth() - 1);
-            renderCalendar(latestOrders);
-        });
-        if (nextBtn) nextBtn.addEventListener("click", () => {
-            calendarDate.setMonth(calendarDate.getMonth() + 1);
-            renderCalendar(latestOrders);
-        });
-    }
-
-    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    monthDisplay.textContent = monthNames[calendarDate.getMonth()];
-    if (yearSelect) yearSelect.value = calendarDate.getFullYear();
-
-    // Build order map: day → total revenue
-    const orderMap = {};
-    const yr = calendarDate.getFullYear();
-    const mo = calendarDate.getMonth();
-    orders.forEach(o => {
-        const d = new Date(o.date);
-        if (d.getFullYear() === yr && d.getMonth() === mo) {
-            const key = d.getDate();
-            orderMap[key] = (orderMap[key] || 0) + Number(o.total || 0);
-        }
-    });
-
-    const firstDay = new Date(yr, mo, 1).getDay();
-    const daysInMonth = new Date(yr, mo + 1, 0).getDate();
-    const today = new Date();
-
-    grid.innerHTML = "";
-
-    // Blank cells before first day
-    for (let i = 0; i < firstDay; i++) {
-        const blank = document.createElement("div");
-        grid.appendChild(blank);
-    }
-
-    // Day cells
-    for (let day = 1; day <= daysInMonth; day++) {
-        const isToday = (today.getFullYear() === yr && today.getMonth() === mo && today.getDate() === day);
-        const revenue = orderMap[day];
-        const hasOrders = revenue !== undefined;
-
-        const cell = document.createElement("div");
-        cell.style.cssText = `
-            width:32px; height:32px; margin:auto;
-            border-radius:50%;
-            display:flex; flex-direction:column;
-            align-items:center; justify-content:center;
-            font-size:0.8rem; font-weight:600;
-            cursor:${hasOrders ? "pointer" : "default"};
-            position:relative;
-            background:${isToday ? "#a67c52" : "transparent"};
-            color:${isToday ? "#fff" : "inherit"};
-            border:${hasOrders && !isToday ? "2px solid #a67c52" : "none"};
-            transition:background 0.2s;
-        `;
-        cell.textContent = day;
-
-        if (hasOrders) {
-            const dot = document.createElement("div");
-            dot.style.cssText = `position:absolute;bottom:2px;width:5px;height:5px;border-radius:50%;background:${isToday ? "#fff" : "#a67c52"};`;
-            cell.appendChild(dot);
-            cell.title = `\u20b1${revenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
-            cell.addEventListener("mouseenter", () => { if (!isToday) cell.style.background = "#f5e8da"; });
-            cell.addEventListener("mouseleave", () => { if (!isToday) cell.style.background = "transparent"; });
-        }
-
-        grid.appendChild(cell);
-    }
-}
-
-/* BEGIN incoming (reyn/ulan)
 // ── Orders & Revenue bar chart (usage analytics) ──────────────────────────
 
 function renderUsageChart(orders, range = activeSalesRange) {
@@ -1273,4 +1109,3 @@ function renderCalendar() {
 
     calendarGrid.innerHTML = html;
 }
-END incoming (reyn/ulan) */

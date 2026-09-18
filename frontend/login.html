@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Season 3 - Login</title>
-    <link rel="stylesheet" href="login.css?v=11">
+    <link rel="stylesheet" href="login.css">
     <link rel="stylesheet" href="css/cup-transition.css?v=3">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -54,12 +54,56 @@
 </head>
 <body>
 
+    <!-- Warm blurred cafe photo wall behind the login card -->
+    <div class="cafe-wall" aria-hidden="true">
+        <img src="assets/coffee_biscoff.jpg" alt="">
+        <img src="assets/frappe_matcha.jpg" alt="">
+        <img src="assets/pasta_truffle.jpg" alt="">
+        <img src="assets/rm_chickten.jpg" alt="">
+        <img src="assets/coffee_spanlatte.jpg" alt="">
+    </div>
+
+    <!-- Coffee steam rising from behind the login card -->
+    <div class="login-steam" aria-hidden="true">
+        <span class="steam steam-1"></span>
+        <span class="steam steam-2"></span>
+        <span class="steam steam-3"></span>
+    </div>
+
     <div class="login-page-container">
+
+        <!-- Peek-a-boo coffee cup character sitting on the card's top edge -->
+        <div class="peek-cup" id="peekCup" aria-hidden="true">
+            <div class="peek-cup-body">
+                <div class="peek-cup-coffee"></div>
+                <span class="peek-steam s1"></span>
+                <span class="peek-steam s2"></span>
+                <span class="peek-sweat"></span>
+                <span class="peek-heart"></span>
+                <div class="peek-eyes">
+                    <div class="peek-eye"><span class="peek-pupil"></span></div>
+                    <div class="peek-eye"><span class="peek-pupil"></span></div>
+                </div>
+                <div class="peek-mouth"></div>
+                <div class="peek-blush peek-blush-l"></div>
+                <div class="peek-blush peek-blush-r"></div>
+                <div class="peek-cup-handle"></div>
+                <div class="peek-arm peek-arm-l"><span class="peek-arm-fore"></span></div>
+                <div class="peek-arm peek-arm-r"><span class="peek-arm-fore"></span></div>
+                <div class="peek-foot peek-foot-l"><span class="peek-foot-shin"></span></div>
+                <div class="peek-foot peek-foot-r"><span class="peek-foot-shin"></span></div>
+            </div>
+        </div>
         
         <div class="date-badge" id="loginDateDisplay">Loading date...</div>
 
         <div class="logo-container">
             <img src="assets/logo.png" alt="Season 3 Kitchen and Cafe Logo" class="brand-logo">
+        </div>
+
+        <div class="brand-block">
+            <h1 class="brand-title">Season 3 Kitchen &amp; Cafe</h1>
+            <p class="brand-sub">Point of Sale</p>
         </div>
 
         <form id="loginForm" class="login-form" novalidate>
@@ -105,6 +149,7 @@
     </div>
 
     <script src="js/passwordToggle.js?v=11"></script>
+    <script src="js/peekCup.js"></script>
     <script src="js/logoutTransition.js"></script>
     <script src="login.js"></script>
 </body>

@@ -1,0 +1,9 @@
+flowchart TD
+    A["Device opens app"] --> B{"Online?"}
+    B -- "YES" --> C["Normal operation"]
+    B -- "NO" --> D["Service worker + cached menu<br/>PRODUCTS_CACHE_KEY"]
+    D --> E["Sell / log waste normally"]
+    E --> F["Queue in localStorage<br/>posOfflineOrders / posOfflineWaste"]
+    F --> G{"Retry every 30 s<br/>or Sync-now button"}
+    G -- "still unreachable" --> F
+    G -- "success" --> H["Queue flushed → server applies<br/>same stock + shortage rules"]

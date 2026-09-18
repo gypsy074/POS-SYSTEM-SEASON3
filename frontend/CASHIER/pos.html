@@ -13,10 +13,11 @@
     <!-- Offline status banner (shown when the connection drops) -->
     <div class="offline-banner" id="offlineBanner" style="display: none;">
         <i class="fa-solid fa-wifi"></i>
-        <span id="offlineBannerText">You're offline â€” orders will be saved and synced automatically.</span>
+        <span id="offlineBannerText">You're offline — orders will be saved and synced automatically.</span>
+        <button type="button" class="offline-sync-btn" id="offlineSyncBtn"><i class="fa-solid fa-rotate"></i> Sync now</button>
     </div>
 
-    <!-- Phone not supported â€” the cashier is built for tablets and desktops -->
+    <!-- Phone not supported — the cashier is built for tablets and desktops -->
     <div class="device-block" id="deviceBlock">
         <div class="device-block-card">
             <i class="fa-solid fa-laptop"></i>
@@ -42,23 +43,13 @@
 
                 <div class="nav-controls">
                     <!-- <button class="icon-nav menu-trigger"><i class="fa-solid fa-bars"></i></button> -->
-                    <button class="icon-nav notification-trigger"><i class="fa-solid fa-bell"></i></button>
-                    <div class="user-dropdown-container" id="cashierDropdownContainer">
-                        <div class="user-badge" id="cashierBadge">
-                            <img src="https://ui-avatars.com/api/?name=Pranselen&background=6b4f3b&color=fff" alt="User">
-                            <div class="user-meta">
-                                <span class="username" id="cashierUsername">Pranselen</span>
-                                <span class="role" id="cashierRole">Cashier</span>
-                            </div>
-                            <i class="fa-solid fa-chevron-down user-dropdown-chevron"></i>
-                        </div>
-                        <div class="user-dropdown-menu" id="cashierDropdownMenu">
-                            <button class="user-dropdown-item logout-item" id="cashierLogoutBtn">
-                                <i class="fa-solid fa-right-from-bracket"></i>
-                                Log out
-<!-- BEGIN incoming (reyn/ulan)
+                    <button class="icon-nav" id="cashierDarkModeBtn" title="Toggle dark mode"><i class="fa-solid fa-moon"></i></button>
                     <button class="icon-nav" id="soundToggleBtn" title="Mute sounds"><i class="fa-solid fa-volume-high"></i></button>
                     <button class="icon-nav" id="historyTrigger" title="My order history"><i class="fa-solid fa-clock-rotate-left"></i></button>
+                    <div class="server-status" id="cashierServerStatus">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Checking...</span>
+                    </div>
                     <div class="notification-wrap">
                         <button class="icon-nav notification-trigger" id="notificationTrigger">
                             <i class="fa-solid fa-bell"></i>
@@ -87,9 +78,36 @@
                             <button type="button" class="profile-dropdown-item" id="cashierAccountBtn">
                                 <i class="fa-solid fa-user-shield"></i> My Account & sessions
                             </button>
+                            <div class="printer-settings" id="printerSettings">
+                                <div class="printer-settings-title"><i class="fa-solid fa-print"></i> Receipt printer</div>
+                                <label class="printer-settings-row">
+                                    <span>Paper width</span>
+                                    <select id="printWidthSel">
+                                        <option value="80">80 mm</option>
+                                        <option value="58">58 mm</option>
+                                    </select>
+                                </label>
+                                <label class="printer-settings-row">
+                                    <span>Printing mode</span>
+                                    <select id="printModeSel">
+                                        <option value="dialog">Browser dialog</option>
+                                        <option value="bridge">Bluetooth app (silent)</option>
+                                    </select>
+                                </label>
+                                <label class="printer-settings-row printer-settings-url" id="printBridgeRow" hidden>
+                                    <span>App address</span>
+                                    <input type="url" id="printBridgeUrl" placeholder="http://127.0.0.1:8080" spellcheck="false">
+                                </label>
+                                <label class="printer-settings-row">
+                                    <span>Kitchen/barista ticket</span>
+                                    <input type="checkbox" id="printKotToggle" class="printer-settings-checkbox" checked>
+                                </label>
+                                <button type="button" class="printer-settings-save" id="printSettingsSave">Save printer settings</button>
+                                <button type="button" class="printer-settings-test" id="printSettingsTest">Test print</button>
+                                <span class="printer-settings-status" id="printSettingsStatus"></span>
+                            </div>
                             <button type="button" class="profile-dropdown-item" id="cashierLogoutBtn">
                                 <i class="fa-solid fa-sign-out-alt"></i> Log out
-END incoming (reyn/ulan) -->
                             </button>
                         </div>
                     </div>
@@ -116,14 +134,10 @@ END incoming (reyn/ulan) -->
                 <button class="mode-btn" data-mode="Online Order">Online Order</button>
             </nav>
 
-            <div class="form-row">
-                <div class="input-field">
+            <div class="form-row customer-name-row">
+                <div class="input-field" style="width: 100%;">
                     <label>Customer's name</label>
                     <input type="text" id="customerNameInput" placeholder="Name">
-                </div>
-                <div class="input-field">
-                    <label>Table No.</label>
-                    <input type="text" id="tableNoInput" placeholder="00">
                 </div>
             </div>
 
@@ -131,6 +145,7 @@ END incoming (reyn/ulan) -->
                 <div class="receipt-title">
                     <h2>Order Summary</h2>
                 </div>
+                <button class="view-cart-btn" id="cartViewAllBtn" type="button" title="View full order"><i class="fa-solid fa-list-ul"></i></button>
                 <button class="cancel-order-btn" id="cancelOrderBtn" type="button">Cancel</button>
                 <button class="cancel-order-btn waste-log-btn" id="logWasteBtn" type="button"><i class="fa-solid fa-recycle"></i> Waste</button>
             </div>
@@ -150,7 +165,7 @@ END incoming (reyn/ulan) -->
                 </select>
                 <div class="waste-row">
                     <input type="number" id="wasteQty" placeholder="Qty" min="0" step="0.01">
-                    <input type="number" id="wastePrice" placeholder="Unit price" min="0" step="0.01">
+                    <input type="number" id="wastePrice" placeholder="Total cost" min="0" step="0.01">
                 </div>
                 <div class="waste-actions">
                     <button type="button" class="waste-save-btn" id="wasteSaveBtn">Save Waste</button>
@@ -160,10 +175,30 @@ END incoming (reyn/ulan) -->
 
             <div class="cart-items" id="cartContainer"></div>
 
-            <div class="checkout-area">
+<div class="checkout-area">
                 <div class="total-summary">
                     <span>Total Order</span>
-                    <span class="total-price" id="totalPrice">â‚±0.00</span>
+                    <span class="total-price" id="totalPrice">₱0.00</span>
+                </div>
+                <div class="discount-summary hidden" id="discountSummary">
+                    <span>Senior Discount (20%)</span>
+                    <span class="discount-amount" id="discountAmountLabel">−₱0.00</span>
+                </div>
+
+                <button type="button" class="senior-discount-chip" id="seniorDiscountChip" aria-expanded="false">
+                    <i class="fa-solid fa-id-card"></i>
+                    <span>Senior (20%)</span>
+                    <i class="fa-solid fa-chevron-down senior-chip-chevron"></i>
+                </button>
+                <div class="senior-discount-panel hidden" id="seniorDiscountPanel">
+                    <label class="senior-discount-toggle">
+                        <input type="checkbox" id="seniorDiscountToggle">
+                        <span class="senior-discount-label">Apply 20% discount</span>
+                    </label>
+                    <div class="senior-discount-fields hidden" id="seniorDiscountFields">
+                        <input type="text" id="seniorIdInput" placeholder="SC/PWD ID number" maxlength="40" autocomplete="off">
+                        <input type="text" id="seniorNameInput" placeholder="Customer name" maxlength="80" autocomplete="off">
+                    </div>
                 </div>
 
                 <div class="payment-options">
@@ -184,18 +219,11 @@ END incoming (reyn/ulan) -->
                     <button type="button" class="calc-open-btn" id="calcOpenBtn" title="Cash calculator">
                         <i class="fa-solid fa-calculator"></i>
                     </button>
-                    <span class="cash-chip">Received <strong id="cashReceivedChip">â‚±0.00</strong></span>
-                    <span class="cash-chip">Change <strong id="cashChangeChip">â‚±0.00</strong></span>
+                    <span class="cash-chip">Received <strong id="cashReceivedChip">₱0.00</strong></span>
+                    <span class="cash-chip">Change <strong id="cashChangeChip">₱0.00</strong></span>
                 </div>
 
-                <div class="slide-button-container">
-                    <div class="slide-track" id="swipeTrack">
-                        <div class="slider-thumb" id="swipeThumb">
-                            <i class="fa-solid fa-chevron-right"></i>
-                        </div>
-                        <span class="btn-text" id="swipeText">Swipe to Place Order â‚±0.00</span>
-                    </div>
-                </div>
+                <button type="button" class="place-order-btn" id="placeOrderBtn">Place Order</button>
             </div>
         </aside>
     </div>
@@ -228,18 +256,18 @@ END incoming (reyn/ulan) -->
                 </div>
                 <div class="change-display">
                     <span>Change</span>
-                    <strong id="changeAmount">â‚±0.00</strong>
+                    <strong id="changeAmount">₱0.00</strong>
                 </div>
             </div>
 
             <div class="quick-tender-chips">
                 <button type="button" class="tender-chip" data-amount="exact">Exact</button>
-                <button type="button" class="tender-chip" data-amount="20">â‚±20</button>
-                <button type="button" class="tender-chip" data-amount="50">â‚±50</button>
-                <button type="button" class="tender-chip" data-amount="100">â‚±100</button>
-                <button type="button" class="tender-chip" data-amount="200">â‚±200</button>
-                <button type="button" class="tender-chip" data-amount="500">â‚±500</button>
-                <button type="button" class="tender-chip" data-amount="1000">â‚±1000</button>
+                <button type="button" class="tender-chip" data-amount="20">₱20</button>
+                <button type="button" class="tender-chip" data-amount="50">₱50</button>
+                <button type="button" class="tender-chip" data-amount="100">₱100</button>
+                <button type="button" class="tender-chip" data-amount="200">₱200</button>
+                <button type="button" class="tender-chip" data-amount="500">₱500</button>
+                <button type="button" class="tender-chip" data-amount="1000">₱1000</button>
             </div>
 
             <div class="calc-keypad" id="calcKeypad">
@@ -277,12 +305,12 @@ END incoming (reyn/ulan) -->
             <div class="history-stat">
                 <span>Today</span>
                 <strong id="historyTodayCount">0</strong>
-                <small>orders placed</small>
+                <small>Orders Placed</small>
             </div>
             <div class="history-stat">
                 <span>Today's sales</span>
-                <strong id="historyTodayRevenue">â‚±0.00</strong>
-                <small>my revenue</small>
+                <strong id="historyTodayRevenue">₱0.00</strong>
+                <small>My revenue</small>
             </div>
         </div>
 
@@ -295,8 +323,21 @@ END incoming (reyn/ulan) -->
         <div class="history-detail" id="historyDetail"></div>
     </aside>
 
+    <!-- Full current-order slide-out panel (opens from the list icon) -->
+    <div class="cart-drawer-backdrop" id="cartDrawerBackdrop"></div>
+    <aside class="cart-drawer" id="cartDrawer" aria-hidden="true">
+        <div class="cart-drawer-head">
+            <h3><i class="fa-solid fa-cart-shopping"></i> Full Order</h3>
+            <span class="order-id" id="cartDrawerOrderId">generating...</span>
+            <button type="button" class="cart-drawer-close" id="cartDrawerCloseBtn" title="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="cart-drawer-list" id="cartDrawerList"></div>
+        <div class="cart-drawer-foot" id="cartDrawerFoot"></div>
+    </aside>
+
+            <script src="../js/lottie-anim.js"></script>
             <script src="pos.js"></script>
-            <script src="../ADMIN/js/account.js?v=37"></script>
+            <script src="../ADMIN/js/account.js?v=39"></script>
             <script src="../js/logoutTransition.js"></script>
 </body>
 

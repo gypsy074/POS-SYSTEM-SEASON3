@@ -153,7 +153,8 @@ const HEADER_VIEW_TITLES = {
     "menu-view":       { icon: "fa-utensils", title: "Add Menu" },
     "inventory-view":  { icon: "fa-boxes-stacked", title: "Inventory" },
     "waste-view":      { icon: "fa-recycle", title: "Waste Food" },
-    "audit-view":      { icon: "fa-scroll", title: "Audit Log" }
+    "audit-view":      { icon: "fa-scroll", title: "Audit Log" },
+    "settings-view":   { icon: "fa-gear", title: "Settings" }
 };
 
 function updateHeaderCenter() {
@@ -186,7 +187,8 @@ function refreshCurrentPanel() {
         if (activePanelId === "inventory-view") return loadLiveInventoryData();
         if (activePanelId === "waste-view")     return loadWasteData();
         if (activePanelId === "audit-view")     return loadAuditData();
-        return loadLiveDashboardData();
+        if (activePanelId === "settings-view")  return loadSettings();
+        return loadLiveDashboardData(true); // force — bypass the 30s orders cache
     })();
     return Promise.resolve(job).finally(() => {
         if (btn) btn.classList.remove("spinning");
