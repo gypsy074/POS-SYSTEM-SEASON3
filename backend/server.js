@@ -782,6 +782,7 @@ app.get('/api/health', (req, res) => {
     res.status(mongoConnected ? 200 : 503).json({
         ok: mongoConnected,
         mongo: mongoConnected ? 'connected' : 'disconnected',
+        database: mongoConnected ? (mongoose.connection.db?.databaseName || 'unknown') : null,
         email: emailConfigured ? 'configured' : 'not-configured'
     });
 });
@@ -789,6 +790,7 @@ app.get('/api/health', (req, res) => {
 // ---------------------- ORDER ENDPOINTS (CASHIER / ADMIN) ----------------------
 app.get('/api/orders', authRequired(), async (req, res) => {
     try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
         // Optional bounded fetch: ?days=90&limit=5000 keeps the dashboard fast
         // as the canteen grows; omitted params keep the original full-fetch
         // behavior for any other caller.
@@ -892,6 +894,8 @@ const payload = await normalizeOrderPayload(req.body);
             { name: { $in: payload.items.map(i => i.name) }, stock: { $lte: 0 } },
             { status: "Out of Stock" }
         );
+
+        console.log(`✅ Order persisted: receipt ${payload.receiptId}, id ${newOrder._id}, database ${mongoose.connection.db?.databaseName || 'unknown'}`);
 
         // 4) Fire-and-forget owner alert when an item drops below its
         //    threshold (deduped to one email per item per day).

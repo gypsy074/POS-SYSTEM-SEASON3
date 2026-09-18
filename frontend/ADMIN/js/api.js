@@ -49,7 +49,10 @@ function apiFetch(path, options = {}) {
         headers["Authorization"] = `Bearer ${token}`;
     }
 
-    return fetch(`${API_BASE_URL}${path}`, { ...options, headers }).then(response => {
+    const fetchOptions = path.startsWith("/api/orders")
+        ? { cache: "no-store", ...options, headers }
+        : { ...options, headers };
+    return fetch(`${API_BASE_URL}${path}`, fetchOptions).then(response => {
         if (response.status === 401 && !path.includes("/api/login")) {
             // Session missing/expired — send the user back to login.
             redirectToLogin();
