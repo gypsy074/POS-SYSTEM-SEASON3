@@ -80,45 +80,6 @@ if (!mongoUri) {
 }
 
 mongoose.connection.on('connected', () => {
-<<<<<<< HEAD
-    const dbName = mongoose.connection.db?.databaseName || 'unknown';
-    console.log(`Connected to MongoDB Atlas — Database: "${dbName}"`);
-});
-
-mongoose.connection.on('error', err => {
-    console.error('Database Connection Error:', err.message);
-});
-
-mongoose.connection.on('disconnected', () => {
-    console.warn('MongoDB disconnected.');
-});
-
-async function start() {
-    try {
-        await mongoose.connect(mongoUri, {
-            serverSelectionTimeoutMS: 10000,
-            retryWrites: true,
-            maxPoolSize: 10
-        });
-
-        console.log('MongoDB connection established');
-
-        app.get('/health', (req, res) => {
-            res.json({ ok: true, mongo: 'connected' });
-        });
-
-        const port = process.env.PORT || 3000;
-        app.listen(port, () => {
-            console.log(`Server listening on port ${port}`);
-        });
-    } catch (err) {
-        console.error('Initial MongoDB Connection Failed:', err.message);
-        process.exit(1);
-    }
-}
-
-start();
-=======
     const dbName = mongoose.connection.db?.databaseName || 'unknown';
     console.log(`✅ [MongoDB] Connected to MongoDB Atlas — Database: "${dbName}"`);
 });
@@ -133,41 +94,12 @@ mongoose.connection.on('disconnected', () => {
 
 mongoose.connect(mongoUri, {
     serverSelectionTimeoutMS: 10000,
-    retryWrites: true
-if (!mongoUri) {
-    console.error('FATAL: MONGO_URI is not defined in .env file. Server cannot start.');
-    process.exit(1);
-}
-
-mongoose.connection.on('connected', () => {
-        const dbName = mongoose.connection.db?.databaseName || 'unknown';
-        console.log(`✅ [MongoDB] Connected to MongoDB Atlas — Database: "${dbName}"`);
-});
-
-mongoose.connection.on('error', err => {
-        console.error(`❌ [MongoDB] Database Connection Error:`, err.message);
-});
-
-mongoose.connection.on('disconnected', () => {
-        console.warn(`❌ [MongoDB] Disconnected. Attempting to reconnect...`);
-});
-
-mongoose.connect(mongoUri, {
-        serverSelectionTimeoutMS: 10000,
-        retryWrites: true,
-        maxPoolSize: 10
+    retryWrites: true,
+    maxPoolSize: 10
 }).catch(err => {
-        console.error(`❌ [MongoDB] Initial Connection Failed:`, err.message);
-        console.error('   → Check your MONGO_URI in .env and ensure your IP is whitelisted in Atlas.');
+    console.error(`❌ [MongoDB] Initial Connection Failed:`, err.message);
+    console.error('   → Check your MONGO_URI in .env and ensure your IP is whitelisted in Atlas.');
 });
-    price: { type: Number, required: true, min: 0 },
-    status: { type: String, default: "Available" },
-    image: { type: String, default: "" },
-    stock: { type: Number, default: 999, min: 0 },
-    lowStockThreshold: { type: Number, default: 10, min: 0 },
-    date: { type: String, default: () => new Date().toLocaleDateString() }
-});
-const Product = mongoose.model('Product', productSchema);
 
 // --- Crew User Account Schema Configuration ---
 const userSchema = new mongoose.Schema({
@@ -252,7 +184,7 @@ function normalizePaymentMethod(value) {
 
 function normalizeWastePayload(input) {
     const quantity = Math.max(0.001, Number(input.quantity) || 0);
-    const price    = Math.max(0, Number(input.price) || 0);
+    const price = Math.max(0, Number(input.price) || 0);
     return {
         productName: String(input.productName || "").trim() || "Unknown Item",
         category: String(input.category || "Uncategorized").trim() || "Uncategorized",
@@ -312,7 +244,7 @@ function writeLog(action, actor = "", targetId = "", detail = "") {
         actor: String(actor || "").slice(0, 100),
         targetId: String(targetId || ""),
         detail: String(detail || "").slice(0, 500)
-    }).catch(() => {});
+    }).catch(() => { });
 }
 
 // Throttled "last seen" tracker — at most one DB write per user per 60s,
@@ -324,7 +256,7 @@ function touchUserActivity(userId) {
     const now = Date.now();
     if (now - (activityThrottle.get(key) || 0) < 60 * 1000) return;
     activityThrottle.set(key, now);
-    User.updateOne({ _id: userId }, { $set: { lastActiveAt: new Date() } }).catch(() => {});
+    User.updateOne({ _id: userId }, { $set: { lastActiveAt: new Date() } }).catch(() => { });
 }
 
 function signToken(user) {
