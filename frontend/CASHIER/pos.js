@@ -2039,8 +2039,9 @@ async function sendToThermalBridge(order, settings) {
     }
     try {
         let body = buildReceiptText(order);
+        body += "\x1D\x56\x40"; // ESC/POS cut command (no leading \n - must be at very end)
         if (settings.kot !== false) {
-            body += "\n---- CUT HERE ----\n" + buildKotText(order);
+            body += "\n\x1D\x56\x40"; // Additional cut command after KOT
         }
         const response = await fetch(url, {
             method: "POST",
