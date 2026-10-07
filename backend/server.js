@@ -32,7 +32,7 @@ app.set('trust proxy', 1);
 // a fatal misconfiguration, not a local convenience.
 const JWT_SECRET = process.env.JWT_SECRET || (process.env.RENDER ? null : 'season3-pos-dev-secret');
 if (!JWT_SECRET) {
-    console.error('❌ FATAL: JWT_SECRET is not set on this Render service.');
+    console.error('FATAL: JWT_SECRET is not set on this Render service.');
     console.error('   Add it under Render → Environment (e.g. from "node -e ' + "'console.log(require('crypto').randomBytes(32).toString('hex')))" + '" ), then redeploy.');
     process.exit(1);
 }
@@ -83,7 +83,7 @@ app.use((req, res, next) => {
         const isError = res.statusCode >= 500;
         if (!isPageLoad && !isAction && !isError) return;
         const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress;
-        console.log(`👁 ${new Date().toLocaleTimeString()} ${res.statusCode} ${req.method} ${url} · ${ip} · ${(req.get('user-agent') || '').slice(0, 60)}`);
+        console.log(`${new Date().toLocaleTimeString()} ${res.statusCode} ${req.method} ${url} - ${ip} - ${(req.get('user-agent') || '').slice(0, 60)}`);
     });
     next();
 });
@@ -115,28 +115,28 @@ const DUMMY_BCRYPT_HASH = '$2b$10$ar11.Gs8ucHBPvwSbx/DIOCAxZ4jmsGIqh6Zi/oI0in4E9
 const mongoUri = process.env.MONGO_URI;
 
 if (!mongoUri) {
-    console.error('❌ FATAL: MONGO_URI is not defined in .env file. Server cannot start.');
+    console.error('FATAL: MONGO_URI is not defined in .env file. Server cannot start.');
     process.exit(1);
 }
 
 mongoose.connection.on('connected', () => {
     const dbName = mongoose.connection.db?.databaseName || 'unknown';
-    console.log(`✅ [MongoDB] Connected to MongoDB Atlas — Database: "${dbName}"`);
+    console.log(`[MongoDB] Connected to MongoDB Atlas - Database: "${dbName}"`);
 });
 
 mongoose.connection.on('error', err => {
-    console.error(`❌ [MongoDB] Database Connection Error:`, err.message);
+    console.error(`[MongoDB] Database Connection Error:`, err.message);
 });
 
 mongoose.connection.on('disconnected', () => {
-    console.warn(`❌ [MongoDB] Disconnected. Attempting to reconnect...`);
+    console.warn(`[MongoDB] Disconnected. Attempting to reconnect...`);
 });
 
 mongoose.connect(mongoUri, {
     serverSelectionTimeoutMS: 10000,
     retryWrites: true
 }).catch(err => {
-    console.error(`❌ [MongoDB] Initial Connection Failed:`, err.message);
+    console.error(`[MongoDB] Initial Connection Failed:`, err.message);
     console.error('   → Check your MONGO_URI in .env and ensure your IP is whitelisted in Atlas.');
 });
 
@@ -164,7 +164,7 @@ const orderSchema = new mongoose.Schema({
     date: { type: Date, default: Date.now },
     receiptId: { type: String, default: () => String(Date.now()).slice(-8) },
     items: { type: [orderItemSchema], default: [] },
-total: { type: Number, default: 0, min: 0 },
+    total: { type: Number, default: 0, min: 0 },
     tendered: { type: Number, default: 0, min: 0 },
     change: { type: Number, default: 0, min: 0 },
     // Senior/PWD discount — server computes the amounts, never trusts the
@@ -276,6 +276,7 @@ const Category = mongoose.model('Category', categorySchema);
 // toggles, and the dedup state (per-item low-stock and per-day summary).
 const ownerAlertSettingsSchema = new mongoose.Schema({
     _id: { type: String, default: 'owner-alerts' },
+    dailySalesTarget: { type: Number, default: 0, min: 0 },
     recipients: { type: [String], default: [] },
     lowStockEnabled: { type: Boolean, default: true },
     dailySummaryEnabled: { type: Boolean, default: true },
@@ -317,11 +318,11 @@ function normalizePaymentMethod(value) {
 
 function normalizeWastePayload(input) {
     const quantity = Math.max(0.001, Number(input.quantity) || 0);
-    const price    = Math.max(0, Number(input.price) || 0);
+    const price = Math.max(0, Number(input.price) || 0);
     return {
         productName: String(input.productName || "").trim() || "Unknown Item",
         category: String(input.category || "Uncategorized").trim() || "Uncategorized",
-cashier: String(input.cashier || "").trim(),
+        cashier: String(input.cashier || "").trim(),
         quantity,
         price,
         totalCost: Number((quantity * price).toFixed(2)),
@@ -367,22 +368,15 @@ async function shiftLinkedSupplies(productName, quantity, sign) {
     if (!product) return [];
     const supplies = await InventoryItem.find({ menuProductId: product._id });
     if (!supplies.length) return [];
-    const ops = supplies.map(item => {
-        const delta = quantity * Math.max(0, Number(item.unitsPerSale) || 0) * sign;
-        return delta === 0 ? null : InventoryItem.updateOne(
-            { _id: item._id },
-            { $inc: { stock: delta } }
-        );
-    }).filter(Boolean);
-    await Promise.all(ops);
-    await InventoryItem.updateMany(
-        { menuProductId: product._id, stock: { $lte: 0 } },
-        { status: "Sold Out" }
-    );
-    await InventoryItem.updateMany(
-        { menuProductId: product._id, stock: { $gt: 0 } },
-        { status: "Available" }
-    );
+    await Promise.all(supplies.map(async item => {
+        const unitsPerSale = Number.isFinite(Number(item.unitsPerSale))
+            ? Math.max(0, Number(item.unitsPerSale))
+            : 1;
+        const delta = quantity * unitsPerSale * sign;
+        item.stock = Math.max(0, (Number(item.stock) || 0) + delta);
+        item.status = item.stock > 0 ? "Available" : "Out of Stock";
+        await item.save();
+    }));
     return supplies;
 }
 
@@ -485,7 +479,7 @@ function writeLog(action, actor = "", targetId = "", detail = "") {
         actor: String(actor || "").slice(0, 100),
         targetId: String(targetId || ""),
         detail: String(detail || "").slice(0, 500)
-    }).catch(() => {});
+    }).catch(() => { });
 }
 
 // Throttled "last seen" tracker — at most one DB write per user per 60s,
@@ -497,7 +491,7 @@ function touchUserActivity(userId) {
     const now = Date.now();
     if (now - (activityThrottle.get(key) || 0) < 60 * 1000) return;
     activityThrottle.set(key, now);
-    User.updateOne(idMatchFilter(userId), { $set: { lastActiveAt: new Date() } }).catch(() => {});
+    User.updateOne(idMatchFilter(userId), { $set: { lastActiveAt: new Date() } }).catch(() => { });
 }
 
 function signToken(user) {
@@ -567,7 +561,7 @@ async function cleanupLegacyOrderFields() {
             $unset: { flagged: "", flaggedAt: "", flaggedReason: "", resolved: "", resolvedAt: "" }
         });
         if (result.modifiedCount > 0) {
-            console.log(`🧹 Cleaned legacy wrong-order fields from ${result.modifiedCount} order(s).`);
+            console.log(`Cleaned legacy wrong-order fields from ${result.modifiedCount} order(s).`);
         }
     } catch (err) {
         console.error('❌ Legacy order field cleanup failed:', err.message);
@@ -585,17 +579,17 @@ async function cleanupLegacyProductStock() {
             { $set: { stock: 999, lowStockThreshold: 10 } }
         );
         if (missing.modifiedCount > 0) {
-            console.log(`📦 Backfilled stock/threshold for ${missing.modifiedCount} legacy product(s).`);
+            console.log(`Backfilled stock/threshold for ${missing.modifiedCount} legacy product(s).`);
         }
         const clamped = await Product.updateMany(
             { stock: { $lt: 0 } },
             { $set: { stock: 0, status: "Out of Stock" } }
         );
         if (clamped.modifiedCount > 0) {
-            console.log(`🔻 Clamped ${clamped.modifiedCount} product(s) with negative stock to 0.`);
+            console.log(`Clamped ${clamped.modifiedCount} product(s) with negative stock to 0.`);
         }
     } catch (err) {
-        console.error('❌ Legacy product stock cleanup failed:', err.message);
+        console.error('Legacy product stock cleanup failed:', err.message);
     }
 }
 
@@ -790,8 +784,8 @@ app.get('/api/health', (req, res) => {
 // ---------------------- ORDER ENDPOINTS (CASHIER / ADMIN) ----------------------
 app.get('/api/orders', authRequired(), async (req, res) => {
     try {
-    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
-        // Optional bounded fetch: ?days=90&limit=5000 keeps the dashboard fast
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+        // Optional bounded fetch: ?days=3650&limit=5000 supports multi-year analytics
         // as the canteen grows; omitted params keep the original full-fetch
         // behavior for any other caller.
         const query = {};
@@ -799,7 +793,7 @@ app.get('/api/orders', authRequired(), async (req, res) => {
             query.cashier = req.user.username;
         }
         const days = parseInt(req.query.days, 10);
-        if (Number.isInteger(days) && days > 0 && days <= 365) {
+        if (Number.isInteger(days) && days > 0 && days <= 3650) {
             query.date = { $gte: new Date(Date.now() - days * 86400000) };
         }
         let find = Order.find(query).sort({ _id: -1 });
@@ -817,7 +811,7 @@ app.get('/api/orders', authRequired(), async (req, res) => {
 // order instead of creating a duplicate (offline-queue retries).
 app.post('/api/orders', authRequired(), async (req, res) => {
     try {
-const payload = await normalizeOrderPayload(req.body);
+        const payload = await normalizeOrderPayload(req.body);
         if (!Array.isArray(payload.items) || !payload.items.length) {
             return res.status(400).json({ error: 'Order must include at least one item.' });
         }
@@ -848,7 +842,10 @@ const payload = await normalizeOrderPayload(req.body);
             }
             const supplies = await InventoryItem.find({ menuProductId: product._id });
             for (const supply of supplies) {
-                const needed = item.quantity * Math.max(0, Number(supply.unitsPerSale) || 0);
+                const unitsPerSale = Number.isFinite(Number(supply.unitsPerSale))
+                    ? Math.max(0, Number(supply.unitsPerSale))
+                    : 1;
+                const needed = item.quantity * unitsPerSale;
                 if (needed > 0 && (Number(supply.stock) || 0) < needed) {
                     shortages.push({
                         name: `${item.name} (needs ${supply.productName})`,
@@ -881,7 +878,7 @@ const payload = await normalizeOrderPayload(req.body);
             throw err;
         }
 
-// 3) Deduct stock, then auto-flag sold-out items.
+        // 3) Deduct stock, then auto-flag sold-out items.
         for (const item of payload.items) {
             await Product.updateOne(
                 { name: item.name },
@@ -895,14 +892,14 @@ const payload = await normalizeOrderPayload(req.body);
             { status: "Out of Stock" }
         );
 
-        console.log(`✅ Order persisted: receipt ${payload.receiptId}, id ${newOrder._id}, database ${mongoose.connection.db?.databaseName || 'unknown'}`);
+        console.log(`Order persisted: receipt ${payload.receiptId}, id ${newOrder._id}, database ${mongoose.connection.db?.databaseName || 'unknown'}`);
 
         // 4) Fire-and-forget owner alert when an item drops below its
         //    threshold (deduped to one email per item per day).
         for (const item of payload.items) {
             const product = await Product.findOne({ name: item.name }).select('name stock lowStockThreshold');
             if (product && Number(product.stock) < Number(product.lowStockThreshold)) {
-                trySendLowStockAlert(product).catch(err => console.error('❌ Low-stock email failed:', err.message));
+                trySendLowStockAlert(product).catch(err => console.error('Low-stock email failed:', err.message));
             }
         }
 
@@ -914,7 +911,7 @@ app.delete('/api/orders/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order id' });
 
-const order = await Order.findOne(idMatchFilter(req.params.id));
+        const order = await Order.findOne(idMatchFilter(req.params.id));
         if (!order) return res.status(404).json({ error: 'Order not found' });
 
         // Paid orders must be voided first: hard-deleting them would silently
@@ -937,7 +934,7 @@ app.patch('/api/orders/:id/void', authRequired(), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order id' });
 
-const order = await Order.findOne(idMatchFilter(req.params.id));
+        const order = await Order.findOne(idMatchFilter(req.params.id));
         if (!order) return res.status(404).json({ error: 'Order not found' });
         if (req.user.role === 'Cashier' && String(order.cashier || '').toLowerCase() !== String(req.user.username || '').toLowerCase()) {
             return res.status(403).json({ error: 'Cashiers can void only their own orders.' });
@@ -960,7 +957,7 @@ const order = await Order.findOne(idMatchFilter(req.params.id));
             { status: "Available" }
         );
 
-order.status = "Voided";
+        order.status = "Voided";
         order.voidedBy = req.user.username || "";
         order.voidedAt = new Date();
         order.voidReason = String((req.body && req.body.reason) || "").trim().slice(0, 300);
@@ -1110,7 +1107,7 @@ app.put('/api/products/:id', authRequired(['Admin']), async (req, res) => {
         // Running out always marks the item sold out — even when the form
         // sends a status. Restocking revives it unless the form explicitly
         // keeps it hidden on "Out of Stock" hold.
-const existing = await Product.findOne(idMatchFilter(req.params.id));
+        const existing = await Product.findOne(idMatchFilter(req.params.id));
         if (update.stock !== undefined) {
             if (update.stock <= 0) {
                 update.status = 'Out of Stock';
@@ -1136,7 +1133,7 @@ const existing = await Product.findOne(idMatchFilter(req.params.id));
 app.delete('/api/products/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid product id' });
-const deleted = await Product.findOneAndDelete(idMatchFilter(req.params.id));
+        const deleted = await Product.findOneAndDelete(idMatchFilter(req.params.id));
         writeLog('product.delete', req.user.username, req.params.id,
             deleted ? `Deleted product "${deleted.name}"` : `Delete attempt on missing product ${req.params.id}`);
         res.json({ message: 'Product successfully scrubbed from database' });
@@ -1154,7 +1151,7 @@ app.post('/api/products/:id/restock', authRequired(['Admin']), async (req, res) 
             return res.status(400).json({ error: 'Restock quantity must be a number above zero.' });
         }
         const reason = String((req.body && req.body.reason) || "").trim().slice(0, 100) || "Manual restock";
-const product = await Product.findOne(idMatchFilter(req.params.id));
+        const product = await Product.findOne(idMatchFilter(req.params.id));
         if (!product) return res.status(404).json({ error: 'Product not found' });
         const updated = await Product.findOneAndUpdate(
             idMatchFilter(req.params.id),
@@ -1210,7 +1207,7 @@ app.put('/api/users/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid user id' });
 
-const existing = await User.findOne(idMatchFilter(req.params.id));
+        const existing = await User.findOne(idMatchFilter(req.params.id));
         if (!existing) return res.status(404).json({ error: 'User profile not found' });
 
         const update = { ...req.body };
@@ -1251,7 +1248,7 @@ const existing = await User.findOne(idMatchFilter(req.params.id));
 app.delete('/api/users/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid user id' });
-const deleted = await User.findOneAndDelete(idMatchFilter(req.params.id));
+        const deleted = await User.findOneAndDelete(idMatchFilter(req.params.id));
         writeLog('user.delete', req.user.username, req.params.id,
             deleted ? `Deleted account "${deleted.username}"` : `Delete attempt on missing account ${req.params.id}`);
         res.json({ message: 'User account deactivated and erased' });
@@ -1288,7 +1285,7 @@ app.post('/api/inventory', authRequired(['Admin']), async (req, res) => {
 app.put('/api/inventory/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid inventory token id' });
-const existing = await InventoryItem.findOne(idMatchFilter(req.params.id));
+        const existing = await InventoryItem.findOne(idMatchFilter(req.params.id));
         if (!existing) return res.status(404).json({ error: 'Inventory stock line item not found' });
         const input = { ...req.body };
         let product = null;
@@ -1314,31 +1311,43 @@ const existing = await InventoryItem.findOne(idMatchFilter(req.params.id));
 app.delete('/api/inventory/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid inventory id' });
-const deleted = await InventoryItem.findOneAndDelete(idMatchFilter(req.params.id));
+        const deleted = await InventoryItem.findOneAndDelete(idMatchFilter(req.params.id));
         writeLog('inventory.delete', req.user.username, req.params.id,
             deleted ? `Deleted inventory "${deleted.productName}"` : `Delete attempt on missing inventory ${req.params.id}`);
         res.json({ message: 'Inventory asset profile cleared from active system records' });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Restock a standalone supply item — same contract as the product restock.
+// Restock a standalone supply item — accepts { amount } or { quantity } for
+// backward compatibility. Clamps stock to 0 and auto-revives sold-out status.
 app.post('/api/inventory/:id/restock', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid inventory id' });
-        const quantity = Number(req.body && req.body.quantity);
-        if (!Number.isFinite(quantity) || quantity <= 0) {
-            return res.status(400).json({ error: 'Restock quantity must be a number above zero.' });
+        // Accept `amount` (spec) or `quantity` (legacy restock.js) interchangeably.
+        const amount = Number(req.body && (req.body.amount ?? req.body.quantity));
+        if (!Number.isFinite(amount) || amount <= 0) {
+            return res.status(400).json({ error: 'Restock amount must be a number above zero.' });
         }
         const reason = String((req.body && req.body.reason) || "").trim().slice(0, 100) || "Manual restock";
-const item = await InventoryItem.findOne(idMatchFilter(req.params.id));
+        const item = await InventoryItem.findOne(idMatchFilter(req.params.id));
         if (!item) return res.status(404).json({ error: 'Inventory item not found' });
-        const updated = await InventoryItem.findOneAndUpdate(
+        // Increment stock, then clamp to 0 and revive status if back in stock.
+        let updated = await InventoryItem.findOneAndUpdate(
             idMatchFilter(req.params.id),
-            { $inc: { stock: quantity }, status: "Available" },
+            { $inc: { stock: amount } },
             { new: true }
         );
+        // Clamp negative stock (safety net) and sync status.
+        const newStatus = updated.stock > 0 ? 'Available' : updated.status;
+        if (updated.stock < 0 || (updated.stock > 0 && (updated.status === 'Out of Stock' || updated.status === 'Sold Out'))) {
+            updated = await InventoryItem.findOneAndUpdate(
+                idMatchFilter(req.params.id),
+                { $set: { stock: Math.max(0, updated.stock), status: newStatus } },
+                { new: true }
+            );
+        }
         writeLog('inventory.restock', req.user.username, req.params.id,
-            `Restocked "${updated.productName}" +${quantity} (${reason}) — now ${updated.stock}`);
+            `Restocked "${updated.productName}" +${amount} (${reason}) — now ${updated.stock}`);
         res.json(updated);
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
@@ -1350,7 +1359,7 @@ app.get('/api/waste', authRequired(), async (req, res) => {
 
 app.post('/api/waste', authRequired(), async (req, res) => {
     try {
-const payload = normalizeWastePayload(req.body);
+        const payload = normalizeWastePayload(req.body);
         if (!payload.productName || !Number.isFinite(payload.quantity) || payload.quantity <= 0) {
             return res.status(400).json({ error: 'Product name and a quantity above zero are required.' });
         }
@@ -1393,14 +1402,24 @@ app.delete('/api/waste/:id', authRequired(['Admin']), async (req, res) => {
 app.get('/api/audit', authRequired(['Admin']), async (req, res) => {
     try {
         const filter = {};
-        const { from, to, limit, action } = req.query;
-        if (from) {
-            const fromDate = new Date(from);
-            if (!isNaN(fromDate)) filter.date = { ...(filter.date || {}), $gte: fromDate };
-        }
-        if (to) {
-            const toDate = new Date(to);
-            if (!isNaN(toDate)) filter.date = { ...(filter.date || {}), $lte: toDate };
+        const { from, to, date, limit, action } = req.query;
+        // ?date=YYYY-MM-DD — single-day shorthand (overrides from/to)
+        if (date) {
+            const d = new Date(date);
+            if (!isNaN(d)) {
+                const dayStart = new Date(date + 'T00:00:00');
+                const dayEnd   = new Date(date + 'T23:59:59.999');
+                filter.date = { $gte: dayStart, $lte: dayEnd };
+            }
+        } else {
+            if (from) {
+                const fromDate = new Date(from);
+                if (!isNaN(fromDate)) filter.date = { ...(filter.date || {}), $gte: fromDate };
+            }
+            if (to) {
+                const toDate = new Date(to);
+                if (!isNaN(toDate)) filter.date = { ...(filter.date || {}), $lte: toDate };
+            }
         }
         if (action) filter.action = action;
         const max = Math.min(Math.max(Number(limit) || 500, 1), 5000);
@@ -1597,6 +1616,26 @@ app.get('/api/settings/owner-alerts', authRequired(['Admin']), async (req, res) 
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/api/settings/sales-target', authRequired(['Admin']), async (req, res) => {
+    try {
+        const settings = await getOwnerAlertSettings();
+        res.json({ dailySalesTarget: Number(settings.dailySalesTarget) || 0 });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/settings/sales-target', authRequired(['Admin']), async (req, res) => {
+    try {
+        const target = Number(req.body?.dailySalesTarget);
+        if (!Number.isFinite(target) || target < 0 || target > 1000000000) {
+            return res.status(400).json({ error: 'Daily sales target must be between 0 and 1,000,000,000.' });
+        }
+        const settings = await getOwnerAlertSettings();
+        settings.dailySalesTarget = target;
+        await settings.save();
+        res.json({ dailySalesTarget: settings.dailySalesTarget });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 app.put('/api/settings/owner-alerts', authRequired(['Admin']), async (req, res) => {
     try {
@@ -1671,11 +1710,11 @@ async function seedDefaultAdmin() {
                 || (process.env.RENDER ? require('crypto').randomBytes(8).toString('hex') : 'admin123');
             const hashed = await bcrypt.hash(password, 10);
             await User.create({ username, password: hashed, role: 'Admin', status: 'Active' });
-            console.log(`👤 Seeded default Admin account → username: "${username}", password: "${password}"`);
-            console.log('   ⚠️  Change this password in the Admin → Add Users panel immediately.');
+            console.log(`Seeded default Admin account - username: "${username}", password: "${password}"`);
+            console.log('   Change this password in the Admin -> Add Users panel immediately.');
         }
     } catch (err) {
-        console.error('❌ Default admin seeding failed:', err.message);
+        console.error('Default admin seeding failed:', err.message);
     }
 }
 
@@ -1689,7 +1728,7 @@ app.use((err, req, res, next) => {
     if (err.type === 'entity.too.large' || err.status === 413) {
         return res.status(413).json({ error: 'Request body too large.' });
     }
-    console.error('❌ Unhandled server error:', err);
+    console.error('Unhandled server error:', err);
     res.status(500).json({ error: 'Internal server error.' });
 });
 
@@ -1698,13 +1737,13 @@ app.use((err, req, res, next) => {
 if (require.main === module) {
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => {
-        console.log(`🚀 Master Back-End Live and Running Cleanly on Port ${PORT}`);
+        console.log(`Master Back-End Live and Running Cleanly on Port ${PORT}`);
         mongoose.connection.readyState === 1 && seedDefaultAdmin();
         checkRenderStatus();
         // Owner-alert daily summary: immediate catch-up (covers a sleeping
         // free-tier instance) + a 60s tick that fires when the hour hits.
-        trySendDailySummary().catch(() => {});
-        setInterval(() => { trySendDailySummary().catch(() => {}); }, 60000);
+        trySendDailySummary().catch(() => { });
+        setInterval(() => { trySendDailySummary().catch(() => { }); }, 60000);
     });
 }
 
@@ -1714,10 +1753,10 @@ function checkRenderStatus() {
     const started = Date.now();
     fetch(`${renderUrl}/api/health`, { signal: AbortSignal.timeout(10000) })
         .then(res => {
-            console.log(`${res.ok ? "✅" : "❌"} [Render] POS link ${renderUrl} is ${res.ok ? "ONLINE" : "OFFLINE"} (HTTP ${res.status}, ${Date.now() - started}ms)`);
+            console.log(`[Render] POS link ${renderUrl} is ${res.ok ? "ONLINE" : "OFFLINE"} (HTTP ${res.status}, ${Date.now() - started}ms)`);
         })
         .catch(err => {
-            console.log(`❌ [Render] POS link ${renderUrl} is OFFLINE (${err.code || "timeout"}) — free tier may be waking (30-60s)`);
+            console.log(`[Render] POS link ${renderUrl} is OFFLINE (${err.code || "timeout"}) - free tier may be waking (30-60s)`);
         });
 }
 
@@ -1725,7 +1764,7 @@ function checkRenderStatus() {
 mongoose.connection.once('connected', () => {
     seedDefaultAdmin();
     cleanupLegacyOrderFields();
-    console.log('🔄 Startup cleanup + admin seeding check complete.');
+    console.log('Startup cleanup + admin seeding check complete.');
 });
 
 module.exports = app;

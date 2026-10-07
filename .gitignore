@@ -1,6 +1,8 @@
 # Node dependencies
 node_modules/
 **/node_modules/
+package-lock.json
+**/package-lock.json
 
 # Logs
 logs/
@@ -51,3 +53,6 @@ backend/atlas-credentials.env
 
 # Local tooling config
 opencode/
+
+# Local dashboard change documentation
+DASHBOARD-UI-CHANGES.md

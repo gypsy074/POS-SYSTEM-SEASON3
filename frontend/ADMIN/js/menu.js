@@ -18,6 +18,26 @@ function setupMenuTableSelection() {
     });
 }
 
+let menuTableSearch = "";
+let menuTableCategory = "";
+
+function setupMenuTableFilters() {
+    const search = document.getElementById("menuTableSearch");
+    const category = document.getElementById("menuTableCategoryFilter");
+    if (search) {
+        search.addEventListener("input", () => {
+            menuTableSearch = search.value.trim().toLowerCase();
+            renderMenuTable(allProducts);
+        });
+    }
+    if (category) {
+        category.addEventListener("change", () => {
+            menuTableCategory = category.value;
+            renderMenuTable(allProducts);
+        });
+    }
+}
+
 function setupMenuActionButtons() {
     document.querySelectorAll("[data-menu-action]").forEach(button => {
         button.addEventListener("click", () => {
@@ -510,7 +530,27 @@ function renderMenuTable(products) {
     const tbody = document.getElementById("menuItemsTableBody");
     if (!tbody) return;
 
-    tbody.innerHTML = products.map(product => `
+    const categoryFilter = document.getElementById("menuTableCategoryFilter");
+    if (categoryFilter) {
+        const categories = [...new Set(products.map(product => product.category).filter(Boolean))]
+            .sort((a, b) => a.localeCompare(b));
+        const currentValue = categoryFilter.value;
+        categoryFilter.innerHTML = `<option value="">All Categories</option>${
+            categories.map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join("")
+        }`;
+        categoryFilter.value = categories.includes(currentValue) ? currentValue : "";
+        menuTableCategory = categoryFilter.value;
+    }
+
+    const visibleProducts = products
+        .filter(product => !menuTableCategory || product.category === menuTableCategory)
+        .filter(product => !menuTableSearch || [
+            product.name, product.category, product.status, product.date
+        ].join(" ").toLowerCase().includes(menuTableSearch))
+        .slice()
+        .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), undefined, { sensitivity: "base" }));
+
+    tbody.innerHTML = visibleProducts.map(product => `
         <tr data-product-id="${product._id}">
             <td>${escapeHtml(product.name)}</td>
             <td>${escapeHtml(product.category)}</td>
@@ -525,5 +565,5 @@ function renderMenuTable(products) {
                     title="Restock this menu item">+ Restock</button>
             </td>
         </tr>
-    `).join("");
+    `).join("") || `<tr><td colspan="7" class="tx-empty">No menu items match the current filter.</td></tr>`;
 }

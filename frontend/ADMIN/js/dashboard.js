@@ -4,12 +4,17 @@
    ========================================================================== */
 
 let activeSalesRange = "day";
-let activeRadarCategory = "All";
+let activeRadarCategory = "";
 let builtPillCategories = null;
 let calendarViewDate = new Date();
 let latestUsers = [];
 let latestLogins = [];
 let latestLogouts = [];
+let transactionPage = 1;
+const TRANSACTIONS_PER_PAGE = 25;
+const activeSalesFilters = { day: [], week: [], month: [] };
+let salesFilterOptionsBuilt = false;
+let salesFilterMode = "day";
 
 // Orders payload cache — view switches reuse it for 30s; the manual refresh
 // button passes force=true to bypass. Rendering always runs, so the row/card
@@ -42,6 +47,7 @@ async function loadLiveDashboardData(force) {
         if (!tableBody || !totalRevenueEl || !todaySalesCountEl) return;
 
         renderTransactionTable(orders);
+        setupSalesFilterOptions(orders);
 
         const revenueAccumulator = orders.reduce(
             (sum, order) => (order.status === "Voided" ? sum : sum + Number(order.total || 0)),
@@ -707,31 +713,45 @@ function renderTransactionTable(orders) {
     if (!tbody) return;
 
     const search = String(transactionSearch || "").trim().toLowerCase();
-    const filtered = search
-        ? orders.filter(order => {
-            const haystack = [
-                order.customer, order.receiptId,
-                ...(order.items || []).map(item => item.name)
-            ].join(" ").toLowerCase();
-            return haystack.includes(search);
-        })
-        : orders;
+    const filtered = orders.filter(order => {
+        const dateText = new Date(order.date).toLocaleString();
+        const values = {
+            customer: order.customer,
+            cashier: order.cashier,
+            date: dateText,
+            receiptId: order.receiptId,
+            items: (order.items || []).map(item => item.name).join(", "),
+            total: Number(order.total || 0).toFixed(2),
+            paymentMethod: order.paymentMethod || "Cash",
+            mode: order.mode || "Dine In"
+        };
+        const matchesSearch = !search || [
+            values.customer, values.receiptId, values.items
+        ].join(" ").toLowerCase().includes(search);
+        const matchesColumns = Object.entries(transactionFilters).every(([key, value]) =>
+            !value || String(values[key] || "").toLowerCase().includes(value.toLowerCase())
+        );
+        return matchesSearch && matchesColumns;
+    });
 
-    // Cap the rendered rows — the table is a glance at the latest activity.
-    const visible = filtered.slice(0, TRANSACTION_ROW_CAP);
+    const totalPages = Math.max(1, Math.ceil(filtered.length / TRANSACTIONS_PER_PAGE));
+    transactionPage = Math.min(transactionPage, totalPages);
+    const start = (transactionPage - 1) * TRANSACTIONS_PER_PAGE;
+    const visible = filtered.slice(start, start + TRANSACTIONS_PER_PAGE);
     const countEl = document.getElementById("transactionCount");
     if (countEl) {
         countEl.textContent = search
-            ? `${visible.length} of ${filtered.length} matching`
-            : filtered.length > TRANSACTION_ROW_CAP
-                ? `Showing ${visible.length} of ${filtered.length}`
-                : `${filtered.length} order${filtered.length === 1 ? "" : "s"}`;
+            ? `${filtered.length} matching · page ${transactionPage} of ${totalPages}`
+            : `${filtered.length} order${filtered.length === 1 ? "" : "s"} · page ${transactionPage} of ${totalPages}`;
     }
 
     if (!visible.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="tx-empty">${
-            search ? "No transactions match your search." : "No transactions yet."
+        tbody.innerHTML = `<tr><td colspan="8" class="tx-empty">${
+            search || Object.values(transactionFilters).some(Boolean)
+                ? "No transactions match the current filters."
+                : "No transactions yet."
         }</td></tr>`;
+        renderTransactionPagination(totalPages);
         return;
     }
 
@@ -745,22 +765,68 @@ function renderTransactionTable(orders) {
             <td>${escapeHtml(order.receiptId)}${isVoided ? ' <span class="voided-badge">VOIDED</span>' : ""}</td>
             <td>${escapeHtml((order.items || []).map(item => item.name).join(", "))}</td>
             <td>₱${Number(order.total || 0).toFixed(2)}</td>
+            <td>${escapeHtml(order.paymentMethod || "Cash")}</td>
+            <td>${escapeHtml(order.mode || "Dine In")}</td>
         </tr>
     `;
     }).join("");
+    renderTransactionPagination(totalPages);
 }
 
 // ── Recent Transactions search ─────────────────────────────────────────────
 let transactionSearch = "";
-const TRANSACTION_ROW_CAP = 100;
+const transactionFilters = {
+    customer: "",
+    cashier: "",
+    date: "",
+    receiptId: "",
+    items: "",
+    total: "",
+    paymentMethod: "",
+    mode: ""
+};
 
 function setupTransactionSearch() {
     const input = document.getElementById("transactionSearch");
     if (!input) return;
     input.addEventListener("input", () => {
         transactionSearch = input.value;
+        transactionPage = 1;
         clearTimeout(setupTransactionSearch._t);
         setupTransactionSearch._t = setTimeout(() => renderTransactionTable(latestOrders || []), 150);
+    });
+    document.querySelectorAll("[data-tx-filter]").forEach(filterInput => {
+        const key = filterInput.dataset.txFilter;
+        if (!(key in transactionFilters)) return;
+        filterInput.addEventListener("input", () => {
+            transactionFilters[key] = filterInput.value.trim();
+            transactionPage = 1;
+            renderTransactionTable(latestOrders || []);
+        });
+    });
+}
+
+function renderTransactionPagination(totalPages) {
+    const pagination = document.getElementById("transactionPagination");
+    if (!pagination) return;
+    if (totalPages <= 1) {
+        pagination.innerHTML = "";
+        return;
+    }
+    const buttons = [];
+    for (let page = 1; page <= totalPages; page += 1) {
+        buttons.push(`<button type="button" class="${page === transactionPage ? "active" : ""}" data-page="${page}" aria-label="Go to page ${page}">${page}</button>`);
+    }
+    pagination.innerHTML = `
+        <button type="button" data-page="${transactionPage - 1}" ${transactionPage === 1 ? "disabled" : ""} aria-label="Previous page"><i class="fas fa-chevron-left"></i></button>
+        ${buttons.join("")}
+        <button type="button" data-page="${transactionPage + 1}" ${transactionPage === totalPages ? "disabled" : ""} aria-label="Next page"><i class="fas fa-chevron-right"></i></button>
+    `;
+    pagination.querySelectorAll("button:not([disabled])").forEach(button => {
+        button.addEventListener("click", () => {
+            transactionPage = Number(button.dataset.page);
+            renderTransactionTable(latestOrders || []);
+        });
     });
 }
 
@@ -778,16 +844,180 @@ function getChartTheme() {
 
 function filterOrdersByRange(orders, range = activeSalesRange) {
     if (!Array.isArray(orders) || !orders.length) return [];
-
-    const now = Date.now();
-    const rangeDays = { day: 1, week: 7, month: 30, all: Infinity }[range] || 1;
-    const cutoff = range === "all" ? 0 : now - rangeDays * 24 * 60 * 60 * 1000;
+    if (range === "all" || salesFilterMode === "all") {
+        return orders.filter(order => order.status !== "Voided");
+    }
+    const selected = new Set(activeSalesFilters[range] || []);
+    if (!selected.size) return orders.filter(order => order.status !== "Voided");
 
     return orders.filter(order => {
         if (order.status === "Voided") return false;
-        if (range === "all") return true;
-        const date = new Date(order.date).getTime();
-        return Number.isFinite(date) && date >= cutoff;
+        const date = new Date(order.date);
+        if (Number.isNaN(date.getTime())) return false;
+        if (range === "day") return selected.has(formatLocalDate(date));
+        if (range === "month") return selected.has(formatLocalMonth(date));
+        return selected.has(formatLocalWeek(date).key);
+    });
+}
+
+function formatLocalDate(date) {
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function formatLocalMonth(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatLocalWeek(date) {
+    const week = Math.floor((date.getDate() - 1) / 7) + 1;
+    const start = new Date(date.getFullYear(), date.getMonth(), (week - 1) * 7 + 1);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+    if (end > monthEnd) end.setTime(monthEnd.getTime());
+    return {
+        key: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${week}`,
+        week,
+        start,
+        end,
+        month: start.toLocaleString("en-US", { month: "long" }),
+        year: start.getFullYear()
+    };
+}
+
+function setupSalesFilterOptions(orders) {
+    if (salesFilterOptionsBuilt) return;
+    const validOrders = (orders || []).filter(order => order.status !== "Voided" && !Number.isNaN(new Date(order.date).getTime()));
+    salesFilterMode = "day";
+    activeSalesRange = "day";
+    document.querySelector(".all-sales-filter")?.classList.remove("active");
+    const orderDates = validOrders.map(order => new Date(order.date));
+    const fallbackEnd = new Date();
+    const fallbackStart = new Date(fallbackEnd);
+    fallbackStart.setDate(fallbackStart.getDate() - 89);
+    const rangeStart = orderDates.length ? new Date(Math.min(...orderDates)) : fallbackStart;
+    const rangeEnd = orderDates.length ? new Date(Math.max(...orderDates)) : fallbackEnd;
+    const dates = [...new Set(validOrders.map(order => formatLocalDate(new Date(order.date))))].sort().reverse();
+    if (!dates.length) {
+        for (const date = new Date(rangeEnd); date >= rangeStart; date.setDate(date.getDate() - 1)) {
+            dates.push(formatLocalDate(date));
+        }
+    }
+    const months = [];
+    const monthCursor = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), 1);
+    const firstMonth = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1);
+    for (; monthCursor >= firstMonth; monthCursor.setMonth(monthCursor.getMonth() - 1)) {
+        months.push(formatLocalMonth(monthCursor));
+    }
+    const weeks = new Map();
+    for (const month of months) {
+        const [year, monthNumber] = month.split("-").map(Number);
+        const monthEnd = new Date(year, monthNumber, 0);
+        for (let day = 1; day <= monthEnd.getDate(); day += 7) {
+            const week = formatLocalWeek(new Date(year, monthNumber - 1, day));
+            if (!weeks.has(week.key)) weeks.set(week.key, week);
+        }
+    }
+    const optionSets = {
+        day: dates.map(value => ({ value, label: new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) })),
+        week: [...weeks.values()].sort((a, b) => b.start - a.start).map(week => ({
+            value: week.key,
+            label: `${week.month} ${week.week} · ${week.start.toLocaleDateString("en-US", { month: "short", day: "numeric" })}–${week.end.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+        })),
+        month: months.map(value => ({ value, label: new Date(`${value}-01T00:00:00`).toLocaleDateString("en-US", { month: "long", year: "numeric" }) }))
+    };
+    Object.entries(optionSets).forEach(([type, options]) => {
+        const menu = document.querySelector(`.filter-dropdown[data-filter="${type}"] .filter-dropdown-menu`);
+        if (!menu) return;
+        menu.innerHTML = options.map(option => `
+            <label class="filter-option">
+                <input type="checkbox" value="${option.value}" data-filter-type="${type}">
+                <span class="filter-radio" aria-hidden="true"></span>
+                <span>${option.label}</span>
+            </label>
+        `).join("");
+        menu.querySelectorAll("input").forEach(input => {
+            input.addEventListener("change", () => {
+                salesFilterMode = type;
+                activeSalesRange = type;
+                Object.keys(activeSalesFilters).forEach(key => {
+                    if (key !== type) activeSalesFilters[key] = [];
+                });
+                activeSalesFilters[type] = [...menu.querySelectorAll("input:checked")].map(item => item.value);
+                document.querySelectorAll(".filter-dropdown").forEach(dropdown => {
+                    if (dropdown.dataset.filter !== type) {
+                        dropdown.querySelectorAll("input").forEach(item => { item.checked = false; });
+                    }
+                });
+                Object.keys(activeSalesFilters).forEach(key => updateSalesFilterLabel(key));
+                document.querySelector(".all-sales-filter")?.classList.remove("active");
+                renderSalesCharts(latestOrders, allProducts);
+                renderUsageChart(latestOrders);
+            });
+        });
+    });
+    if (dates.length) {
+        activeSalesFilters.day = [dates[0]];
+        const firstDay = document.querySelector('.filter-dropdown[data-filter="day"] input');
+        if (firstDay) firstDay.checked = true;
+        updateSalesFilterLabel("day");
+    }
+    Object.keys(activeSalesFilters).forEach(key => {
+        if (key !== "day") activeSalesFilters[key] = [];
+    });
+    salesFilterOptionsBuilt = true;
+}
+
+function updateSalesFilterLabel(type) {
+    const dropdown = document.querySelector(`.filter-dropdown[data-filter="${type}"]`);
+    const toggle = dropdown?.querySelector(".filter-dropdown-toggle");
+    if (!toggle) return;
+    const count = activeSalesFilters[type].length;
+    toggle.innerHTML = `${type[0].toUpperCase() + type.slice(1)}${count ? ` <span class="filter-selection-count">${count}</span>` : ""} <i class="fas fa-chevron-down"></i>`;
+}
+
+const DEFAULT_SALES_TARGET = 100000;
+
+function formatPeso(value) {
+    return `₱${Number(value || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+function getSalesTarget() {
+    const input = document.getElementById("targetSalesInput");
+    const stored = Number.parseFloat(localStorage.getItem("dashboardSalesTarget") || "");
+    const value = Number.parseFloat(input?.value || "");
+    return Number.isFinite(value) && value >= 0
+        ? value
+        : Number.isFinite(stored) && stored >= 0
+            ? stored
+            : DEFAULT_SALES_TARGET;
+}
+
+function updateSalesTargetProgress(total, target) {
+    const progressText = document.getElementById("targetSalesProgressText");
+    const progressBar = document.getElementById("targetSalesProgressBar");
+    const progressTrack = progressBar?.parentElement;
+    const percent = target > 0 ? Math.min(100, (total / target) * 100) : 0;
+    if (progressText) {
+        progressText.textContent = `${formatPeso(total)} / ${formatPeso(target)} (${Math.round(percent)}%)`;
+    }
+    if (progressBar) progressBar.style.width = `${percent}%`;
+    if (progressTrack) progressTrack.setAttribute("aria-valuenow", String(Math.round(percent)));
+}
+
+function setupSalesTargetControl() {
+    const input = document.getElementById("targetSalesInput");
+    if (!input || input.dataset.bound === "true") return;
+    const stored = Number.parseFloat(localStorage.getItem("dashboardSalesTarget") || "");
+    if (Number.isFinite(stored) && stored >= 0) input.value = String(stored);
+    input.dataset.bound = "true";
+    input.addEventListener("change", () => {
+        const target = getSalesTarget();
+        input.value = String(target);
+        localStorage.setItem("dashboardSalesTarget", String(target));
+        renderUsageChart(latestOrders);
     });
 }
 
@@ -820,7 +1050,7 @@ function renderSalesCharts(orders, products, range = activeSalesRange) {
         data: {
             labels: lineLabels,
             datasets: [{
-                label: "Sales",
+                label: "Sales (₱)",
                 data: lineData,
                 borderColor: "#4e73df",
                 backgroundColor: "rgba(78,115,223,0.1)",
@@ -834,7 +1064,14 @@ function renderSalesCharts(orders, products, range = activeSalesRange) {
             plugins: { legend: { display: false } },
             scales: {
                 x: { ticks: { color: theme.text }, grid: { color: theme.grid } },
-                y: { beginAtZero: true, ticks: { color: theme.text }, grid: { color: theme.grid } }
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        color: theme.text,
+                        callback: value => formatPeso(value)
+                    },
+                    grid: { color: theme.grid }
+                }
             }
         }
     });
@@ -845,9 +1082,7 @@ function renderSalesCharts(orders, products, range = activeSalesRange) {
     }, {});
 
     const radarTitleEl = document.getElementById("radarCardTitle");
-    const itemSource = activeRadarCategory !== "All"
-        ? (products || []).filter(product => (product.category || "Unknown") === activeRadarCategory)
-        : (products || []);
+    const itemSource = (products || []).filter(product => (product.category || "Unknown") === activeRadarCategory);
 
     const itemCounts = {};
     itemSource.forEach(product => { itemCounts[product.name] = 0; });
@@ -855,18 +1090,19 @@ function renderSalesCharts(orders, products, range = activeSalesRange) {
     filteredOrders.forEach(order => {
         (order.items || []).forEach(item => {
             const category = categoryByProduct[item.name] || item.category || "Unknown";
-            if (activeRadarCategory === "All" || category === activeRadarCategory) {
+            if (category === activeRadarCategory) {
                 const key = item.name || "Unknown";
                 itemCounts[key] = (itemCounts[key] || 0) + Number(item.quantity || 0);
             }
         });
     });
 
-    const chartLabels = Object.keys(itemCounts).sort((a, b) => itemCounts[b] - itemCounts[a]);
+    const chartLabels = Object.keys(itemCounts)
+        .sort((a, b) => itemCounts[b] - itemCounts[a])
+        .slice(0, 20);
     const chartData = chartLabels.map(label => itemCounts[label]);
-
-    if (radarTitleEl) {
-        radarTitleEl.textContent = activeRadarCategory === "All" ? "Items Performance" : `${activeRadarCategory} Items`;
+    if (radarCanvas.parentElement) {
+        radarCanvas.parentElement.style.height = `${Math.max(280, Math.min(chartLabels.length * 34, 620))}px`;
     }
 
     if (itemsRadarChart) itemsRadarChart.destroy();
@@ -876,11 +1112,13 @@ function renderSalesCharts(orders, products, range = activeSalesRange) {
         data: {
             labels: chartLabels,
             datasets: [{
-                label: activeRadarCategory === "All" ? "Items sold" : "Quantity sold",
+                label: "Quantity sold",
                 data: chartData,
-                backgroundColor: activeRadarCategory === "All" ? "#4e73df" : "#a67c52",
+                backgroundColor: "#a67c52",
                 borderRadius: 6,
-                barThickness: 18
+                barThickness: 14,
+                categoryPercentage: 0.78,
+                barPercentage: 0.82
             }]
         },
         options: {
@@ -890,7 +1128,7 @@ function renderSalesCharts(orders, products, range = activeSalesRange) {
             plugins: { legend: { display: false } },
             scales: {
                 x: { beginAtZero: true, ticks: { precision: 0, color: theme.text }, grid: { color: theme.grid } },
-                y: { ticks: { autoSkip: false, color: theme.text }, grid: { color: theme.grid } }
+                y: { ticks: { autoSkip: false, color: theme.text, padding: 10 }, grid: { color: theme.grid } }
             }
         }
     });
@@ -905,10 +1143,12 @@ function renderUsageChart(orders, range = activeSalesRange) {
 
     const usageCanvas = document.getElementById("usageBarChart");
     if (!usageCanvas) return;
+    setupSalesTargetControl();
+    const filteredOrders = filterOrdersByRange(orders, range);
 
     const dailyRevenue = {};
     const dailyCount   = {};
-    (orders || []).forEach(order => {
+    filteredOrders.forEach(order => {
         if (order.status === "Voided") return;
         const key = new Date(order.date).toLocaleDateString();
         dailyRevenue[key] = (dailyRevenue[key] || 0) + Number(order.total || 0);
@@ -923,7 +1163,7 @@ function renderUsageChart(orders, range = activeSalesRange) {
     if (range === "all") {
         const monthlyRevenue = {};
         const monthlyCount   = {};
-        (orders || []).forEach(order => {
+        filteredOrders.forEach(order => {
             if (order.status === "Voided") return;
             const key = new Date(order.date).toLocaleDateString("en-US", { month: "short", year: "numeric" });
             monthlyRevenue[key] = (monthlyRevenue[key] || 0) + Number(order.total || 0);
@@ -940,6 +1180,10 @@ function renderUsageChart(orders, range = activeSalesRange) {
             countByLabel.push(dailyCount[label] || 0);
         }
     }
+
+    const selectedRevenue = revenueByLabel.reduce((sum, value) => sum + Number(value || 0), 0);
+    const target = getSalesTarget();
+    updateSalesTargetProgress(selectedRevenue, target);
 
     if (usageBarChart) usageBarChart.destroy();
 
@@ -962,6 +1206,16 @@ function renderUsageChart(orders, range = activeSalesRange) {
                 fill: true,
                 tension: 0.3,
                 yAxisID: "y1"
+            }, {
+                type: "line",
+                label: "Target sales",
+                data: labels.map(() => target),
+                borderColor: "#f6c23e",
+                borderDash: [7, 5],
+                pointRadius: 0,
+                borderWidth: 2,
+                fill: false,
+                yAxisID: "y"
             }]
         },
         options: {
@@ -973,7 +1227,10 @@ function renderUsageChart(orders, range = activeSalesRange) {
                 y: {
                     beginAtZero: true,
                     title: { display: true, text: "Revenue (₱)" },
-                    ticks: { color: theme.text },
+                    ticks: {
+                        color: theme.text,
+                        callback: value => formatPeso(value)
+                    },
                     grid: { color: theme.grid }
                 },
                 y1: {
@@ -995,7 +1252,10 @@ function setupCategoryPills() {
     const container = document.querySelector(".category-pills");
     if (!container) return;
 
-    const categories = ["All", ...new Set((allProducts || []).map(p => p.category || "Unknown"))];
+    const categories = [...new Set((allProducts || []).map(p => p.category || "Unknown"))];
+    if (!activeRadarCategory || !categories.includes(activeRadarCategory)) {
+        activeRadarCategory = categories[0] || "";
+    }
     const key = categories.join("|");
     if (builtPillCategories === key) return;
     builtPillCategories = key;
@@ -1017,17 +1277,40 @@ function setupCategoryPills() {
 
 // ── Sales Range Filter Tabs (Day / Week / Month / All) ─────────────────────
 function setupSalesFilterTabs() {
-    const tabs = document.querySelectorAll(".filter-tabs .tab");
-    if (!tabs.length) return;
-
-    tabs.forEach(tab => {
-        tab.addEventListener("click", () => {
-            tabs.forEach(t => t.classList.remove("active"));
-            tab.classList.add("active");
-            activeSalesRange = tab.textContent.trim().toLowerCase();
-            renderSalesCharts(latestOrders, allProducts);
-            renderUsageChart(latestOrders);
+    document.querySelectorAll(".filter-dropdown").forEach(dropdown => {
+        const toggle = dropdown.querySelector(".filter-dropdown-toggle");
+        const menu = dropdown.querySelector(".filter-dropdown-menu");
+        if (!toggle || !menu) return;
+        toggle.addEventListener("click", event => {
+            event.stopPropagation();
+            const isOpen = dropdown.classList.toggle("open");
+            toggle.setAttribute("aria-expanded", String(isOpen));
+            document.querySelectorAll(".filter-dropdown.open").forEach(other => {
+                if (other !== dropdown) {
+                    other.classList.remove("open");
+                    other.querySelector(".filter-dropdown-toggle")?.setAttribute("aria-expanded", "false");
+                }
+            });
         });
+    });
+    document.addEventListener("click", () => {
+        document.querySelectorAll(".filter-dropdown.open").forEach(dropdown => {
+            dropdown.classList.remove("open");
+            dropdown.querySelector(".filter-dropdown-toggle")?.setAttribute("aria-expanded", "false");
+        });
+    });
+    document.querySelector(".all-sales-filter")?.addEventListener("click", event => {
+        event.stopPropagation();
+        salesFilterMode = "all";
+        activeSalesRange = "all";
+        Object.keys(activeSalesFilters).forEach(key => { activeSalesFilters[key] = []; });
+        document.querySelectorAll(".filter-dropdown input").forEach(input => { input.checked = false; });
+        document.querySelectorAll(".filter-dropdown").forEach(dropdown => {
+            updateSalesFilterLabel(dropdown.dataset.filter);
+        });
+        document.querySelector(".all-sales-filter")?.classList.add("active");
+        renderSalesCharts(latestOrders, allProducts);
+        renderUsageChart(latestOrders);
     });
 }
 

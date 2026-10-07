@@ -143,6 +143,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupMenuActionButtons();
     setupImageUploadEngine();
     setupCategoryManager();
+    setupMenuTableFilters();
 
     // Users module
     setupUserTableSelection();
@@ -161,7 +162,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Sales analytics module
     setupSalesFilterTabs();
-    setupCalendarControls();
 
     // Dashboard — recent transactions search
     setupTransactionSearch();

@@ -953,6 +953,52 @@ body.dark .category-manager-item {
     overflow-x: auto;
 }
 
+.transactions-section .table-container {
+    max-height: 540px;
+    overflow-y: auto;
+    border-radius: 12px;
+}
+
+.transactions-section .table-container thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.transaction-filter-row th {
+    top: 42px;
+    padding: 6px;
+    background: var(--card-bg, #fff);
+}
+
+.transaction-filter-row input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 90px;
+    padding: 7px 8px;
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: 6px;
+    background: var(--input-bg, #fff);
+    color: inherit;
+    font: inherit;
+    font-size: 0.72rem;
+}
+
+.menu-table-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0 0 12px;
+}
+
+.menu-table-toolbar .inv-filter-input {
+    flex: 1 1 220px;
+}
+
+.menu-table-toolbar .inv-filter-select {
+    flex: 0 1 190px;
+}
+
 table {
     width: 100%;
     border-collapse: collapse;
@@ -973,6 +1019,39 @@ td {
     text-align: left; 
     font-size: 0.9rem;
     color: var(--text-dark);
+}
+
+.transaction-pagination {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px;
+    margin-top: 14px;
+}
+
+.transaction-pagination button {
+    min-width: 32px;
+    height: 32px;
+    padding: 0 8px;
+    border: 1px solid #dfc6ae;
+    border-radius: 8px;
+    background: #fffaf6;
+    color: var(--dark-brown);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.8rem;
+}
+
+.transaction-pagination button:hover:not(:disabled),
+.transaction-pagination button.active {
+    background: var(--accent-brown);
+    border-color: var(--accent-brown);
+    color: #fff;
+}
+
+.transaction-pagination button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 tr:hover td {
@@ -1517,12 +1596,132 @@ tr:hover td {
         min-height: 44px;
     }
 
+    .sales-target-control {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--text-muted, #666);
+        font-size: 0.78rem;
+    }
+
+    .sales-target-input {
+        display: flex;
+        align-items: center;
+        border: 1px solid var(--border-color, #ddd);
+        border-radius: 7px;
+        background: var(--card-bg, #fff);
+        color: var(--text-color, #333);
+        overflow: hidden;
+    }
+
+    .sales-target-input span {
+        padding-left: 8px;
+        font-weight: 700;
+    }
+
+    .sales-target-input input {
+        width: 88px;
+        padding: 7px 8px 7px 3px;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        font-weight: 700;
+    }
+
+    .sales-target-progress {
+        margin-top: 12px;
+    }
+
+    .sales-target-progress-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 6px;
+        color: var(--text-muted, #666);
+        font-size: 0.78rem;
+    }
+
+    .sales-target-progress-header strong {
+        color: var(--text-color, #333);
+    }
+
+    .sales-target-progress-track {
+        height: 8px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(78, 115, 223, 0.15);
+    }
+
+    .sales-target-progress-track span {
+        display: block;
+        width: 0;
+        height: 100%;
+        border-radius: inherit;
+        background: #4e73df;
+        transition: width 180ms ease;
+    }
+
+    @media (max-width: 720px) {
+        .sales-target-control {
+            align-items: flex-end;
+            flex-direction: column;
+            gap: 3px;
+        }
+    }
+
     /* Dropdowns pinned inside the viewport */
     .profile-dropdown {
         right: 8px;
         left: auto;
         max-width: calc(100vw - 16px);
     }
+}
+
+/* ==========================================================================
+   Target Sales Input Styling
+   ========================================================================== */
+#targetSalesInput {
+    width: 120px;
+    padding: 8px 12px;
+    border: 1.5px solid var(--header-brown);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--dark-brown);
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 1000 !important;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    box-sizing: border-box;
+}
+
+#targetSalesInput:focus {
+    border-color: var(--accent-brown);
+    box-shadow: 0 0 0 3px rgba(166, 124, 82, 0.2);
+}
+
+/* Hide spin buttons for a cleaner numeral display */
+#targetSalesInput::-webkit-inner-spin-button,
+#targetSalesInput::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+#targetSalesInput[type="number"] {
+    -moz-appearance: textfield;
+}
+
+/* Dark mode compatibility */
+body.dark #targetSalesInput {
+    background: #2e2318;
+    border-color: #4a3a2c;
+    color: #e8dccb;
+}
+
+body.dark #targetSalesInput:focus {
+    border-color: var(--accent-brown);
+    box-shadow: 0 0 0 3px rgba(166, 124, 82, 0.35);
 }
 
 /* ==========================================================================
@@ -1555,6 +1754,136 @@ tr:hover td {
     border-radius: 20px;
     display: flex;
     gap: 4px;
+}
+
+.sales-filter-controls {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 7px;
+    flex-wrap: nowrap;
+    overflow: visible;
+    flex-shrink: 0;
+}
+
+.filter-dropdown {
+    position: relative;
+}
+
+.filter-dropdown-toggle,
+.all-sales-filter {
+    min-height: 32px;
+    padding: 6px 10px;
+    border: 1px solid transparent;
+    border-radius: 15px;
+    background: #f1d8c4;
+    color: var(--dark-brown);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.filter-dropdown-toggle i {
+    margin-left: 5px;
+    font-size: 0.65rem;
+}
+
+.filter-dropdown.open .filter-dropdown-toggle,
+.all-sales-filter.active {
+    background: var(--accent-brown);
+    color: #fff;
+}
+
+.filter-dropdown-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 7px);
+    right: 0;
+    min-width: 210px;
+    max-height: 280px;
+    overflow-y: auto;
+    padding: 7px;
+    background: #fff;
+    border: 1px solid var(--header-brown);
+    border-radius: 12px;
+    box-shadow: 0 8px 22px rgba(60, 40, 20, 0.18);
+    z-index: 100;
+}
+
+body.dark .filter-dropdown-toggle,
+body.dark .all-sales-filter,
+body.dark .filter-dropdown-menu {
+    background: #3a2d1f;
+    border-color: #4a3a2c;
+    color: #e8dccb;
+}
+
+body.dark .filter-option:hover {
+    background: #4a3a2c;
+}
+
+.filter-dropdown.open .filter-dropdown-menu {
+    display: block;
+}
+
+.filter-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 7px;
+    border-radius: 8px;
+    color: var(--dark-brown);
+    cursor: pointer;
+    font-size: 0.78rem;
+    line-height: 1.2;
+}
+
+.filter-option:hover {
+    background: #faf1e9;
+}
+
+.filter-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.filter-radio {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #b99672;
+    border-radius: 50%;
+    flex: 0 0 14px;
+    position: relative;
+}
+
+.filter-option input:checked + .filter-radio {
+    border-color: var(--accent-brown);
+    background: var(--accent-brown);
+    box-shadow: inset 0 0 0 3px #fff;
+}
+
+.filter-selection-count {
+    display: inline-flex;
+    min-width: 17px;
+    height: 17px;
+    align-items: center;
+    justify-content: center;
+    margin-left: 3px;
+    border-radius: 50%;
+    background: var(--accent-brown);
+    color: #fff;
+    font-size: 0.65rem;
+}
+
+.items-performance-chart {
+    padding: 8px 10px 4px;
+}
+
+.radar-card .items-performance-chart canvas {
+    max-width: 100%;
 }
 
 .category-pills {
