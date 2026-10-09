@@ -8,7 +8,7 @@ services:
     runtime: node
     rootDir: backend
     plan: free
-    buildCommand: npm install
+    buildCommand: npm ci --omit=dev
     startCommand: node server.js
     healthCheckPath: /api/health
     envVars:
@@ -27,6 +27,6 @@ services:
       # + EMAIL_FROM. Never commit provider secrets here.
     # Manual Web Service equivalent:
     #   Root Directory : backend
-    #   Build Command  : npm install
+    #   Build Command  : npm ci --omit=dev
     #   Start Command  : node server.js
     #   Environment    : Node (Free tier works)
