@@ -111,7 +111,7 @@ async function handleLogin(e, isRetry = false) {
         // ── Store session info for profile badges ──────────────────────────
         sessionStorage.setItem("posUsername", data.username);
         sessionStorage.setItem("posRole", data.role);
-/* BEGIN incoming (reyn/ulan)
+
         // ── Store session user + token for profile widgets & API calls ──
         // Each app keeps its own session keys (admin vs cashier) so one
         // browser can hold both logins without them overwriting each other.
@@ -126,7 +126,6 @@ async function handleLogin(e, isRetry = false) {
         if (data.token) {
             localStorage.setItem(isAdmin ? "posAdminToken" : "posToken", data.token);
         }
-END incoming (reyn/ulan) */
 
         // ── Route by role ──────────────────────────────────────────────
         // Relative paths so redirects also work when the frontend is opened

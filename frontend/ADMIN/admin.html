@@ -167,11 +167,24 @@
                                         <th>Receipt Number</th>
                                         <th>Items</th>
                                         <th>Total</th>
+                                        <th>Payment</th>
+                                        <th>Order Type</th>
+                                    </tr>
+                                    <tr class="transaction-filter-row">
+                                        <th><input type="search" data-tx-filter="customer" placeholder="Filter customer" aria-label="Filter customer"></th>
+                                        <th><input type="search" data-tx-filter="cashier" placeholder="Filter cashier" aria-label="Filter cashier"></th>
+                                        <th><input type="search" data-tx-filter="date" placeholder="Filter date/time" aria-label="Filter date and time"></th>
+                                        <th><input type="search" data-tx-filter="receiptId" placeholder="Filter receipt" aria-label="Filter receipt number"></th>
+                                        <th><input type="search" data-tx-filter="items" placeholder="Filter item" aria-label="Filter items"></th>
+                                        <th><input type="search" data-tx-filter="total" placeholder="Filter total" aria-label="Filter total"></th>
+                                        <th><input type="search" data-tx-filter="paymentMethod" placeholder="Filter payment" aria-label="Filter payment method"></th>
+                                        <th><input type="search" data-tx-filter="mode" placeholder="Filter type" aria-label="Filter order type"></th>
                                     </tr>
                                 </thead>
                                 <tbody id="transactionBody"></tbody>
                             </table>
                         </div>
+                        <div class="transaction-pagination" id="transactionPagination" aria-label="Transaction pages"></div>
                     </section>
                 </div>
             </div>
@@ -183,13 +196,26 @@
                             <div class="card-header"
                                 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                                 <h3><i class="fas fa-chart-line"></i> Sales Analytics</h3>
-                                <div style="display: flex; gap: 8px; align-items: center;">
-                                    <div class="filter-tabs">
-                                        <button class="tab active">Day</button>
-                                        <button class="tab">Week</button>
-                                        <button class="tab">Month</button>
-                                        <button class="tab">All</button>
+                                <div class="sales-filter-controls" aria-label="Sales date filters">
+                                    <div class="filter-dropdown" data-filter="day">
+                                        <button type="button" class="filter-dropdown-toggle" aria-expanded="false">
+                                            Day <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="filter-dropdown-menu" role="menu"></div>
                                     </div>
+                                    <div class="filter-dropdown" data-filter="week">
+                                        <button type="button" class="filter-dropdown-toggle" aria-expanded="false">
+                                            Week <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="filter-dropdown-menu" role="menu"></div>
+                                    </div>
+                                    <div class="filter-dropdown" data-filter="month">
+                                        <button type="button" class="filter-dropdown-toggle" aria-expanded="false">
+                                            Month <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div class="filter-dropdown-menu" role="menu"></div>
+                                    </div>
+                                    <button type="button" class="tab all-sales-filter" data-filter="all">All</button>
                                     <button type="button" class="csv-export-btn" id="exportCsvBtn"
                                         title="Export sales as CSV"><i class="fas fa-download"></i> Export</button>
                                 </div>
@@ -203,9 +229,28 @@
                             <div class="card-header"
                                 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                                 <h3><i class="fas fa-chart-bar"></i> Orders & Revenue</h3>
+                                <div class="sales-target-control">
+                                    <label for="targetSalesInput">Target sales</label>
+                                    <div class="sales-target-input">
+                                        <span>₱</span>
+                                        <input id="targetSalesInput" type="number" min="0" step="100"
+                                            value="100000" inputmode="decimal" aria-label="Target sales in pesos">
+                                    </div>
+                                </div>
                             </div>
                             <div style="height: 330px;">
                                 <canvas id="usageBarChart"></canvas>
+                            </div>
+                            <div class="sales-target-progress" aria-live="polite">
+                                <div class="sales-target-progress-header">
+                                    <span>Target progress</span>
+                                    <strong id="targetSalesProgressText">₱0 / ₱100,000 (0%)</strong>
+                                </div>
+                                <div class="sales-target-progress-track" role="progressbar"
+                                    aria-label="Sales target progress" aria-valuemin="0" aria-valuemax="100"
+                                    aria-valuenow="0">
+                                    <span id="targetSalesProgressBar"></span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -214,41 +259,18 @@
                         <div class="analytics-card radar-card">
                             <div class="card-header"
                                 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                                <h3><i class="fas fa-layer-group"></i> <span id="radarCardTitle">Items Performance</span></h3>
+                                <h3><i class="fas fa-layer-group"></i> Items Performance</h3>
                                 <div class="category-pills">
                                     <span class="pill active">Cs & Fs</span>
                                     <span class="pill">RMs & Ps</span>
                                     <span class="pill">Snacks</span>
                                 </div>
                             </div>
-                            <div style="height: 280px; display: flex; justify-content: center;">
+                            <div class="items-performance-chart" style="height: 280px; display: flex; justify-content: center;">
                                 <canvas id="itemsRadarChart"></canvas>
                             </div>
                         </div>
 
-                        <div class="analytics-card calendar-card">
-                        <div class="calendar-header"
-                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                            <button type="button" id="prevMonthBtn"
-                                style="background:none; border:none; cursor:pointer; color:inherit;"><i
-                                    class="fas fa-chevron-left"></i></button>
-                            <div class="calendar-title" style="display: flex; align-items: center; gap: 8px;">
-                                <span id="monthDisplay"
-                                    style="font-weight: bold; color: var(--dark-brown);">October</span>
-                                <select id="yearSelect" class="year-dropdown"></select>
-                            </div>
-                            <button type="button" id="nextMonthBtn"
-                                style="background:none; border:none; cursor:pointer; color:inherit;"><i
-                                    class="fas fa-chevron-right"></i></button>
-                        </div>
-                        <div class="calendar-days-header"
-                            style="display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 0.7rem; margin-bottom: 10px; color: #888; font-weight: bold;">
-                            <span>SUN</span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span>
-                        </div>
-                        <div class="calendar-grid" id="calendarGrid"
-                            style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; text-align: center;">
-                        </div>
-                    </div>
                     </div>
                 </div>
             </div>
@@ -309,6 +331,13 @@
             <div id="menu-view" class="admin-panel hidden">
                 <section class="transactions-section" style="margin-bottom: 25px;">
                     <div class="section-header"><i class="fas fa-utensils"></i> Current Live Menu Items</div>
+                    <div class="menu-table-toolbar">
+                        <input type="search" id="menuTableSearch" class="inv-filter-input"
+                            placeholder="Filter menu items..." aria-label="Filter menu items">
+                        <select id="menuTableCategoryFilter" class="inv-filter-select" aria-label="Filter menu items by category">
+                            <option value="">All Categories</option>
+                        </select>
+                    </div>
                     <div class="table-container">
                         <table>
                             <thead>
@@ -421,6 +450,8 @@
                                 <option value="Sauces">Sauces</option>
                                 <option value="Paper goods & Disposables">Paper goods & Disposables</option>
                                 <option value="Cleaning & Maintenance">Cleaning & Maintenance</option>
+                                <option value="Meat">Meat</option>
+                                <option value="Vegetables">Vegetables</option>
                             </select>
                             <select id="invFilterStatus" class="inv-filter-select">
                                 <option value="">All Statuses</option>

@@ -139,13 +139,6 @@ function setupGlobalSearch() {    const searchInput = document.getElementById("g
     });
 }
 
-function refreshCurrentPanel() {
-    if (activePanelId === "menu-view")      { loadLiveMenuData();      return; }
-    if (activePanelId === "users-view")     { loadLiveUserData();      return; }
-    if (activePanelId === "inventory-view") { loadLiveInventoryData(); return; }
-    if (activePanelId === "sales-view")     { loadLiveDashboardData(); return; }
-    loadLiveDashboardData();
-/* BEGIN incoming (reyn/ulan)
 const HEADER_VIEW_TITLES = {
     "dashboard-view":  { icon: "fa-gauge-high", title: "Dashboard" },
     "sales-view":      { icon: "fa-chart-line", title: "Sales Analytics" },
@@ -269,7 +262,7 @@ function setupServerStatus() {
         try {
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), 10000);
-            const response = await fetch("/api/health", { signal: controller.signal });
+            const response = await fetch(`${API_BASE_URL}/api/health`, { signal: controller.signal });
             clearTimeout(timer);
             if (response.ok) {
                 const data = await response.json();
@@ -286,5 +279,4 @@ function setupServerStatus() {
 
     check();
     setInterval(check, 30000);
-END incoming (reyn/ulan) */
 }

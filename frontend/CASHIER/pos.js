@@ -64,6 +64,7 @@ document.addEventListener("DOMContentLoaded", () => {
     guardCashierPage();
     setupOfflineSupport();
     setupCashierControls();
+    setupOrderPanel();
     setupWasteLogForm();
     setupCashierProfile();
     setupPrinterSettings();
@@ -488,18 +489,18 @@ function playSound(name) {
         return;
     }
     if (ctx.state === "suspended") {
-        ctx.resume().catch(() => {});
+        ctx.resume().catch(() => { });
     }
 
     switch (name) {
-        case "add":     tone(880, 0.08, 0.18, "triangle"); break;
-        case "qty":     tone(620, 0.05, 0.12, "sine"); break;
-        case "remove":  tone(440, 0.07, 0.15, "triangle"); break;
-        case "cancel":  tone(330, 0.12, 0.15, "sine"); tone(220, 0.18, 0.15, "sine", 0.1); break;
-        case "swipe":   tone(500, 0.12, 0.15, "sine"); tone(900, 0.12, 0.15, "sine", 0.08); break;
+        case "add": tone(880, 0.08, 0.18, "triangle"); break;
+        case "qty": tone(620, 0.05, 0.12, "sine"); break;
+        case "remove": tone(440, 0.07, 0.15, "triangle"); break;
+        case "cancel": tone(330, 0.12, 0.15, "sine"); tone(220, 0.18, 0.15, "sine", 0.1); break;
+        case "swipe": tone(500, 0.12, 0.15, "sine"); tone(900, 0.12, 0.15, "sine", 0.08); break;
         case "success": tone(660, 0.12, 0.2, "triangle"); tone(880, 0.22, 0.2, "triangle", 0.12); break;
-        case "error":   tone(180, 0.3, 0.22, "sawtooth"); break;
-        case "ping":    tone(1200, 0.08, 0.1, "sine"); break;
+        case "error": tone(180, 0.3, 0.22, "sawtooth"); break;
+        case "ping": tone(1200, 0.08, 0.1, "sine"); break;
         default: break;
     }
 }
@@ -545,6 +546,28 @@ function setCartDrawerOpen(open) {
         const list = document.getElementById("cartDrawerList");
         if (list) list.scrollTop = list.scrollHeight;
     }
+}
+
+function setOrderPanelOpen(open) {
+    const toggle = document.getElementById("orderPanelToggle");
+    const panel = document.getElementById("receiptPanel");
+    const backdrop = document.getElementById("orderPanelBackdrop");
+    document.body.classList.toggle("order-panel-open", open);
+    if (toggle) toggle.setAttribute("aria-expanded", String(open));
+    if (panel) panel.setAttribute("aria-hidden", String(!open));
+    if (backdrop) backdrop.setAttribute("aria-hidden", String(!open));
+}
+
+function setupOrderPanel() {
+    const toggle = document.getElementById("orderPanelToggle");
+    const backdrop = document.getElementById("orderPanelBackdrop");
+    if (toggle) toggle.addEventListener("click", () => {
+        setOrderPanelOpen(!document.body.classList.contains("order-panel-open"));
+    });
+    if (backdrop) backdrop.addEventListener("click", () => setOrderPanelOpen(false));
+    document.addEventListener("keydown", event => {
+        if (event.key === "Escape") setOrderPanelOpen(false);
+    });
 }
 
 function setupCartDrawer() {
@@ -1131,7 +1154,11 @@ function reservedCartQty(productId) {
 
 function productStock(product) {
     if (!product) return 0;
-    const stock = Number(product.stock || 0);
+    // Older products may not have a stock field; preserve the backend's
+    // default availability while still honoring an explicit zero.
+    const stock = product.stock === undefined || product.stock === null
+        ? 999
+        : Number(product.stock);
     return Math.max(0, stock - reservedCartQty(product._id));
 }
 
@@ -1201,8 +1228,8 @@ function displayCategoryItems(category, searchTerm = "", animate = true) {
                             </button>
                         </div>
                         ${soldOut
-                            ? '<div class="sold-out-overlay"><span>OUT OF STOCK</span></div>'
-                            : `<div class="stock-badge${lowStock ? " low-stock-badge" : ""}">Stock: ${productStock(product)}</div>`}
+                        ? '<div class="sold-out-overlay"><span>OUT OF STOCK</span></div>'
+                        : `<div class="stock-badge${lowStock ? " low-stock-badge" : ""}">Stock: ${productStock(product)}</div>`}
                     </div>
                 </article>
             `;
@@ -1312,17 +1339,17 @@ function renderCart() {
 
     cartContainer.innerHTML = cart.length
         ? visibleItems.map(rowHtml).join("")
-            + (showPreview
-                ? `<button type="button" class="cart-drawer-preview-btn" id="cartPreviewExpandBtn">
+        + (showPreview
+            ? `<button type="button" class="cart-drawer-preview-btn" id="cartPreviewExpandBtn">
                     <i class="fa-solid fa-chevron-down"></i>
                     <span>View all items (${hiddenCount} more)</span>
                 </button>`
-                : cartDrawerExpanded
-                    ? `<button type="button" class="cart-drawer-preview-btn" id="cartPreviewCollapseBtn">
+            : cartDrawerExpanded
+                ? `<button type="button" class="cart-drawer-preview-btn" id="cartPreviewCollapseBtn">
                         <i class="fa-solid fa-chevron-up"></i>
                         <span>Show less</span>
                     </button>`
-                    : "")
+                : "")
         : emptyRow;
 
     if (drawerList) {
@@ -1926,7 +1953,7 @@ function printReceipt(order) {
         </div>
         ${settings.kot === false ? "" : buildKotHtml(order, settings)}`;
 
-window.print();
+    window.print();
 }
 
 // ── Kitchen / barista order ticket (KOT) ──────────────────────────────────
@@ -2607,7 +2634,7 @@ function setupCashierProfile() {
         logoutBtn.addEventListener("click", () => {
             wrap.classList.remove("open");
             if (dropdown) dropdown.classList.remove("show");
-            apiFetch("/api/logout", { method: "POST" }).catch(() => {});
+            apiFetch("/api/logout", { method: "POST" }).catch(() => { });
             let name = "";
             try {
                 const stored = JSON.parse(localStorage.getItem("posUser") || "{}");
