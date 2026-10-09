@@ -4003,6 +4003,119 @@ body.dark .waste-top-chip {
     color: #e8dccb;
 }
 
+/* Keep analytics cards and their chart headers from imposing intrinsic widths
+   on the single-column tablet layout. */
+@media (max-width: 1100px) {
+    .admin-panel,
+    .admin-panel > *,
+    .dashboard-grid > *,
+    .stats-row > *,
+    .management-grid > *,
+    .inventory-management > *,
+    .analytics-grid,
+    .analytics-grid > *,
+    .charts-column,
+    .analytics-card {
+        min-width: 0;
+    }
+}
+
+@media (max-width: 720px) {
+    .sales-graph-card .card-header {
+        align-items: flex-start;
+    }
+
+    .sales-filter-controls {
+        min-width: 0;
+        max-width: 100%;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        flex-shrink: 1;
+        gap: 6px;
+    }
+
+    .filter-dropdown-menu {
+        max-width: calc(100vw - 32px);
+    }
+
+    .usage-card .card-header {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .sales-target-control {
+        margin-left: auto;
+    }
+}
+
+@media (max-width: 430px) {
+    .sales-graph-card .card-header .sales-filter-controls {
+        flex: 1 1 100%;
+    }
+
+    .sales-filter-controls .filter-dropdown-menu {
+        left: 0;
+        right: auto;
+        width: min(226px, calc(100vw - 32px));
+        min-width: 0;
+    }
+
+    .sales-filter-controls .filter-dropdown[data-filter="month"] .filter-dropdown-menu {
+        left: auto;
+        right: 0;
+    }
+
+    .sales-filter-controls .filter-dropdown-toggle,
+    .sales-filter-controls .all-sales-filter,
+    .sales-filter-controls .csv-export-btn {
+        padding-right: 8px;
+        padding-left: 8px;
+        font-size: 0.75rem;
+    }
+
+    .usage-card .sales-target-control {
+        margin-left: 0;
+    }
+}
+
+body.dark .sales-filter-controls .filter-dropdown-toggle,
+body.dark .sales-filter-controls .all-sales-filter,
+body.dark .sales-filter-controls .filter-dropdown-menu {
+    background-color: #3a2d1f;
+    border-color: #4a3a2c;
+    color: #e8dccb;
+}
+
+body.dark .sales-filter-controls .filter-dropdown.open .filter-dropdown-toggle,
+body.dark .sales-filter-controls .all-sales-filter.active {
+    background-color: var(--accent-brown);
+    color: #fff;
+}
+
+body.dark .sales-filter-controls .filter-option {
+    color: #e8dccb;
+}
+
+body.dark .sales-filter-controls .filter-option:hover,
+body.dark .sales-filter-controls .filter-option:focus-within {
+    background-color: #4a3a2c;
+}
+
+body.dark .sales-filter-controls .filter-radio {
+    border-color: #b09a80;
+}
+
+body.dark .sales-filter-controls .filter-option input:checked + .filter-radio {
+    border-color: #c99a68;
+    background-color: #c99a68;
+    box-shadow: inset 0 0 0 3px #2e2318;
+}
+
+body.dark .sales-filter-controls .filter-selection-count {
+    background-color: #c99a68;
+    color: #221912;
+}
+
 /* ==========================================================================
    Owner email alerts settings panel
    ========================================================================== */
