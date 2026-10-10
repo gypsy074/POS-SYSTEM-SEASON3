@@ -44,7 +44,6 @@ function setupInventoryFilters() {
     const searchInput  = document.getElementById("invSearch");
     const categorySel  = document.getElementById("invFilterCategory");
     const statusSel    = document.getElementById("invFilterStatus");
-    const linkSelect   = document.getElementById("invLinkedProduct");
 
     if (searchInput) searchInput.addEventListener("input", () => {
         inventorySearch = searchInput.value.trim().toLowerCase();
@@ -58,20 +57,98 @@ function setupInventoryFilters() {
         inventoryFilterStatus = statusSel.value;
         renderInventoryTable(allInventory);
     });
-    if (linkSelect) linkSelect.addEventListener("change", onInventoryLinkChange);
+    setupInventoryLinkPicker();
 }
 
-// The link dropdown lists every menu product so a supply item can attach to
-// it and inherit its data on save. Refreshes whenever the inventory loads.
+function setupInventoryLinkPicker() {
+    const trigger = document.getElementById("invLinkProductButton");
+    const dialog = document.getElementById("invProductPickerDialog");
+    const search = document.getElementById("invProductPickerSearch");
+    const options = document.getElementById("invProductPickerOptions");
+    const standalone = document.getElementById("invProductPickerStandalone");
+    const closeButton = document.getElementById("invProductPickerClose");
+
+    if (!trigger || !dialog || !search || !options || !standalone || !closeButton) return;
+
+    trigger.addEventListener("click", () => {
+        search.value = "";
+        renderInventoryProductPickerOptions();
+        dialog.showModal();
+        trigger.setAttribute("aria-expanded", "true");
+        search.focus();
+    });
+    closeButton.addEventListener("click", () => dialog.close());
+    dialog.addEventListener("click", event => {
+        if (event.target === dialog) dialog.close();
+    });
+    dialog.addEventListener("close", () => {
+        trigger.setAttribute("aria-expanded", "false");
+        trigger.focus();
+    });
+    search.addEventListener("input", renderInventoryProductPickerOptions);
+    standalone.addEventListener("click", () => {
+        const linkSelect = document.getElementById("invLinkedProduct");
+        if (linkSelect) linkSelect.value = "";
+        updateInventoryLinkTrigger();
+        dialog.close();
+        onInventoryLinkChange();
+    });
+    options.addEventListener("click", event => {
+        const option = event.target.closest("button[data-product-id]");
+        if (!option) return;
+
+        const linkSelect = document.getElementById("invLinkedProduct");
+        if (linkSelect) linkSelect.value = option.dataset.productId;
+        updateInventoryLinkTrigger();
+        dialog.close();
+        onInventoryLinkChange();
+    });
+}
+
+// The picker lists menu products alphabetically so a supply item can attach
+// to one and inherit its data on save. Refreshes whenever inventory loads.
 function populateInventoryLinkSelect() {
-    const sel = document.getElementById("invLinkedProduct");
-    if (!sel) return;
-    const current = sel.value;
-    sel.innerHTML = '<option value="">— None (standalone supply) —</option>' +
-        allProducts.map(product =>
-            `<option value="${product._id}">${escapeHtml(product.name)}</option>`
-        ).join("");
-    sel.value = current;
+    renderInventoryProductPickerOptions();
+    updateInventoryLinkTrigger();
+}
+
+function renderInventoryProductPickerOptions() {
+    const options = document.getElementById("invProductPickerOptions");
+    const empty = document.getElementById("invProductPickerEmpty");
+    const search = document.getElementById("invProductPickerSearch");
+    const linkSelect = document.getElementById("invLinkedProduct");
+    const standalone = document.getElementById("invProductPickerStandalone");
+    if (!options || !empty || !search || !linkSelect || !standalone) return;
+
+    const query = search.value.trim().toLocaleLowerCase();
+    const products = [...allProducts]
+        .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), undefined, { sensitivity: "base" }))
+        .filter(product => String(product.name || "").toLocaleLowerCase().includes(query));
+
+    options.replaceChildren();
+    products.forEach(product => {
+        const option = document.createElement("button");
+        option.type = "button";
+        option.className = "inv-product-picker-option";
+        option.setAttribute("aria-pressed", String(product._id === linkSelect.value));
+        option.dataset.productId = product._id;
+        option.textContent = product.name || "(Unnamed product)";
+        options.appendChild(option);
+    });
+
+    empty.hidden = products.length > 0;
+    standalone.setAttribute("aria-pressed", String(!linkSelect.value));
+}
+
+function updateInventoryLinkTrigger() {
+    const linkSelect = document.getElementById("invLinkedProduct");
+    const trigger = document.getElementById("invLinkProductButton");
+    if (!linkSelect || !trigger) return;
+
+    const product = allProducts.find(item => item._id === linkSelect.value);
+    trigger.textContent = !linkSelect.value
+        ? "— None (standalone supply) —"
+        : product ? (product.name || "(Unnamed product)") : "Linked product unavailable";
 }
 
 // Picking a linked menu product autofills the form from its data — tweak
@@ -125,6 +202,7 @@ function selectInventoryRow(item) {
     const statusInput  = document.getElementById("invStatus");
 
     if (linkSelect)    linkSelect.value     = item.menuProductId || "";
+    updateInventoryLinkTrigger();
     if (nameInput)     nameInput.value      = item.productName || "";
     if (categoryInput) categoryInput.value  = item.category || "Coffee Beans";
     if (priceInput)    priceInput.value     = item.price ?? "";
@@ -155,6 +233,7 @@ function clearInventoryForm() {
     const statusInput  = document.getElementById("invStatus");
 
     if (linkSelect)    linkSelect.value     = "";
+    updateInventoryLinkTrigger();
     if (nameInput)     nameInput.value      = "";
     if (categoryInput) categoryInput.value  = "Coffee Beans";
     if (priceInput)    priceInput.value     = "";
