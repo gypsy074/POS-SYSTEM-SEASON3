@@ -49,20 +49,30 @@ flowchart TB
     keepalive["GitHub keep-alive workflow — pings /api/health every 5 min"] -. pings .-> render
 ```
 
-## 2. Order lifecycle (ingredient ledger)
+## 2. Order lifecycle (separate menu and supply ledgers)
 
 ```mermaid
 flowchart LR
     A["Cashier picks items"] --> B["POST /api/orders"]
-    B --> C{"Linked ingredients<br/>enough stock?"}
-    C -- "NO" --> D["409 Shortage blocked<br/>'name (needs productName)'"]
-    C -- "YES" --> E["Order saved<br/>ingredient stock −= unitsPerSale × qty"]
-    E --> F["Audit log entry"]
-    E --> G["Dashboard / insights update"]
-    H["Void order"] --> I["Ingredient stock restored<br/>+ unitsPerSale × qty"]
+    B --> C{"Enough menu stock<br/>and linked supply stock?"}
+    C -- "NO" --> D["409 Shortage blocked"]
+    C -- "YES" --> E["Order saved"]
+    E --> M["Menu stock −= quantity sold"]
+    E --> S["Each linked supply stock −=<br/>unitsPerSale × quantity sold"]
+    M --> F["Audit log entry"]
+    S --> F
+    M --> G["Dashboard / insights update"]
+    S --> G
+    H["Void order"] --> I["Restore menu stock and<br/>linked supply stock"]
     I --> F
-    J["Manual stock edit / restock"] -. "never propagates (independent ledgers)" .-> E
+    J["Manual stock edit / restock"] -. "does not change the other ledger" .-> E
 ```
+
+Menu stock counts sellable portions; inventory stock counts ingredients or
+supplies in their own quantities. The two counts are independent. An inventory
+item may be linked to a menu product and consumed according to `unitsPerSale`,
+or tracked on its own. Selecting a linked product in the inventory form can
+prefill values, but does not make the stock counts shared.
 
 ## 3. Offline flow (per device)
 
@@ -95,17 +105,17 @@ erDiagram
         string name
         number price
         string category
-        number stock
+        number stock "sellable portions"
         string status
         string image
     }
     INVENTORYITEMS {
         ObjectId _id PK
-        ObjectId productId FK
-        string name
+        ObjectId menuProductId FK
+        string productName
         number unitsPerSale
-        number stock
-        number threshold
+        number stock "supply quantity"
+        number lowStockThreshold
     }
     ORDERS {
         ObjectId _id PK
@@ -143,6 +153,9 @@ erDiagram
         date createdAt
     }
 ```
+
+`PRODUCTS.stock` and `INVENTORYITEMS.stock` are separate values: one is the
+number of menu portions available, the other is the amount of a supply on hand.
 
 ## 5. Deployment
 

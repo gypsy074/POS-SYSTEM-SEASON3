@@ -2,6 +2,11 @@
 
 All notable changes to the Season 3 POS System.
 
+## [Unreleased]
+
+### Documentation
+- Clarified that menu stock counts sellable items while inventory stock tracks separate ingredient and supply quantities.
+
 ## [v1.3.0] - 2026-08-16
 
 ### Fixed

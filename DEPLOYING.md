@@ -205,9 +205,10 @@ Manual smoke test (live site or local):
 1. Login (admin or a cashier account)
 2. Cashier: add an item to the cart → pay cash (calculator) → swipe to place
 3. Confirm the receipt modal + print dialog, then find it under My Orders
-4. Admin → Menu: the product's stock decreased; Sales shows the order; CSV export works
-5. Void the order from My Orders → stock returns, revenue excludes it
- 6. Offline test: DevTools → Network → Offline → place an order → green "synced" banner when back online
+4. Admin → Menu: the menu product's sellable stock decreased by the quantity sold; Sales shows the order; CSV export works
+5. If the menu product has linked inventory, confirm that supply stock decreased by `unitsPerSale × quantity` as well. The menu and supply stocks are separate counts.
+6. Void the order from My Orders → menu and linked supply stock return, and revenue excludes it
+7. Offline test: DevTools → Network → Offline → place an order → green "synced" banner when back online
 
 ---
 

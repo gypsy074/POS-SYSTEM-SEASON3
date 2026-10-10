@@ -11,6 +11,7 @@ A web-based Point-of-Sale system for Season 3 Cafe: menu management, cashier ord
 - **Cashier page** - touch-friendly ordering, payment/change calculator, receipts, order history, live notifications, barcode-style search, waste logging
 - **Offline mode** - service worker caches the cashier app; orders placed offline are queued and auto-synced (idempotent via `clientOrderId`)
 - **Admin panel** - dashboard (revenue, performance, live transactions with search), sales analytics (line/radar/usage charts, calendar, CSV export), AI insights (forecast, restock, anomalies, AI business report), menu, users, inventory, waste, audit log
+- **Separate stock tracking** - menu stock counts sellable portions; Inventory tracks ingredients and supplies separately, and linked supplies are consumed by their configured units per sale
 - **Account & sessions** - see every device logged in, kill sessions, revoke others, change password, new-sign-in alerts
 - **Audit logging** - logins/logouts, password changes, session revokes, order voids/deletes, and user + waste actions are recorded with actor + detail
 - **Security** - rate-limited login, helmet headers, CORS closed by default, required `JWT_SECRET`, request size limits, timing-equalized login, XSS-escaped output
@@ -38,6 +39,24 @@ A web-based Point-of-Sale system for Season 3 Cafe: menu management, cashier ord
 
 Every page is plain HTML/CSS/JS — no build step, no framework. The Express backend
 serves the static files and the JSON API from one process.
+
+## Menu stock vs. Inventory stock
+
+**Add Menu** records how many sellable portions of a menu item are available.
+Each completed sale reduces that menu item's stock by the quantity sold.
+
+**Inventory** records ingredients or supplies, such as coffee beans, syrup, or
+cups. To consume a supply when a menu item is sold, link the inventory item to
+that menu product and set **Units per Sale**. For example, a latte can have 20
+sellable portions in the menu and 500 g of beans in inventory, with 18 g per
+sale. Selling one latte reduces the menu stock by 1 and the bean stock by 18.
+Insufficient linked supply can block an order; standalone inventory items can
+also be tracked without a menu link.
+
+These are separate stock counts, not duplicates or a shared total. Selecting
+a linked menu product in the inventory form may prefill the form's name,
+category, price, and stock fields, but the inventory quantity remains its own
+value after saving. Update or restock each stock record independently.
 
 ## Local Setup
 
@@ -131,14 +150,14 @@ organized by file. "What does X do?" → find the file, read the row.
 | `PUT /api/auth/password` | auth: * | Changes the password (checks current password first, enforces min 8 chars) |
 | `GET /api/health` | public | Returns `{"ok":true,"mongo":"connected"}` — used by the keep-awake pinger |
 | `GET /api/orders` | auth: * | Returns orders (all for Admin, own for Cashier), optionally bounded by `?days=` (1–365) and `?limit=` (1–5000) so page loads stay fast as history grows |
-| `POST /api/orders` | auth: * | Places an order: deducts stock, records audit; rejects if stock runs out (409). Dedupes retries via `clientOrderId` |
+| `POST /api/orders` | auth: * | Places an order: deducts menu stock and linked inventory supplies (`unitsPerSale × quantity`); rejects shortages (409). Dedupes retries via `clientOrderId` |
 | `DELETE /api/orders/:id` | auth: Admin | Deletes an order — **voided orders only** (409 otherwise: deleting a paid order would silently rewrite past revenue/charts) |
 | `PATCH /api/orders/:id/void` | auth: * | Voids an order: restores stock, excludes it from revenue |
 | `GET /api/products` | auth: * | Returns the menu (public-ish list used by the cashier) |
 | `GET /api/products/categories` | auth: * | Distinct category list for the filter pills |
 | `POST/PUT/DELETE /api/products(/:id)` | auth: Admin | Create / update / delete menu items (image uploads allowed up to 10 MB) |
 | `GET/POST/PUT/DELETE /api/users(/:id)` | auth: Admin | Manage user accounts (create / edit / delete) |
-| `GET/POST/PUT/DELETE /api/inventory(/:id)` | auth: Admin | Manage the inventory list |
+| `GET/POST/PUT/DELETE /api/inventory(/:id)` | auth: Admin | Manage the separate ingredient and supply stock list; optionally link an item to a menu product |
 | `GET /api/waste` `POST /api/waste` | auth: * | Read / log food waste (cashiers log waste at end of day) |
 | `DELETE /api/waste/:id` | auth: Admin | Delete a waste entry |
 | `GET /api/audit` | auth: Admin | Returns the audit log, filterable by action + date |
@@ -445,8 +464,9 @@ cashier taps items → cart → swipe to pay (or Enter)
   → server: normalizeOrderPayload() validates items/payment
   → DEDUPE: if clientOrderId was already saved, the existing order is returned
             (unique index protects even two racing requests)
-  → stock verified for every item first; any shortage → 409 (no partial order)
-  → stock deducted ($inc -qty), sold-out items auto-flagged "Sold Out"
+  → menu stock and linked supply stock verified independently; any shortage → 409 (no partial order)
+  → menu stock deducted by qty; linked supplies deducted by unitsPerSale × qty
+  → sold-out menu items auto-flagged "Sold Out"
   → order saved → receipt modal → print dialog
   → dashboard shows it in Updates/Transactions; insights count it (if completed)
 ```
@@ -472,7 +492,7 @@ connection returns → setupOfflineSupport() fires → flushOfflineOrders()
 ```
 cashier → My Orders → Void (confirm dialog, optional reason)
   → fetchVoidOrder() → PATCH /api/orders/:id/void   (no admin approval — direct)
-  → server: stock restored per item ($inc +qty), "Sold Out" flags cleared
+  → server: menu stock and linked supply stock restored, "Sold Out" flags cleared
   → status = "Voided", voidedBy/voidedAt/voidReason recorded
   → writeLog('order.void', ...) → audit log
   → excluded from revenue, charts, and insights (isCompleted() == false)
@@ -498,6 +518,8 @@ admin → Menu → Add/Edit (photo picked → compressImage() 600px/30% in the b
 ```
 cashier → Waste form → searchable product picker → logWasteItems(items, reason)
   → POST /api/waste (validated: reason required) → writeLog('waste.create')
+  → menu stock and linked supplies are reduced by the wasted quantity
+     (supplies use unitsPerSale × quantity)
   → feeds the dashboard waste stat/table and the AI restock + waste insights
   → admin can delete entries (audited)
 ```

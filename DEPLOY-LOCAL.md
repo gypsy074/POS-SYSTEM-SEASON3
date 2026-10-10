@@ -61,7 +61,9 @@ npm run restore -- backend\backup\<date> mongodb://127.0.0.1:27017/pos_season3ca
 ```
 
 This copies users (admin keeps its current password), menu items, orders,
-inventory and waste into the local database.
+inventory and waste into the local database. Menu stock (sellable portions)
+and inventory stock (ingredients and supplies) remain separate counts during
+the migration; linked supplies keep their own stock and per-sale usage setting.
 
 ### A4. Switch this PC to "laptop mode"
 
@@ -182,7 +184,10 @@ npm run restore -- <path-to-backup-folder>
 ```
 
 This copies users (admin keeps its current password), menu items, orders,
-inventory and waste into the laptop's local database.
+inventory and waste into the laptop's local database. Menu stock (sellable
+portions) and inventory stock (ingredients and supplies) remain separate
+counts during the migration; linked supplies keep their own stock and
+per-sale usage setting.
 
 ### B5. Run the backend as a Windows service (NSSM)
 

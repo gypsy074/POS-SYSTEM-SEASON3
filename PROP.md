@@ -61,7 +61,12 @@ Four things it delivers from day one:
 ### Stock & Waste
 - **Menu manager** — add, edit, or remove items with photos; sold-out items
   are flagged automatically
-- **Low-stock alerts** — the cashier's bell notifies when items run low
+- **Separate stock counts** — menu stock counts sellable portions; Inventory
+  tracks ingredients and supplies such as beans, syrups, and cups
+- **Linked supply tracking** — link a supply to a menu item and set the
+  quantity consumed per sale; menu portions and supply quantities remain
+  separate, and either can be restocked on its own
+- **Low-stock alerts** — the cashier's bell notifies when menu items run low
 - **Waste logging** — one-tap food waste entry; its value feeds the reports
   and restock suggestions
 
