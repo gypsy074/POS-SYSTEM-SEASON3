@@ -93,11 +93,8 @@ async function doRestock({ id, type, label, quantity, reason }) {
         }
 
         showToast(`Restocked "${label}" +${quantity}.`);
-        if (type === "inventory") {
-            loadLiveInventoryData();
-        } else {
-            loadLiveMenuData();
-        }
+        if (typeof loadLiveInventoryData === "function") loadLiveInventoryData();
+        if (typeof loadLiveMenuData === "function") loadLiveMenuData();
         if (typeof loadInsights === "function") loadInsights();
         if (typeof renderNotifications === "function") renderNotifications();
     } catch (err) {

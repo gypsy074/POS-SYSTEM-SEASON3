@@ -1,7 +1,7 @@
 
 
 const API_BASE_URL = getApiBaseUrl();
-
+let allInventoryItems = [];
 let allProducts = [];
 let bestSellingCounts = {};
 let activeCategory = "Best Selling Item";
@@ -732,12 +732,21 @@ async function refreshCashierProducts() {
             const grid = document.getElementById("menuGrid");
             if (grid) window.PosLottie.showMenuLoader(grid);
         }
-        const response = await apiFetch("/api/products");
-        if (!response.ok) {
+        // Fetch both products and inventory supplies together
+        const [prodRes, invRes] = await Promise.all([
+            apiFetch("/api/products"),
+            apiFetch("/api/inventory")
+        ]);
+
+        if (!prodRes.ok) {
             throw new Error("Failed to fetch cashier menu");
         }
 
-        allProducts = await response.json();
+        allProducts = await prodRes.json();
+        if (invRes.ok) {
+            allInventoryItems = await invRes.json();
+        }
+
         await refreshBestSellingCounts();
         try {
             localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(allProducts));
@@ -777,7 +786,7 @@ async function refreshBestSellingCounts() {
         const orders = await response.json();
         const counts = {};
         (Array.isArray(orders) ? orders : []).forEach(order => {
-            if (order.status === "Voided") return;
+            if (order.status === "Voided" || order.status === "Refunded") return;
             (order.items || []).forEach(item => {
                 const name = String(item.name || "").trim();
                 if (name) counts[name] = (counts[name] || 0) + Number(item.quantity || 0);
@@ -968,7 +977,7 @@ function renderCashierHistory() {
             && d.getDate() === today.getDate();
     });
     const todayRevenue = todayOrders.reduce(
-        (sum, order) => (order.status === "Voided" ? sum : sum + Number(order.total || 0)),
+        (sum, order) => (order.status === "Voided" || order.status === "Refunded" ? sum : sum + Number(order.total || 0)),
         0
     );
 
@@ -985,12 +994,14 @@ function renderCashierHistory() {
     list.innerHTML = filtered.length
         ? filtered.slice(0, 50).map(order => {
             const isVoided = order.status === "Voided";
+            const isRefunded = order.status === "Refunded";
             return `
-            <button type="button" class="history-order-item${isVoided ? " voided" : ""}" data-order-id="${escapeHtml(order._id)}">
+            <button type="button" class="history-order-item${isVoided || isRefunded ? " voided" : ""}" data-order-id="${escapeHtml(order._id)}">
                 <div class="history-order-main">
                     <strong>${escapeHtml(order.receiptId)}</strong>
                     <span>${escapeHtml(order.customer)} · ${escapeHtml(order.mode || "Dine In")}</span>
                     ${isVoided ? `<span class="history-void-badge">VOIDED</span>` : ""}
+                    ${isRefunded ? `<span class="history-refund-badge">REFUNDED</span>` : ""}
                 </div>
                 <div class="history-order-side">
                     <strong>₱${Number(order.total || 0).toFixed(2)}</strong>
@@ -1014,6 +1025,7 @@ function showCashierOrderDetail(orderId) {
     }
 
     const isVoided = order.status === "Voided";
+    const isRefunded = order.status === "Refunded";
 
     detail.innerHTML = `
         <div class="history-detail-head">
@@ -1024,7 +1036,7 @@ function showCashierOrderDetail(orderId) {
             <div class="row"><span>Customer</span><strong>${escapeHtml(order.customer)}</strong></div>
             <div class="row"><span>Mode</span><strong>${escapeHtml(order.mode || "Dine In")}</strong></div>
             <div class="row"><span>Payment</span><strong>${escapeHtml(order.paymentMethod || "Cash")}</strong></div>
-            <div class="row"><span>Status</span><strong>${isVoided ? `<span class="history-void-badge">VOIDED</span>` : "Completed"}</strong></div>
+            <div class="row"><span>Status</span><strong>${isVoided ? `<span class="history-void-badge">VOIDED</span>` : isRefunded ? `<span class="history-refund-badge">REFUNDED</span>` : "Completed"}</strong></div>
             ${isVoided && order.voidedBy ? `<div class="row"><span>Voided by</span><strong>${escapeHtml(order.voidedBy)}</strong></div>` : ""}
             ${isVoided && order.voidedAt ? `<div class="row"><span>Voided at</span><strong>${new Date(order.voidedAt).toLocaleString()}</strong></div>` : ""}
             ${isVoided && order.voidReason ? `<div class="row"><span>Reason</span><strong>${escapeHtml(order.voidReason)}</strong></div>` : ""}
@@ -1038,10 +1050,15 @@ function showCashierOrderDetail(orderId) {
                 </div>
             `).join("")}
         </div>
-        <div class="pos-modal-total"><span>Total</span><span>₱${Number(order.total || 0).toFixed(2)}</span></div>
+        <div class="pos-modal-total${isRefunded || isVoided ? " total-reversed" : ""}"><span>Total</span><span>₱${Number(order.total || 0).toFixed(2)}</span></div>
         <div class="history-detail-actions">
             <button type="button" class="pos-modal-btn pos-modal-btn-secondary" id="historyPrintBtn">Print</button>
-            ${!isVoided ? `<button type="button" class="pos-modal-btn pos-modal-btn-danger" id="historyVoidBtn">Void Order</button>` : ""}
+            ${!isVoided && !isRefunded ? `<button type="button" class="pos-modal-btn pos-modal-btn-danger" id="historyVoidBtn">Void Order</button>` : ""}
+            ${isRefunded
+                ? `<button type="button" class="pos-modal-btn pos-modal-btn-danger" disabled>Refunded</button>`
+                : !isVoided
+                    ? `<button type="button" class="pos-modal-btn pos-modal-btn-danger" id="historyRefundBtn">Refund Order</button>`
+                    : ""}
             <button type="button" class="pos-modal-btn pos-modal-btn-secondary" id="historyDetailBackBtn">Back to list</button>
         </div>`;
 
@@ -1050,6 +1067,8 @@ function showCashierOrderDetail(orderId) {
 
     const voidBtn = document.getElementById("historyVoidBtn");
     if (voidBtn) voidBtn.addEventListener("click", () => requestOrderVoid(order._id));
+    const refundBtn = document.getElementById("historyRefundBtn");
+    if (refundBtn) refundBtn.addEventListener("click", () => requestOrderRefund(order._id));
 
     document.getElementById("historyDetailBackBtn").addEventListener("click", () => {
         detail.classList.remove("show");
@@ -1058,9 +1077,58 @@ function showCashierOrderDetail(orderId) {
     detail.classList.add("show");
 }
 
+function requestOrderRefund(orderId) {
+    const order = cashierOrders.find(item => item._id === orderId);
+    if (!order || order.status !== "Completed") return;
+
+    showPosConfirm({
+        title: "Refund Order",
+        icon: "fa-rotate-left",
+        iconClass: "danger",
+        primaryLabel: "Refund Order",
+        bodyHtml: `<p class="pos-modal-note">Are you sure you want to refund this order?</p>
+            <p class="pos-modal-note"><strong>#${escapeHtml(order.receiptId)}</strong> · ₱${Number(order.total || 0).toFixed(2)}</p>`
+    }).then(confirmed => {
+        if (confirmed) fetchRefundOrder(orderId);
+    });
+}
+
+async function fetchRefundOrder(orderId) {
+    try {
+        const response = await apiFetch(`/api/orders/${orderId}/refund`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" }
+        });
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.error || "Failed to refund the order.");
+        }
+        const updated = await response.json();
+        const index = cashierOrders.findIndex(order => order._id === orderId);
+        if (index >= 0) cashierOrders[index] = updated;
+        renderCashierHistory();
+        showCashierOrderDetail(orderId);
+        playSound("success");
+        showPosAlert({
+            title: "Order Refunded",
+            icon: "fa-rotate-left",
+            iconClass: "success",
+            bodyHtml: `<p class="pos-modal-note">The order was refunded and inventory stock was restored.</p>`
+        });
+    } catch (err) {
+        playSound("error");
+        showPosAlert({
+            title: "Refund Failed",
+            icon: "fa-circle-exclamation",
+            iconClass: "danger",
+            bodyHtml: `<p class="pos-modal-note">${escapeHtml(err.message)}</p>`
+        });
+    }
+}
+
 function requestOrderVoid(orderId) {
     const order = cashierOrders.find(o => o._id === orderId);
-    if (!order || order.status === "Voided") {
+    if (!order || order.status === "Voided" || order.status === "Refunded") {
         return;
     }
 
@@ -1152,14 +1220,45 @@ function reservedCartQty(productId) {
     return cart.reduce((sum, item) => sum + (String(item._id) === String(productId) ? item.quantity : 0), 0);
 }
 
+function getComputedProductStock(product) {
+    if (!product) return 0;
+
+    // Find all inventory supplies linked to this menu product
+    const linkedSupplies = (allInventoryItems || []).filter(inv => {
+        const ids = Array.isArray(inv.menuProductIds)
+            ? inv.menuProductIds.map(String)
+            : [];
+        if (inv.menuProductId) ids.push(String(inv.menuProductId));
+        return ids.includes(String(product._id));
+    });
+
+    // If no raw inventory supply is linked, fall back to product's direct stock
+    if (!linkedSupplies.length) {
+        return product.stock === undefined || product.stock === null
+            ? 999
+            : Math.max(0, Number(product.stock));
+    }
+
+    // Bottleneck logic: the supply that runs out first dictates available servings
+    let maxServings = Infinity;
+    for (const supply of linkedSupplies) {
+        const perSale = Math.max(0.001, Number(supply.unitsPerSale) || 1);
+        const supplyStock = Math.max(0, Number(supply.stock) || 0);
+        const possibleServings = Math.floor(supplyStock / perSale);
+
+        if (possibleServings < maxServings) {
+            maxServings = possibleServings;
+        }
+    }
+
+    return maxServings === Infinity ? 0 : Math.max(0, maxServings);
+}
+
 function productStock(product) {
     if (!product) return 0;
-    // Older products may not have a stock field; preserve the backend's
-    // default availability while still honoring an explicit zero.
-    const stock = product.stock === undefined || product.stock === null
-        ? 999
-        : Number(product.stock);
-    return Math.max(0, stock - reservedCartQty(product._id));
+    // Stock is now dynamically computed from linked raw supplies
+    const baseStock = getComputedProductStock(product);
+    return Math.max(0, baseStock - reservedCartQty(product._id));
 }
 
 function productIsSoldOut(product) {
@@ -1858,6 +1957,7 @@ async function submitOrder() {
 
         cancelOrder(true);
         loadCashierHistory();
+        await refreshCashierProducts();
         flushOfflineOrders(); // a pending queue may clear now that we're online
     } catch (err) {
         // Network failure (offline / server unreachable) → keep the order

@@ -721,6 +721,18 @@ body.dark .update-section-list::-webkit-scrollbar-thumb { background: #4a3a2c; }
     white-space: nowrap;
 }
 
+.refunded-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: #ffebee;
+  color: #b71c1c;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
 .update-section-toggle:hover {
     background: linear-gradient(135deg, #7d5d3d, #a2764c);
 }
@@ -4439,4 +4451,192 @@ body.dark .inv-product-picker-empty {
     .inv-product-picker-options {
         max-height: 52vh;
     }
+}
+
+/* ── Multi-link tags (form) ─────────────────────────────────────────────── */
+
+.inv-linked-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 32px;
+    margin-bottom: 8px;
+    align-items: center;
+}
+
+.inv-linked-empty {
+    font-size: 0.85rem;
+    color: #9e8370;
+    font-style: italic;
+}
+
+.inv-link-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px 4px 10px;
+    background: #f2e8dc;
+    border: 1px solid #c8a281;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #4a3520;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#invLinkedTags {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+}
+
+#invLinkedTags .inv-link-tag {
+    width: 100%;
+    justify-content: space-between;
+    box-sizing: border-box;
+}
+
+.inv-link-tag-remove {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.1);
+    color: inherit;
+    font-size: 0.9rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: background 0.15s;
+}
+
+.inv-link-tag-remove:hover {
+    background: rgba(180, 50, 30, 0.2);
+    color: #b43222;
+}
+
+/* Standalone badge in table */
+.inv-standalone-badge {
+    font-size: 0.75rem;
+    color: #9e8370;
+    font-style: italic;
+}
+
+/* Link badge in table — now shows name */
+.inv-link-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: #e8f4fd;
+    border: 1px solid #a8d0ef;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    color: #1a5f8a;
+    font-weight: 600;
+    margin: 1px 2px;
+}
+
+/* ── Picker checkbox rows ────────────────────────────────────────────────── */
+
+.inv-product-picker-checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    border-radius: 7px;
+    padding: 9px 12px;
+    transition: background 0.12s;
+}
+
+.inv-product-picker-checkbox-row:hover {
+    background: #f2e8dc;
+}
+
+.inv-product-picker-check {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    accent-color: var(--accent-brown, #a67c52);
+    cursor: pointer;
+}
+
+.inv-product-picker-name {
+    flex: 1;
+    font-size: 0.9rem;
+    overflow-wrap: anywhere;
+}
+
+/* ── Picker hint & footer ────────────────────────────────────────────────── */
+
+.inv-product-picker-hint {
+    margin: 0 0 14px;
+    font-size: 0.82rem;
+    color: #7a6555;
+    line-height: 1.45;
+}
+
+.inv-product-picker-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid #e4d6c6;
+}
+
+.inv-product-picker-done {
+    padding: 9px 22px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--accent-brown, #a67c52);
+    color: #fff;
+    font: inherit;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+}
+
+.inv-product-picker-done:hover,
+.inv-product-picker-done:focus-visible {
+    background: #8a6440;
+    outline: 2px solid rgba(166, 124, 82, 0.45);
+    outline-offset: 2px;
+}
+
+/* Dark mode adjustments */
+body.dark .inv-link-tag {
+    background: #4a3a2c;
+    border-color: #57432c;
+    color: #e8dccb;
+}
+
+body.dark .inv-link-badge {
+    background: #1a3550;
+    border-color: #2a5580;
+    color: #7bc0ef;
+}
+
+body.dark .inv-linked-empty {
+    color: #7a6555;
+}
+
+body.dark .inv-product-picker-checkbox-row:hover {
+    background: #4a3a2c;
+}
+
+body.dark .inv-product-picker-hint {
+    color: #b09a80;
+}
+
+body.dark .inv-product-picker-footer {
+    border-top-color: #57432c;
 }

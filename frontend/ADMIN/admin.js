@@ -63,7 +63,12 @@ function closeProfileDropdown() {
 // ── Profile Badge ──────────────────────────────────────────────────────────
 
 function setupProfileBadge() {
-    const user = JSON.parse(localStorage.getItem("posAdminUser") || "null");
+    let user = null;
+    try {
+        user = JSON.parse(localStorage.getItem("posAdminUser") || "null");
+    } catch (err) {
+        console.warn("Unable to read the saved admin profile; using the default profile.", err);
+    }
     const name = (user && user.username) || "Admin";
     const role = (user && user.role) || "Admin";
 
@@ -96,7 +101,8 @@ function setupProfileBadge() {
         }
     });
 
-    document.getElementById("profileLogoutBtn").addEventListener("click", () => {
+    const logoutButton = document.getElementById("profileLogoutBtn");
+    if (logoutButton) logoutButton.addEventListener("click", () => {
         apiFetch("/api/logout", { method: "POST" }).catch(() => {});
         let name = "";
         try {

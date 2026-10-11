@@ -439,6 +439,7 @@ async function updateMenuItem() {
     if (!selectedProductId) {
         showToast("Please select a menu product row from the table first before updating.", "warning");
         return;
+
     }
 
     const payload = getMenuPayload();
@@ -452,11 +453,15 @@ async function updateMenuItem() {
         });
 
         if (response.ok) {
-            showToast("Menu item configuration updated on MongoDB!");
-            clearMenuForm();
-            loadLiveMenuData();
-            return;
-        }
+          showToast("Menu item configuration updated on MongoDB!");
+          clearMenuForm();
+          await loadLiveMenuData();
+          // Automatically reload the inventory table so stock reflects immediately
+          if (typeof loadLiveInventoryData === "function") {
+              await loadLiveInventoryData();
+          }
+          return;
+      }
 
         const errorPayload = await response.json().catch(() => null);
         const reason = errorPayload?.error || `HTTP ${response.status}`;
@@ -515,6 +520,14 @@ async function loadLiveMenuData() {
         allProducts = products;
 
         renderMenuTable(products);
+        if (typeof allInventory === "undefined" || !allInventory || !allInventory.length) {
+            apiFetch("/api/inventory").then(r => r.ok ? r.json() : []).then(items => {
+                if (Array.isArray(items)) {
+                    allInventory = items;
+                    renderMenuTable(products);
+                }
+            }).catch(() => {});
+        }
         renderSalesCharts(latestOrders, products);
         loadCategories();
 
@@ -550,9 +563,21 @@ function renderMenuTable(products) {
         .slice()
         .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), undefined, { sensitivity: "base" }));
 
-    tbody.innerHTML = visibleProducts.map(product => `
+    const invList = (Array.isArray(window.allInventory) ? window.allInventory : (typeof allInventory !== "undefined" && Array.isArray(allInventory) ? allInventory : []));
+
+    tbody.innerHTML = visibleProducts.map(product => {
+        const linkedInv = invList.filter(inv => {
+            const ids = Array.isArray(inv.menuProductIds) ? inv.menuProductIds.map(String) : [];
+            if (inv.menuProductId) ids.push(String(inv.menuProductId));
+            return ids.includes(String(product._id));
+        });
+        const linkedBadge = linkedInv.length
+            ? `<span class="inv-link-badge" title="Linked to supplies: ${linkedInv.map(i => escapeHtml(i.productName)).join(', ')}" style="margin-left: 6px; font-size: 0.72rem; padding: 2px 6px;"><i class="fas fa-link"></i> Linked</span>`
+            : "";
+
+        return `
         <tr data-product-id="${product._id}">
-            <td>${escapeHtml(product.name)}</td>
+            <td>${escapeHtml(product.name)}${linkedBadge}</td>
             <td>${escapeHtml(product.category)}</td>
             <td>₱${Number(product.price).toFixed(2)}</td>
             <td class="${Number(product.stock ?? 0) <= Number(product.lowStockThreshold ?? 10) ? "low-stock-cell" : ""}">
@@ -565,5 +590,6 @@ function renderMenuTable(products) {
                     title="Restock this menu item">+ Restock</button>
             </td>
         </tr>
-    `).join("") || `<tr><td colspan="7" class="tx-empty">No menu items match the current filter.</td></tr>`;
+    `;
+    }).join("") || `<tr><td colspan="7" class="tx-empty">No menu items match the current filter.</td></tr>`;
 }

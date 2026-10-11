@@ -33,6 +33,14 @@ END incoming (reyn/ulan) */
         });
     }
 
+    document.addEventListener("click", event => {
+        const dropdown = document.getElementById("notificationDropdown");
+        if (dropdown && dropdown.classList.contains("show") &&
+            !dropdown.contains(event.target) && event.target !== notificationsButton) {
+            closeNotificationDropdown();
+        }
+    });
+
     // ── Admin Profile Dropdown ────────────────────────────────────────────────
     setupAdminDropdown();
 }

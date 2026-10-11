@@ -622,6 +622,29 @@ body.banner-visible .app-container {
   flex: 1;
 }
 
+.history-detail-actions .pos-modal-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.history-refund-badge,
+.refunded-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: #ffebee;
+  color: #b71c1c;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.total-reversed {
+  text-decoration: line-through;
+  color: #b71c1c;
+}
+
 /* ── Live notification bell (low stock / new items) ───────── */
 .notification-wrap {
   position: relative;

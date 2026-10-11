@@ -40,8 +40,8 @@ async function loadLiveDashboardData(force) {
         }
         latestOrders = orders;
 
-        const tableBody        = document.getElementById("transactionBody");
-        const totalRevenueEl   = document.getElementById("totalRevenue");
+        const tableBody = document.getElementById("transactionBody");
+        const totalRevenueEl = document.getElementById("totalRevenue");
         const todaySalesCountEl = document.getElementById("todaySalesCount");
 
         if (!tableBody || !totalRevenueEl || !todaySalesCountEl) return;
@@ -50,7 +50,7 @@ async function loadLiveDashboardData(force) {
         setupSalesFilterOptions(orders);
 
         const revenueAccumulator = orders.reduce(
-            (sum, order) => (order.status === "Voided" ? sum : sum + Number(order.total || 0)),
+            (sum, order) => (order.status === "Voided" || order.status === "Refunded" ? sum : sum + Number(order.total || 0)),
             0
         );
         totalRevenueEl.innerText = `₱${revenueAccumulator.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
@@ -61,7 +61,7 @@ async function loadLiveDashboardData(force) {
             return orderDate.getFullYear() === today.getFullYear() &&
                 orderDate.getMonth() === today.getMonth() &&
                 orderDate.getDate() === today.getDate() &&
-                order.status !== "Voided";
+                order.status !== "Voided" && order.status !== "Refunded";
         });
         todaySalesCountEl.innerText = `${todayOrders.length} Orders`;
 
@@ -456,7 +456,7 @@ function renderDailySnapshot() {
             t.getDate() === today.getDate();
     };
 
-    const todayOrders = (latestOrders || []).filter(o => isSameDay(o.date) && o.status !== "Voided");
+    const todayOrders = (latestOrders || []).filter(o => isSameDay(o.date) && o.status !== "Voided" && o.status !== "Refunded");
     const revenue = todayOrders.reduce((s, o) => s + Number(o.total || 0), 0);
 
     const qtyByItem = {};
@@ -547,18 +547,18 @@ function exportSalesCsv() {
 
 function setupWasteFilters() {
     const fromEl = document.getElementById("wasteFrom");
-    const toEl   = document.getElementById("wasteTo");
+    const toEl = document.getElementById("wasteTo");
     if (fromEl) fromEl.addEventListener("change", renderWasteTable);
-    if (toEl)   toEl.addEventListener("change", renderWasteTable);
+    if (toEl) toEl.addEventListener("change", renderWasteTable);
 }
 
 // The visible waste set, bounded by the from/to date filters.
 function filteredWaste() {
     const waste = latestWaste || [];
     const fromEl = document.getElementById("wasteFrom");
-    const toEl   = document.getElementById("wasteTo");
+    const toEl = document.getElementById("wasteTo");
     const from = fromEl && fromEl.value ? new Date(fromEl.value + "T00:00:00") : null;
-    const to   = toEl && toEl.value ? new Date(toEl.value + "T23:59:59") : null;
+    const to = toEl && toEl.value ? new Date(toEl.value + "T23:59:59") : null;
     return waste.filter(entry => {
         const d = new Date(entry.date);
         if (from && d < from) return false;
@@ -746,23 +746,23 @@ function renderTransactionTable(orders) {
     }
 
     if (!visible.length) {
-        tbody.innerHTML = `<tr><td colspan="8" class="tx-empty">${
-            search || Object.values(transactionFilters).some(Boolean)
+        tbody.innerHTML = `<tr><td colspan="8" class="tx-empty">${search || Object.values(transactionFilters).some(Boolean)
                 ? "No transactions match the current filters."
                 : "No transactions yet."
-        }</td></tr>`;
+            }</td></tr>`;
         renderTransactionPagination(totalPages);
         return;
     }
 
     tbody.innerHTML = visible.map(order => {
         const isVoided = order.status === "Voided";
+        const isRefunded = order.status === "Refunded";
         return `
-        <tr class="${isVoided ? "voided-row" : ""}">
+        <tr class="${isVoided || isRefunded ? "voided-row" : ""}">
             <td>${escapeHtml(order.customer)}</td>
             <td>${escapeHtml(order.cashier || "—")}</td>
             <td>${new Date(order.date).toLocaleString()}</td>
-            <td>${escapeHtml(order.receiptId)}${isVoided ? ' <span class="voided-badge">VOIDED</span>' : ""}</td>
+            <td>${escapeHtml(order.receiptId)}${isVoided ? ' <span class="voided-badge">VOIDED</span>' : ""}${isRefunded ? ' <span class="refunded-badge">REFUNDED</span>' : ""}</td>
             <td>${escapeHtml((order.items || []).map(item => item.name).join(", "))}</td>
             <td>₱${Number(order.total || 0).toFixed(2)}</td>
             <td>${escapeHtml(order.paymentMethod || "Cash")}</td>
@@ -835,9 +835,9 @@ function renderTransactionPagination(totalPages) {
 function getChartTheme() {
     const dark = document.body.classList.contains("dark");
     return {
-        text:    dark ? "#b09a80" : "#666",
-        strong:  dark ? "#e8dccb" : "#666",
-        grid:    dark ? "rgba(232, 220, 203, 0.12)" : "rgba(0, 0, 0, 0.08)",
+        text: dark ? "#b09a80" : "#666",
+        strong: dark ? "#e8dccb" : "#666",
+        grid: dark ? "rgba(232, 220, 203, 0.12)" : "rgba(0, 0, 0, 0.08)",
         backdrop: "transparent"
     };
 }
@@ -845,13 +845,13 @@ function getChartTheme() {
 function filterOrdersByRange(orders, range = activeSalesRange) {
     if (!Array.isArray(orders) || !orders.length) return [];
     if (range === "all" || salesFilterMode === "all") {
-        return orders.filter(order => order.status !== "Voided");
+        return orders.filter(order => order.status !== "Voided" && order.status !== "Refunded");
     }
     const selected = new Set(activeSalesFilters[range] || []);
-    if (!selected.size) return orders.filter(order => order.status !== "Voided");
+    if (!selected.size) return orders.filter(order => order.status !== "Voided" && order.status !== "Refunded");
 
     return orders.filter(order => {
-        if (order.status === "Voided") return false;
+        if (order.status === "Voided" || order.status === "Refunded") return false;
         const date = new Date(order.date);
         if (Number.isNaN(date.getTime())) return false;
         if (range === "day") return selected.has(formatLocalDate(date));
@@ -889,27 +889,24 @@ function formatLocalWeek(date) {
 
 function setupSalesFilterOptions(orders) {
     if (salesFilterOptionsBuilt) return;
-    const validOrders = (orders || []).filter(order => order.status !== "Voided" && !Number.isNaN(new Date(order.date).getTime()));
+    const validOrders = (orders || []).filter(order => order.status !== "Voided" && order.status !== "Refunded" && !Number.isNaN(new Date(order.date).getTime()));
     salesFilterMode = "day";
     activeSalesRange = "day";
     document.querySelector(".all-sales-filter")?.classList.remove("active");
-    const orderDates = validOrders.map(order => new Date(order.date));
-    const fallbackEnd = new Date();
-    const fallbackStart = new Date(fallbackEnd);
-    fallbackStart.setDate(fallbackStart.getDate() - 89);
-    const rangeStart = orderDates.length ? new Date(Math.min(...orderDates)) : fallbackStart;
-    const rangeEnd = orderDates.length ? new Date(Math.max(...orderDates)) : fallbackEnd;
-    const dates = [...new Set(validOrders.map(order => formatLocalDate(new Date(order.date))))].sort().reverse();
-    if (!dates.length) {
-        for (const date = new Date(rangeEnd); date >= rangeStart; date.setDate(date.getDate() - 1)) {
-            dates.push(formatLocalDate(date));
-        }
-    }
+    const activeYear = new Date().getFullYear();
     const months = [];
-    const monthCursor = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), 1);
-    const firstMonth = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1);
-    for (; monthCursor >= firstMonth; monthCursor.setMonth(monthCursor.getMonth() - 1)) {
-        months.push(formatLocalMonth(monthCursor));
+    for (let month = 11; month >= 0; month -= 1) {
+        months.push(formatLocalMonth(new Date(activeYear, month, 1)));
+    }
+    // Build every calendar day for every available month, not only days with
+    // orders. This keeps zero-sales days selectable in the analytics filter.
+    const dates = [];
+    for (const month of months) {
+        const [year, monthNumber] = month.split("-").map(Number);
+        const daysInMonth = new Date(year, monthNumber, 0).getDate();
+        for (let day = daysInMonth; day >= 1; day--) {
+            dates.push(`${month}-${String(day).padStart(2, "0")}`);
+        }
     }
     const weeks = new Map();
     for (const month of months) {
@@ -924,7 +921,7 @@ function setupSalesFilterOptions(orders) {
         day: dates.map(value => ({ value, label: new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) })),
         week: [...weeks.values()].sort((a, b) => b.start - a.start).map(week => ({
             value: week.key,
-            label: `${week.month} ${week.week} · ${week.start.toLocaleDateString("en-US", { month: "short", day: "numeric" })}–${week.end.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+            label: `Week ${week.week} · ${week.start.toLocaleDateString("en-US", { month: "short", day: "numeric" })}–${week.end.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
         })),
         month: months.map(value => ({ value, label: new Date(`${value}-01T00:00:00`).toLocaleDateString("en-US", { month: "long", year: "numeric" }) }))
     };
@@ -957,6 +954,36 @@ function setupSalesFilterOptions(orders) {
                 renderUsageChart(latestOrders);
             });
         });
+        document.querySelectorAll(".filter-dropdown-toggle").forEach(toggle => {
+            if (toggle.dataset.bound === "true") return;
+            toggle.dataset.bound = "true";
+            toggle.addEventListener("click", event => {
+                event.stopPropagation();
+                const dropdown = toggle.closest(".filter-dropdown");
+                document.querySelectorAll(".filter-dropdown.open").forEach(item => {
+                    if (item !== dropdown) item.classList.remove("open");
+                });
+                dropdown?.classList.toggle("open");
+                toggle.setAttribute("aria-expanded", String(dropdown?.classList.contains("open")));
+            });
+        });
+        const allButton = document.querySelector(".all-sales-filter");
+        if (allButton && allButton.dataset.bound !== "true") {
+            allButton.dataset.bound = "true";
+            allButton.addEventListener("click", () => {
+                salesFilterMode = "all";
+                activeSalesRange = "all";
+                Object.keys(activeSalesFilters).forEach(key => {
+                    activeSalesFilters[key] = [];
+                    document.querySelectorAll(`.filter-dropdown[data-filter="${key}"] input`)
+                        .forEach(input => { input.checked = false; });
+                    updateSalesFilterLabel(key);
+                });
+                allButton.classList.add("active");
+                renderSalesCharts(latestOrders, allProducts, "all");
+                renderUsageChart(latestOrders, "all");
+            });
+        }
     });
     if (dates.length) {
         activeSalesFilters.day = [dates[0]];
@@ -1147,31 +1174,31 @@ function renderUsageChart(orders, range = activeSalesRange) {
     const filteredOrders = filterOrdersByRange(orders, range);
 
     const dailyRevenue = {};
-    const dailyCount   = {};
+    const dailyCount = {};
     filteredOrders.forEach(order => {
-        if (order.status === "Voided") return;
+        if (order.status === "Voided" || order.status === "Refunded") return;
         const key = new Date(order.date).toLocaleDateString();
         dailyRevenue[key] = (dailyRevenue[key] || 0) + Number(order.total || 0);
-        dailyCount[key]   = (dailyCount[key] || 0) + 1;
+        dailyCount[key] = (dailyCount[key] || 0) + 1;
     });
 
     const rangeLimit = { day: 7, week: 28, month: 90, all: Infinity }[range] || 7;
     let labels = [];
     let revenueByLabel = [];
-    let countByLabel   = [];
+    let countByLabel = [];
 
     if (range === "all") {
         const monthlyRevenue = {};
-        const monthlyCount   = {};
+        const monthlyCount = {};
         filteredOrders.forEach(order => {
-            if (order.status === "Voided") return;
+            if (order.status === "Voided" || order.status === "Refunded") return;
             const key = new Date(order.date).toLocaleDateString("en-US", { month: "short", year: "numeric" });
             monthlyRevenue[key] = (monthlyRevenue[key] || 0) + Number(order.total || 0);
-            monthlyCount[key]   = (monthlyCount[key] || 0) + 1;
+            monthlyCount[key] = (monthlyCount[key] || 0) + 1;
         });
         labels = Object.keys(monthlyRevenue).sort((a, b) => new Date(a) - new Date(b));
         revenueByLabel = labels.map(label => monthlyRevenue[label]);
-        countByLabel   = labels.map(label => monthlyCount[label]);
+        countByLabel = labels.map(label => monthlyCount[label]);
     } else {
         for (let i = rangeLimit - 1; i >= 0; i--) {
             const label = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toLocaleDateString();
@@ -1277,48 +1304,88 @@ function setupCategoryPills() {
 
 // ── Sales Range Filter Tabs (Day / Week / Month / All) ─────────────────────
 function setupSalesFilterTabs() {
-    document.querySelectorAll(".filter-dropdown").forEach(dropdown => {
-        const toggle = dropdown.querySelector(".filter-dropdown-toggle");
-        const menu = dropdown.querySelector(".filter-dropdown-menu");
-        if (!toggle || !menu) return;
-        toggle.addEventListener("click", event => {
-            event.stopPropagation();
-            const isOpen = dropdown.classList.toggle("open");
-            toggle.setAttribute("aria-expanded", String(isOpen));
-            document.querySelectorAll(".filter-dropdown.open").forEach(other => {
-                if (other !== dropdown) {
-                    other.classList.remove("open");
-                    other.querySelector(".filter-dropdown-toggle")?.setAttribute("aria-expanded", "false");
-                }
-            });
+    const monthNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    ];
+    const currentYear = new Date().getFullYear();
+
+    const setupDropdownSet = (prefix, filters, refresh) => {
+        const month = document.getElementById(`${prefix}MonthFilter`);
+        const day   = document.getElementById(`${prefix}DayFilter`);
+        const year  = document.getElementById(`${prefix}YearFilter`);
+        if (!month || !day || !year) return;
+
+        // 1. Static Months List
+        month.innerHTML = '<option value="">All months</option>' +
+            monthNames.map((name, index) => `<option value="${index + 1}">${name}</option>`).join("");
+
+        // 2. Static Years List
+        year.innerHTML = '<option value="">All years</option>' +
+            Array.from({ length: 6 }, (_, index) => currentYear - index)
+                .map(val => `<option value="${val}">${val}</option>`).join("");
+
+        // 3. Static Days List (1 to 31)
+        const populateDays = () => {
+            const selectedMonth = Number(month.value);
+            const selectedYear  = Number(year.value) || currentYear;
+            const maxDays = selectedMonth ? new Date(selectedYear, selectedMonth, 0).getDate() : 31;
+
+            const currentSelectedDay = Number(day.value);
+            let dayOptions = '<option value="">All days</option>';
+            for (let d = 1; d <= maxDays; d++) {
+                dayOptions += `<option value="${d}">${d}</option>`;
+            }
+            day.innerHTML = dayOptions;
+
+            if (currentSelectedDay && currentSelectedDay <= maxDays) {
+                day.value = String(currentSelectedDay);
+                filters.day = String(currentSelectedDay);
+            } else {
+                day.value = "";
+                filters.day = "";
+            }
+        };
+
+        month.value = filters.months ? filters.months[0] || "" : (filters.month || "");
+        year.value  = filters.years  ? filters.years[0]  || "" : (filters.year  || "");
+        populateDays();
+        day.value   = filters.days   ? filters.days[0]   || "" : (filters.day   || "");
+
+        month.addEventListener("change", () => {
+            filters.month = month.value;
+            filters.months = month.value ? [month.value] : [];
+            populateDays();
+            refresh();
         });
-    });
-    document.addEventListener("click", () => {
-        document.querySelectorAll(".filter-dropdown.open").forEach(dropdown => {
-            dropdown.classList.remove("open");
-            dropdown.querySelector(".filter-dropdown-toggle")?.setAttribute("aria-expanded", "false");
+
+        year.addEventListener("change", () => {
+            filters.year = year.value;
+            filters.years = year.value ? [year.value] : [];
+            populateDays();
+            refresh();
         });
-    });
-    document.querySelector(".all-sales-filter")?.addEventListener("click", event => {
-        event.stopPropagation();
-        salesFilterMode = "all";
-        activeSalesRange = "all";
-        Object.keys(activeSalesFilters).forEach(key => { activeSalesFilters[key] = []; });
-        document.querySelectorAll(".filter-dropdown input").forEach(input => { input.checked = false; });
-        document.querySelectorAll(".filter-dropdown").forEach(dropdown => {
-            updateSalesFilterLabel(dropdown.dataset.filter);
+
+        day.addEventListener("change", () => {
+            filters.day = day.value;
+            filters.days = day.value ? [day.value] : [];
+            refresh();
         });
-        document.querySelector(".all-sales-filter")?.classList.add("active");
-        renderSalesCharts(latestOrders, allProducts);
-        renderUsageChart(latestOrders);
-    });
+    };
+
+    setupDropdownSet("sales", activeSalesFilters, () => renderSalesCharts(latestOrders, allProducts, activeSalesFilters));
+    // The legacy usage filter controls are no longer rendered in admin.html.
+    // Do not evaluate the removed state object during bootstrap.
+    if (typeof activeUsageFilters !== "undefined") {
+        setupDropdownSet("usage", activeUsageFilters, () => renderUsageChart(latestOrders, activeUsageFilters));
+    }
 }
 
 // ── Sales Calendar (month navigation + days with orders) ───────────────────
 
 function setupCalendarControls() {
-    const prevBtn    = document.getElementById("prevMonthBtn");
-    const nextBtn    = document.getElementById("nextMonthBtn");
+    const prevBtn = document.getElementById("prevMonthBtn");
+    const nextBtn = document.getElementById("nextMonthBtn");
     const yearSelect = document.getElementById("yearSelect");
 
     if (!prevBtn || !nextBtn || !yearSelect) return;
@@ -1352,19 +1419,19 @@ function setupCalendarControls() {
 
 function renderCalendar() {
     const monthDisplay = document.getElementById("monthDisplay");
-    const yearSelect   = document.getElementById("yearSelect");
+    const yearSelect = document.getElementById("yearSelect");
     const calendarGrid = document.getElementById("calendarGrid");
     if (!monthDisplay || !yearSelect || !calendarGrid) return;
 
-    const year  = calendarViewDate.getFullYear();
+    const year = calendarViewDate.getFullYear();
     const month = calendarViewDate.getMonth();
     const today = new Date();
 
     monthDisplay.textContent = calendarViewDate.toLocaleDateString("en-US", { month: "long" });
     yearSelect.value = year;
 
-    const firstDay     = new Date(year, month, 1).getDay();
-    const daysInMonth  = new Date(year, month + 1, 0).getDate();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
 
     const ordersByDay = (latestOrders || []).reduce((acc, order) => {
         const date = new Date(order.date);

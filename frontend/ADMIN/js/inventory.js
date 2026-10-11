@@ -1,7 +1,7 @@
 /* ==========================================================================
    inventory.js — Stock & supply inventory module
-   Handles: CRUD for inventory items, linking to menu products (inherit
-   name/category/price/stock/threshold on save), low-stock highlighting,
+   Handles: CRUD for inventory items, linking to MULTIPLE menu products
+   (each sale of any linked item deducts stock), low-stock highlighting,
    search + category/status filters, and summary stat chips.
    ========================================================================== */
 
@@ -60,15 +60,63 @@ function setupInventoryFilters() {
     setupInventoryLinkPicker();
 }
 
-function setupInventoryLinkPicker() {
-    const trigger = document.getElementById("invLinkProductButton");
-    const dialog = document.getElementById("invProductPickerDialog");
-    const search = document.getElementById("invProductPickerSearch");
-    const options = document.getElementById("invProductPickerOptions");
-    const standalone = document.getElementById("invProductPickerStandalone");
-    const closeButton = document.getElementById("invProductPickerClose");
+// ── Multi-link Picker ──────────────────────────────────────────────────────
+// The hidden field `invLinkedProducts` holds a JSON array of product IDs.
+// The tag container `invLinkedTags` shows chips with × buttons to remove.
 
-    if (!trigger || !dialog || !search || !options || !standalone || !closeButton) return;
+function getLinkedProductIds() {
+    const hidden = document.getElementById("invLinkedProducts");
+    if (!hidden || !hidden.value) return [];
+    try {
+        const parsed = JSON.parse(hidden.value);
+        if (Array.isArray(parsed)) {
+            return [...new Set(parsed.map(id => String(id).trim()).filter(Boolean))];
+        }
+        return [];
+    } catch {
+        return [];
+    }
+}
+
+function setLinkedProductIds(ids) {
+    const hidden = document.getElementById("invLinkedProducts");
+    if (hidden) hidden.value = JSON.stringify(ids || []);
+    renderLinkedTags();
+}
+
+function renderLinkedTags() {
+    const container = document.getElementById("invLinkedTags");
+    if (!container) return;
+    const ids = getLinkedProductIds();
+    if (!ids.length) {
+        container.innerHTML = `<span class="inv-linked-empty">None — standalone supply</span>`;
+        return;
+    }
+    container.innerHTML = ids.map(id => {
+        const product = (allProducts || []).find(p => p._id === id);
+        const safeName = product ? escapeHtml(product.name || "(Unnamed)") : `<em>Unknown</em>`;
+        return `<span class="inv-link-tag" data-link-id="${id}">${safeName}<button type="button" class="inv-link-tag-remove" data-remove-id="${id}" aria-label="Remove link">&times;</button></span>`;
+    }).join("");
+
+    container.querySelectorAll(".inv-link-tag-remove").forEach(btn => {
+        btn.addEventListener("click", e => {
+            e.stopPropagation();
+            const removeId = btn.dataset.removeId;
+            setLinkedProductIds(getLinkedProductIds().filter(id => id !== removeId));
+            renderInventoryProductPickerOptions();
+        });
+    });
+}
+
+function setupInventoryLinkPicker() {
+    const trigger   = document.getElementById("invLinkProductButton");
+    const dialog    = document.getElementById("invProductPickerDialog");
+    const search    = document.getElementById("invProductPickerSearch");
+    const optionsEl = document.getElementById("invProductPickerOptions");
+    const closeBtn  = document.getElementById("invProductPickerClose");
+    const doneBtn   = document.getElementById("invProductPickerDone");
+
+    if (!trigger || !dialog || !search || !optionsEl || !closeBtn) return;
 
     trigger.addEventListener("click", () => {
         search.value = "";
@@ -77,98 +125,76 @@ function setupInventoryLinkPicker() {
         trigger.setAttribute("aria-expanded", "true");
         search.focus();
     });
-    closeButton.addEventListener("click", () => dialog.close());
+
+    const closeDialog = () => {
+        dialog.close();
+        trigger.setAttribute("aria-expanded", "false");
+        trigger.focus();
+    };
+
+    closeBtn.addEventListener("click", closeDialog);
+    if (doneBtn) doneBtn.addEventListener("click", closeDialog);
     dialog.addEventListener("click", event => {
-        if (event.target === dialog) dialog.close();
+        if (event.target === dialog) closeDialog();
     });
     dialog.addEventListener("close", () => {
         trigger.setAttribute("aria-expanded", "false");
-        trigger.focus();
     });
     search.addEventListener("input", renderInventoryProductPickerOptions);
-    standalone.addEventListener("click", () => {
-        const linkSelect = document.getElementById("invLinkedProduct");
-        if (linkSelect) linkSelect.value = "";
-        updateInventoryLinkTrigger();
-        dialog.close();
-        onInventoryLinkChange();
-    });
-    options.addEventListener("click", event => {
-        const option = event.target.closest("button[data-product-id]");
-        if (!option) return;
 
-        const linkSelect = document.getElementById("invLinkedProduct");
-        if (linkSelect) linkSelect.value = option.dataset.productId;
-        updateInventoryLinkTrigger();
-        dialog.close();
-        onInventoryLinkChange();
+    // Checkbox toggle inside the options list
+    optionsEl.addEventListener("change", event => {
+        const checkbox = event.target.closest("input[type='checkbox'][data-product-id]");
+        if (!checkbox) return;
+        const productId = checkbox.dataset.productId;
+        const current = getLinkedProductIds();
+        if (checkbox.checked) {
+            if (!current.includes(productId)) setLinkedProductIds([...current, productId]);
+        } else {
+            setLinkedProductIds(current.filter(id => id !== productId));
+        }
     });
 }
 
-// The picker lists menu products alphabetically so a supply item can attach
-// to one and inherit its data on save. Refreshes whenever inventory loads.
 function populateInventoryLinkSelect() {
     renderInventoryProductPickerOptions();
-    updateInventoryLinkTrigger();
+    renderLinkedTags();
 }
 
 function renderInventoryProductPickerOptions() {
-    const options = document.getElementById("invProductPickerOptions");
-    const empty = document.getElementById("invProductPickerEmpty");
-    const search = document.getElementById("invProductPickerSearch");
-    const linkSelect = document.getElementById("invLinkedProduct");
-    const standalone = document.getElementById("invProductPickerStandalone");
-    if (!options || !empty || !search || !linkSelect || !standalone) return;
+    const optionsEl = document.getElementById("invProductPickerOptions");
+    const emptyEl   = document.getElementById("invProductPickerEmpty");
+    const searchEl  = document.getElementById("invProductPickerSearch");
+    if (!optionsEl || !emptyEl || !searchEl) return;
 
-    const query = search.value.trim().toLocaleLowerCase();
-    const products = [...allProducts]
+    const query = searchEl.value.trim().toLocaleLowerCase();
+    const selected = new Set(getLinkedProductIds());
+
+    const products = [...(allProducts || [])]
         .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), undefined, { sensitivity: "base" }))
         .filter(product => String(product.name || "").toLocaleLowerCase().includes(query));
 
-    options.replaceChildren();
+    optionsEl.replaceChildren();
     products.forEach(product => {
-        const option = document.createElement("button");
-        option.type = "button";
-        option.className = "inv-product-picker-option";
-        option.setAttribute("aria-pressed", String(product._id === linkSelect.value));
-        option.dataset.productId = product._id;
-        option.textContent = product.name || "(Unnamed product)";
-        options.appendChild(option);
+        const label = document.createElement("label");
+        label.className = "inv-product-picker-option inv-product-picker-checkbox-row";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "inv-product-picker-check";
+        checkbox.dataset.productId = product._id;
+        checkbox.checked = selected.has(product._id);
+
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "inv-product-picker-name";
+        nameSpan.textContent = product.name || "(Unnamed product)";
+
+        label.appendChild(checkbox);
+        label.appendChild(nameSpan);
+        optionsEl.appendChild(label);
     });
 
-    empty.hidden = products.length > 0;
-    standalone.setAttribute("aria-pressed", String(!linkSelect.value));
-}
-
-function updateInventoryLinkTrigger() {
-    const linkSelect = document.getElementById("invLinkedProduct");
-    const trigger = document.getElementById("invLinkProductButton");
-    if (!linkSelect || !trigger) return;
-
-    const product = allProducts.find(item => item._id === linkSelect.value);
-    trigger.textContent = !linkSelect.value
-        ? "— None (standalone supply) —"
-        : product ? (product.name || "(Unnamed product)") : "Linked product unavailable";
-}
-
-// Picking a linked menu product autofills the form from its data — tweak
-// any field afterwards, the explicit values win on save.
-function onInventoryLinkChange() {
-    const sel = document.getElementById("invLinkedProduct");
-    if (!sel) return;
-    const product = allProducts.find(p => p._id === sel.value);
-    if (!product) return;
-
-    const set = (id, value) => {
-        const el = document.getElementById(id);
-        if (el) el.value = value;
-    };
-    set("invProdName", product.name || "");
-    set("invCategory", product.category || "");
-    set("invPrice", product.price ?? "");
-    set("invStock", product.stock ?? "");
-    set("invThreshold", product.lowStockThreshold ?? 10);
-    set("invStatus", product.status || "Available");
+    emptyEl.hidden = products.length > 0;
 }
 
 // ── Button State Control ───────────────────────────────────────────────────
@@ -192,24 +218,30 @@ function updateInventoryButtonStates(hasSelection) {
 function selectInventoryRow(item) {
     selectedInventoryId = item._id;
 
-    const linkSelect   = document.getElementById("invLinkedProduct");
-    const nameInput    = document.getElementById("invProdName");
-    const categoryInput = document.getElementById("invCategory");
-    const priceInput   = document.getElementById("invPrice");
-    const stockInput   = document.getElementById("invStock");
+    const nameInput      = document.getElementById("invProdName");
+    const categoryInput  = document.getElementById("invCategory");
+    const priceInput     = document.getElementById("invPrice");
+    const stockInput     = document.getElementById("invStock");
     const thresholdInput = document.getElementById("invThreshold");
     const unitsInput     = document.getElementById("invUnitsPerSale");
-    const statusInput  = document.getElementById("invStatus");
+    const statusInput    = document.getElementById("invStatus");
 
-    if (linkSelect)    linkSelect.value     = item.menuProductId || "";
-    updateInventoryLinkTrigger();
-    if (nameInput)     nameInput.value      = item.productName || "";
-    if (categoryInput) categoryInput.value  = item.category || "Coffee Beans";
-    if (priceInput)    priceInput.value     = item.price ?? "";
-    if (stockInput)    stockInput.value     = item.stock ?? "";
+    // Normalise: support legacy single menuProductId or new array menuProductIds
+    let ids = [];
+    if (Array.isArray(item.menuProductIds) && item.menuProductIds.length) {
+        ids = item.menuProductIds;
+    } else if (item.menuProductId) {
+        ids = [item.menuProductId];
+    }
+    setLinkedProductIds(ids);
+
+    if (nameInput)      nameInput.value      = item.productName || "";
+    if (categoryInput)  categoryInput.value  = item.category || "";
+    if (priceInput)     priceInput.value     = item.price ?? "";
+    if (stockInput)     stockInput.value     = item.stock ?? "";
     if (thresholdInput) thresholdInput.value = item.lowStockThreshold ?? "";
-    if (unitsInput)    unitsInput.value     = item.unitsPerSale ?? "";
-    if (statusInput)   statusInput.value    = item.status || "Available";
+    if (unitsInput)     unitsInput.value     = item.unitsPerSale ?? "";
+    if (statusInput)    statusInput.value    = item.status || "Available";
 
     updateInventoryButtonStates(true);
 
@@ -223,24 +255,22 @@ function selectInventoryRow(item) {
 function clearInventoryForm() {
     selectedInventoryId = null;
 
-    const linkSelect   = document.getElementById("invLinkedProduct");
-    const nameInput    = document.getElementById("invProdName");
-    const categoryInput = document.getElementById("invCategory");
-    const priceInput   = document.getElementById("invPrice");
-    const stockInput   = document.getElementById("invStock");
+    const nameInput      = document.getElementById("invProdName");
+    const categoryInput  = document.getElementById("invCategory");
+    const priceInput     = document.getElementById("invPrice");
+    const stockInput     = document.getElementById("invStock");
     const thresholdInput = document.getElementById("invThreshold");
     const unitsInput     = document.getElementById("invUnitsPerSale");
-    const statusInput  = document.getElementById("invStatus");
+    const statusInput    = document.getElementById("invStatus");
 
-    if (linkSelect)    linkSelect.value     = "";
-    updateInventoryLinkTrigger();
-    if (nameInput)     nameInput.value      = "";
-    if (categoryInput) categoryInput.value  = "Coffee Beans";
-    if (priceInput)    priceInput.value     = "";
-    if (stockInput)    stockInput.value     = "";
+    setLinkedProductIds([]);
+    if (nameInput)      nameInput.value      = "";
+    if (categoryInput)  categoryInput.value  = "";
+    if (priceInput)     priceInput.value     = "";
+    if (stockInput)     stockInput.value     = "";
     if (thresholdInput) thresholdInput.value = "";
-    if (unitsInput)    unitsInput.value     = "";
-    if (statusInput)   statusInput.value    = "Available";
+    if (unitsInput)     unitsInput.value     = "";
+    if (statusInput)    statusInput.value    = "Available";
 
     updateInventoryButtonStates(false);
 
@@ -250,23 +280,22 @@ function clearInventoryForm() {
 // ── Payload Builder ────────────────────────────────────────────────────────
 
 function getInventoryPayload() {
-    const linkSelect    = document.getElementById("invLinkedProduct");
-    const nameInput     = document.getElementById("invProdName");
-    const categoryInput = document.getElementById("invCategory");
-    const priceInput    = document.getElementById("invPrice");
-    const stockInput    = document.getElementById("invStock");
+    const nameInput      = document.getElementById("invProdName");
+    const categoryInput  = document.getElementById("invCategory");
+    const priceInput     = document.getElementById("invPrice");
+    const stockInput     = document.getElementById("invStock");
     const thresholdInput = document.getElementById("invThreshold");
     const unitsInput     = document.getElementById("invUnitsPerSale");
-    const statusInput   = document.getElementById("invStatus");
+    const statusInput    = document.getElementById("invStatus");
 
-    const menuProductId = linkSelect    ? linkSelect.value.trim()    : "";
-    const productName   = nameInput     ? nameInput.value.trim()     : "";
-    const category      = categoryInput ? categoryInput.value        : "";
-    const price         = priceInput    ? Number(priceInput.value)   : NaN;
-    const stock         = stockInput    ? Number(stockInput.value)   : NaN;
+    const menuProductIds    = getLinkedProductIds();
+    const productName       = nameInput     ? nameInput.value.trim()     : "";
+    const category          = categoryInput ? categoryInput.value.trim() : "";
+    const price             = priceInput    ? Number(priceInput.value)   : NaN;
+    const stock             = stockInput    ? Number(stockInput.value)   : NaN;
     const lowStockThreshold = thresholdInput ? Number(thresholdInput.value) : NaN;
-    const unitsPerSale  = unitsInput    ? Number(unitsInput.value)   : NaN;
-    const status        = statusInput   ? statusInput.value          : "Available";
+    const unitsPerSale      = unitsInput    ? Number(unitsInput.value)   : NaN;
+    const status            = statusInput   ? statusInput.value          : "Available";
 
     if (!productName || !Number.isFinite(price) || !Number.isFinite(stock)) {
         showToast("Please complete inventory product name, price, and stock before saving.", "warning");
@@ -281,11 +310,13 @@ function getInventoryPayload() {
         status,
         lowStockThreshold: Number.isFinite(lowStockThreshold) ? Math.max(0, lowStockThreshold) : 10,
         unitsPerSale: Number.isFinite(unitsPerSale) ? Math.max(0, unitsPerSale) : 1,
-        date: new Date().toLocaleDateString()
+        date: new Date().toLocaleDateString(),
+        menuProductIds: menuProductIds
     };
-    if (menuProductId) payload.menuProductId = menuProductId;
+    if (menuProductIds.length) payload.menuProductId = menuProductIds[0];
     return payload;
 }
+
 
 // ── CRUD Operations ────────────────────────────────────────────────────────
 
@@ -304,6 +335,7 @@ async function addInventoryItem() {
             showToast("Inventory item added successfully!");
             clearInventoryForm();
             loadLiveInventoryData();
+            if (typeof loadLiveMenuData === "function") loadLiveMenuData();
             return;
         }
 
@@ -335,6 +367,7 @@ async function updateInventoryItem() {
             showToast("Inventory item updated successfully!");
             clearInventoryForm();
             loadLiveInventoryData();
+            if (typeof loadLiveMenuData === "function") loadLiveMenuData();
             return;
         }
 
@@ -372,6 +405,7 @@ async function deleteInventoryItem() {
             showToast("Inventory item deleted successfully.");
             clearInventoryForm();
             loadLiveInventoryData();
+            if (typeof loadLiveMenuData === "function") loadLiveMenuData();
             return;
         }
 
@@ -429,7 +463,7 @@ function renderInventoryTable(items) {
     if (!filtered.length) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" style="text-align:center; color:#888; padding:22px;">
+                <td colspan="10" style="text-align:center; color:#888; padding:22px;">
                     No inventory items match. ${(items || []).length ? "Try clearing the filters." : "Add your first supply item with the form."}
                 </td>
             </tr>`;
@@ -439,17 +473,27 @@ function renderInventoryTable(items) {
     tbody.innerHTML = filtered.map(item => {
         const stock = Number(item.stock ?? 0);
         const low = stock <= Number(item.lowStockThreshold ?? 10);
-        const linked = item.menuProductId
-            ? '<span class="inv-link-badge" title="Linked to a menu product"><i class="fas fa-link"></i></span>'
-            : "";
+
+        // Support both legacy single menuProductId and new array menuProductIds
+        const linkedIds = Array.isArray(item.menuProductIds) && item.menuProductIds.length
+            ? item.menuProductIds
+            : item.menuProductId ? [item.menuProductId] : [];
+
+        const linkedBadges = linkedIds.map(id => {
+            const product = (allProducts || []).find(p => p._id === id);
+            const name = product ? escapeHtml(product.name) : "Linked";
+            return `<span class="inv-link-badge" title="Linked to: ${name}"><i class="fas fa-link"></i> ${name}</span>`;
+        }).join(" ");
+
         return `
         <tr data-inventory-id="${item._id}">
-            <td>${escapeHtml(item.productName)} ${linked}</td>
+            <td>${escapeHtml(item.productName)}</td>
             <td>${escapeHtml(item.category)}</td>
             <td>₱${Number(item.price).toFixed(2)}</td>
             <td class="${low ? "low-stock-cell" : ""}">${stock}</td>
             <td>${escapeHtml(String(item.lowStockThreshold ?? 10))}</td>
             <td>${escapeHtml(String(item.unitsPerSale ?? 1))}</td>
+            <td>${linkedBadges || '<span class="inv-standalone-badge">Standalone</span>'}</td>
             <td>${escapeHtml(item.status)}</td>
             <td>${escapeHtml(item.date)}</td>
             <td>

@@ -157,10 +157,12 @@ const orderSchema = new mongoose.Schema({
     tableNo: { type: String, default: "" },
     mode: { type: String, enum: ["Dine In", "To Go", "Online Order"], default: "Dine In" },
     paymentMethod: { type: String, enum: ["Cash", "G-Cash"], default: "Cash" },
-    status: { type: String, enum: ["Completed", "Voided"], default: "Completed" },
+    status: { type: String, enum: ["Completed", "Voided", "Refunded"], default: "Completed" },
     voidedBy: { type: String, default: "" },
     voidedAt: { type: Date, default: null },
     voidReason: { type: String, default: "" },
+    refundedBy: { type: String, default: "" },
+    refundedAt: { type: Date, default: null },
     date: { type: Date, default: Date.now },
     receiptId: { type: String, default: () => String(Date.now()).slice(-8) },
     items: { type: [orderItemSchema], default: [] },
@@ -231,7 +233,7 @@ const inventorySchema = new mongoose.Schema({
     price: { type: Number, required: true, min: 0 },
     stock: { type: Number, required: true, min: 0 },
     status: { type: String, default: 'Available' },
-    menuProductId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', default: null },
+   menuProductIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }],
     lowStockThreshold: { type: Number, default: 10, min: 0 },
     unitsPerSale: { type: Number, default: 1, min: 0 },
     date: { type: String, default: () => new Date().toLocaleDateString() }
@@ -338,6 +340,15 @@ function normalizeWastePayload(input) {
 // field neither the form nor the product provides (partial PUTs).
 function inventoryFromPayload(input, product, existing) {
     const src = product || existing || {};
+    const linkedIds = Array.isArray(input.menuProductIds)
+        ? [...new Set(input.menuProductIds.filter(isValidObjectId).map(String))]
+        : input.menuProductId && isValidObjectId(input.menuProductId)
+            ? [String(input.menuProductId)]
+            : Array.isArray(src.menuProductIds)
+                ? [...new Set(src.menuProductIds.map(String))]
+                : src.menuProductId
+                    ? [String(src.menuProductId)]
+                    : [];
     const pickNum = function (field) {
         if (Number.isFinite(Number(input[field]))) return Math.max(0, Number(input[field]));
         if (Number.isFinite(Number(src[field]))) return Math.max(0, Number(src[field]));
@@ -353,10 +364,30 @@ function inventoryFromPayload(input, product, existing) {
         unitsPerSale: Number.isFinite(Number(input.unitsPerSale))
             ? Math.max(0, Number(input.unitsPerSale))
             : (Number.isFinite(Number(src.unitsPerSale)) ? Math.max(0, Number(src.unitsPerSale)) : 1),
-        menuProductId: input.menuProductId === undefined
-            ? (src.menuProductId || (product ? product._id : null) || null)
-            : (input.menuProductId ? input.menuProductId : null)
+        menuProductIds: linkedIds,
+        menuProductId: linkedIds[0] || null
     };
+}
+
+async function syncProductsFromInventory(productIds) {
+    const ids = [...new Set((productIds || []).filter(Boolean).map(String))];
+    for (const productId of ids) {
+        const supplies = await InventoryItem.find({
+            $or: [{ menuProductIds: productId }, { menuProductId: productId }]
+        }).lean();
+        if (!supplies.length) continue;
+
+        const availableStock = Math.max(0, Math.min(...supplies.map(supply => {
+            const units = Math.max(0.001, Number(supply.unitsPerSale) || 1);
+            return Math.floor(Math.max(0, Number(supply.stock) || 0) / units);
+        })));
+        await Product.findOneAndUpdate(idMatchFilter(productId), {
+            $set: {
+                stock: availableStock,
+                status: availableStock > 0 ? "Available" : "Out of Stock"
+            }
+        });
+    }
 }
 
 // Ingredient tracking: every sale or waste of a menu product moves its
@@ -366,7 +397,9 @@ function inventoryFromPayload(input, product, existing) {
 async function shiftLinkedSupplies(productName, quantity, sign) {
     const product = await Product.findOne({ name: productName }).select('_id');
     if (!product) return [];
-    const supplies = await InventoryItem.find({ menuProductId: product._id });
+    const supplies = await InventoryItem.find({
+        $or: [{ menuProductIds: product._id }, { menuProductId: product._id }]
+    });
     if (!supplies.length) return [];
     await Promise.all(supplies.map(async item => {
         const unitsPerSale = Number.isFinite(Number(item.unitsPerSale))
@@ -837,10 +870,12 @@ app.post('/api/orders', authRequired(), async (req, res) => {
         for (const item of payload.items) {
             const product = await Product.findOne({ name: item.name }).select('stock status');
             if (!product) continue; // item not tracked in the menu → allow
-            if ((Number(product.stock) || 0) < item.quantity) {
+            const supplies = await InventoryItem.find({
+                $or: [{ menuProductIds: product._id }, { menuProductId: product._id }]
+            });
+            if (!supplies.length && (Number(product.stock) || 0) < item.quantity) {
                 shortages.push({ name: item.name, available: Number(product.stock) || 0, requested: item.quantity });
             }
-            const supplies = await InventoryItem.find({ menuProductId: product._id });
             for (const supply of supplies) {
                 const unitsPerSale = Number.isFinite(Number(supply.unitsPerSale))
                     ? Math.max(0, Number(supply.unitsPerSale))
@@ -885,7 +920,10 @@ app.post('/api/orders', authRequired(), async (req, res) => {
                 { $inc: { stock: -item.quantity } }
             );
             // Ingredient tracking — the sale consumes the linked supplies too.
-            await shiftLinkedSupplies(item.name, item.quantity, -1);
+            const shifted = await shiftLinkedSupplies(item.name, item.quantity, -1);
+            await syncProductsFromInventory(shifted.flatMap(supply =>
+                Array.isArray(supply.menuProductIds) ? supply.menuProductIds : [supply.menuProductId]
+            ));
         }
         await Product.updateMany(
             { name: { $in: payload.items.map(i => i.name) }, stock: { $lte: 0 } },
@@ -950,12 +988,11 @@ app.patch('/api/orders/:id/void', authRequired(), async (req, res) => {
                 { $inc: { stock: item.quantity } }
             );
             // Ingredient tracking — voiding returns the linked supplies too.
-            await shiftLinkedSupplies(item.name, item.quantity, 1);
+            const shifted = await shiftLinkedSupplies(item.name, item.quantity, 1);
+            await syncProductsFromInventory(shifted.flatMap(supply =>
+                Array.isArray(supply.menuProductIds) ? supply.menuProductIds : [supply.menuProductId]
+            ));
         }
-        await Product.updateMany(
-            { name: { $in: (order.items || []).map(i => i.name) }, stock: { $gt: 0 } },
-            { status: "Available" }
-        );
 
         order.status = "Voided";
         order.voidedBy = req.user.username || "";
@@ -974,6 +1011,50 @@ app.patch('/api/orders/:id/void', authRequired(), async (req, res) => {
 
         res.json(order);
     } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Refund a completed order and return its menu/raw-material stock.
+app.post('/api/orders/:id/refund', authRequired(), async (req, res) => {
+    try {
+        if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order id' });
+
+        const order = await Order.findOne(idMatchFilter(req.params.id));
+        if (!order) return res.status(404).json({ error: 'Order not found' });
+        if (req.user.role === 'Cashier' && String(order.cashier || '').toLowerCase() !== String(req.user.username || '').toLowerCase()) {
+            return res.status(403).json({ error: 'Cashiers can refund only their own orders.' });
+        }
+        if (order.status === 'Refunded') return res.status(409).json({ error: 'Order is already refunded.' });
+        if (order.status === 'Voided') return res.status(409).json({ error: 'Voided orders cannot be refunded.' });
+
+        for (const item of order.items || []) {
+            await Product.updateOne(
+                { name: item.name },
+                { $inc: { stock: item.quantity } }
+            );
+            const shifted = await shiftLinkedSupplies(item.name, item.quantity, 1);
+            await syncProductsFromInventory(shifted.flatMap(supply =>
+                Array.isArray(supply.menuProductIds) ? supply.menuProductIds : [supply.menuProductId]
+            ));
+        }
+
+        order.status = 'Refunded';
+        order.refundedBy = req.user.username || '';
+        order.refundedAt = new Date();
+        await Order.updateOne(
+            idMatchFilter(order._id),
+            { $set: { status: order.status, refundedBy: order.refundedBy, refundedAt: order.refundedAt } }
+        );
+        await writeLog(
+            'order.refund',
+            req.user.username,
+            String(order._id),
+            `Order #${order.receiptId} was refunded by ${req.user.username}`
+        );
+
+        res.json(order);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ---------------------- MENU PRODUCT ENDPOINTS (CRUD) ----------------------
@@ -1104,9 +1185,7 @@ app.put('/api/products/:id', authRequired(['Admin']), async (req, res) => {
             }
             update.lowStockThreshold = Math.max(0, Number(update.lowStockThreshold));
         }
-        // Running out always marks the item sold out — even when the form
-        // sends a status. Restocking revives it unless the form explicitly
-        // keeps it hidden on "Out of Stock" hold.
+
         const existing = await Product.findOne(idMatchFilter(req.params.id));
         if (update.stock !== undefined) {
             if (update.stock <= 0) {
@@ -1117,6 +1196,7 @@ app.put('/api/products/:id', authRequired(['Admin']), async (req, res) => {
         }
         const updated = await Product.findOneAndUpdate(idMatchFilter(req.params.id), update, { new: true });
         if (!updated) return res.status(404).json({ error: 'Product not found' });
+
         if (existing) {
             const bits = [];
             if (update.stock !== undefined) bits.push('stock ' + existing.stock + ' → ' + update.stock);
@@ -1256,7 +1336,9 @@ app.delete('/api/users/:id', authRequired(['Admin']), async (req, res) => {
 });
 
 // ---------------------- INVENTORY SUBSYSTEM ENDPOINTS (CRUD) ----------------------
-app.get('/api/inventory', authRequired(['Admin']), async (req, res) => {
+// Cashiers need the read-only supply ledger to compute menu availability;
+// writes remain restricted to admins below.
+app.get('/api/inventory', authRequired(), async (req, res) => {
     try { res.json(await InventoryItem.find({})); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1264,8 +1346,11 @@ app.post('/api/inventory', authRequired(['Admin']), async (req, res) => {
     try {
         const input = { ...req.body };
         let product = null;
-        if (input.menuProductId && isValidObjectId(input.menuProductId)) {
-            product = await Product.findOne(idMatchFilter(input.menuProductId));
+        const firstMenuProductId = Array.isArray(input.menuProductIds)
+            ? input.menuProductIds[0]
+            : input.menuProductId;
+        if (firstMenuProductId && isValidObjectId(firstMenuProductId)) {
+            product = await Product.findOne(idMatchFilter(firstMenuProductId));
         }
         const payload = inventoryFromPayload(input, product, {});
         if (!payload.productName || !Number.isFinite(payload.price) || !Number.isFinite(payload.stock)) {
@@ -1275,6 +1360,7 @@ app.post('/api/inventory', authRequired(['Admin']), async (req, res) => {
             payload.status = payload.stock > 0 ? 'Available' : 'Sold Out';
         }
         const saved = await new InventoryItem(payload).save();
+        await syncProductsFromInventory(saved.menuProductIds);
         writeLog('inventory.create', req.user.username, String(saved._id),
             `Added inventory "${saved.productName}" × ${saved.stock}` +
             (saved.menuProductId ? ' (linked to menu product)' : ''));
@@ -1289,8 +1375,11 @@ app.put('/api/inventory/:id', authRequired(['Admin']), async (req, res) => {
         if (!existing) return res.status(404).json({ error: 'Inventory stock line item not found' });
         const input = { ...req.body };
         let product = null;
-        if (input.menuProductId && isValidObjectId(input.menuProductId)) {
-            product = await Product.findOne(idMatchFilter(input.menuProductId));
+        const firstMenuProductId = Array.isArray(input.menuProductIds)
+            ? input.menuProductIds[0]
+            : input.menuProductId;
+        if (firstMenuProductId && isValidObjectId(firstMenuProductId)) {
+            product = await Product.findOne(idMatchFilter(firstMenuProductId));
         }
         const update = inventoryFromPayload(input, product, existing);
         // Auto-sync status from stock unless the form chose one explicitly.
@@ -1298,6 +1387,13 @@ app.put('/api/inventory/:id', authRequired(['Admin']), async (req, res) => {
             update.status = update.stock > 0 ? 'Available' : 'Sold Out';
         }
         const updated = await InventoryItem.findOneAndUpdate(idMatchFilter(req.params.id), { $set: update }, { new: true });
+        const affectedProductIds = [
+            ...(Array.isArray(existing.menuProductIds) ? existing.menuProductIds : []),
+            ...(Array.isArray(updated.menuProductIds) ? updated.menuProductIds : []),
+            existing.menuProductId,
+            updated.menuProductId
+        ];
+        await syncProductsFromInventory(affectedProductIds);
         const bits = [];
         if (existing.stock !== updated.stock) bits.push('stock ' + existing.stock + ' → ' + updated.stock);
         if (Number(existing.lowStockThreshold || 0) !== Number(updated.lowStockThreshold || 0)) bits.push('threshold ' + existing.lowStockThreshold + ' → ' + updated.lowStockThreshold);
@@ -1348,6 +1444,10 @@ app.post('/api/inventory/:id/restock', authRequired(['Admin']), async (req, res)
         }
         writeLog('inventory.restock', req.user.username, req.params.id,
             `Restocked "${updated.productName}" +${amount} (${reason}) — now ${updated.stock}`);
+        await syncProductsFromInventory([
+            ...(Array.isArray(updated.menuProductIds) ? updated.menuProductIds : []),
+            updated.menuProductId
+        ]);
         res.json(updated);
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
@@ -1371,7 +1471,10 @@ app.post('/api/waste', authRequired(), async (req, res) => {
             { $inc: { stock: -payload.quantity } }
         );
         // Ingredient tracking — the waste consumes the linked supplies too.
-        await shiftLinkedSupplies(payload.productName, payload.quantity, -1);
+        const shifted = await shiftLinkedSupplies(payload.productName, payload.quantity, -1);
+        await syncProductsFromInventory(shifted.flatMap(supply =>
+            Array.isArray(supply.menuProductIds) ? supply.menuProductIds : [supply.menuProductId]
+        ));
         // Auto-flag sold-out items, mirroring the order flow.
         await Product.updateMany(
             { name: payload.productName, stock: { $lte: 0 } },
@@ -1538,7 +1641,7 @@ async function buildDailySummaryEmail() {
         Order.find({ date: { $gte: startOfDay } }).lean(),
         Product.find().lean()
     ]);
-    const completed = orders.filter(o => o.status !== 'Voided');
+    const completed = orders.filter(o => o.status !== 'Voided' && o.status !== 'Refunded');
     const total = completed.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
     const paymentSplit = {};
     completed.forEach(o => {
@@ -1771,4 +1874,3 @@ module.exports = app;
 // Test hooks — expose the alert pipeline so jest can drive it with a fake
 // mailer and a memory DB (see tests/owner-alerts.test.js).
 app._ownerAlerts = { trySendDailySummary, trySendLowStockAlert, getOwnerAlertSettings, buildDailySummaryEmail };
-
