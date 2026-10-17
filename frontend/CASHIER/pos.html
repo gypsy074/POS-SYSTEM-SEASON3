@@ -427,6 +427,26 @@
       </div>
     </div>
 
+    <div class="pos-modal-overlay manager-override-modal" id="managerOverrideModal">
+      <div class="pos-modal">
+        <div class="pos-modal-header">
+          <div class="pos-modal-icon"><i class="fa-solid fa-user-shield"></i></div>
+          <h3>Manager Authorization</h3>
+        </div>
+        <div class="pos-modal-body">
+          <p class="pos-modal-note" id="managerOverrideMessage">A Manager or Admin must authorize this action.</p>
+          <label class="pos-modal-field">
+            <span>Manager/Admin password or PIN</span>
+            <input type="password" id="managerOverridePin" autocomplete="off">
+          </label>
+        </div>
+        <div class="pos-modal-actions">
+          <button type="button" class="pos-modal-btn pos-modal-btn-secondary" id="managerOverrideCancelBtn">Cancel</button>
+          <button type="button" class="pos-modal-btn pos-modal-btn-primary" id="managerOverrideSubmitBtn">Authorize</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Cash change calculator popup (opens centered on screen) -->
     <div class="calc-modal-overlay" id="calcModalOverlay">
       <div class="calc-modal-card">

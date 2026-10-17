@@ -585,11 +585,7 @@ function renderMenuTable(products) {
             </td>
             <td>${escapeHtml(product.status)}</td>
             <td>${escapeHtml(product.date)}</td>
-            <td>
-                <button type="button" class="restock-btn" data-restock-id="${product._id}" data-restock-type="menu"
-                    title="Restock this menu item">+ Restock</button>
-            </td>
         </tr>
     `;
-    }).join("") || `<tr><td colspan="7" class="tx-empty">No menu items match the current filter.</td></tr>`;
+    }).join("") || `<tr><td colspan="6" class="tx-empty">No menu items match the current filter.</td></tr>`;
 }

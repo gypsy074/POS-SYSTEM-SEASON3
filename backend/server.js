@@ -203,7 +203,7 @@ const Product = mongoose.model('Product', productSchema);
 const userSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true, trim: true, lowercase: true },
     password: { type: String, required: true },
-    role: { type: String, enum: ['Admin', 'Cashier'], default: 'Admin' },
+    role: { type: String, enum: ['Admin', 'Manager', 'Cashier'], default: 'Admin' },
     status: { type: String, default: 'Active' },
     lastActiveAt: { type: Date, default: null },
     date: { type: String, default: () => new Date().toLocaleDateString() }
@@ -553,8 +553,9 @@ function jwtExpiresAt() {
  * Attaches req.user = { id, username, role } from the verified token and
  * req.session = the matching Session row.
  */
-function authRequired(roles) {
-    const allowed = roles ? new Set(roles) : null;
+function requireRoles(roles) {
+    const roleList = Array.isArray(roles) ? roles : (roles ? [roles] : []);
+    const allowed = roleList.length ? new Set(roleList) : null;
     return async (req, res, next) => {
         const header = req.headers.authorization || "";
         const token = header.startsWith("Bearer ") ? header.slice(7).trim() : null;
@@ -583,6 +584,30 @@ function authRequired(roles) {
             return res.status(500).json({ error: err.message });
         }
     };
+}
+
+// Backward-compatible name used by the existing route declarations.
+function authRequired(roles) {
+    return requireRoles(roles);
+}
+
+async function verifyManagerOverride(req) {
+    if (req.user.role !== 'Cashier') return { authorizer: null };
+
+    const pin = String(req.body && req.body.managerOverridePin || '');
+    if (!pin) {
+        return { status: 403, error: 'Manager or Admin authorization is required for this action.' };
+    }
+
+    const authorizers = await User.find({ role: { $in: ['Admin', 'Manager'] }, status: 'Active' });
+    for (const user of authorizers) {
+        const matches = isBcryptHash(user.password)
+            ? await bcrypt.compare(pin, user.password)
+            : user.password === pin;
+        if (matches) return { authorizer: user };
+    }
+
+    return { status: 403, error: 'The Manager or Admin password/PIN is invalid.' };
 }
 
 // One-time migration: strip legacy wrong-order fields from stored orders.
@@ -966,14 +991,16 @@ app.delete('/api/orders/:id', authRequired(['Admin']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Soft-void an order (Cashier or Admin). The order stays in history for
+// Soft-void an order (Cashier, Manager, or Admin). The order stays in history for
 // transparency, is excluded from revenue, and menu stock is restored.
-app.patch('/api/orders/:id/void', authRequired(), async (req, res) => {
+const voidOrderHandler = async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order id' });
 
         const order = await Order.findOne(idMatchFilter(req.params.id));
         if (!order) return res.status(404).json({ error: 'Order not found' });
+        const override = await verifyManagerOverride(req);
+        if (override.error) return res.status(override.status).json({ error: override.error });
         if (req.user.role === 'Cashier' && String(order.cashier || '').toLowerCase() !== String(req.user.username || '').toLowerCase()) {
             return res.status(403).json({ error: 'Cashiers can void only their own orders.' });
         }
@@ -1007,11 +1034,16 @@ app.patch('/api/orders/:id/void', authRequired(), async (req, res) => {
             { $set: { status: order.status, voidedBy: order.voidedBy, voidedAt: order.voidedAt, voidReason: order.voidReason } }
         );
         writeLog('order.void', req.user.username, String(order._id),
-            `Order #${order.receiptId} voided (₱${order.total.toFixed(2)})${order.voidReason ? ' — ' + order.voidReason : ''}`);
+            `Order #${order.receiptId} voided by ${req.user.username}` +
+            `${override.authorizer ? ` - Authorized by ${override.authorizer.username}` : ''}` +
+            ` (₱${order.total.toFixed(2)})${order.voidReason ? ' — ' + order.voidReason : ''}`);
 
         res.json(order);
     } catch (err) { res.status(500).json({ error: err.message }); }
-});
+};
+app.patch('/api/orders/:id/void', authRequired(), voidOrderHandler);
+// Accept POST as well for clients that model state-changing actions uniformly.
+app.post('/api/orders/:id/void', authRequired(), voidOrderHandler);
 
 // Refund a completed order and return its menu/raw-material stock.
 app.post('/api/orders/:id/refund', authRequired(), async (req, res) => {
@@ -1020,6 +1052,8 @@ app.post('/api/orders/:id/refund', authRequired(), async (req, res) => {
 
         const order = await Order.findOne(idMatchFilter(req.params.id));
         if (!order) return res.status(404).json({ error: 'Order not found' });
+        const override = await verifyManagerOverride(req);
+        if (override.error) return res.status(override.status).json({ error: override.error });
         if (req.user.role === 'Cashier' && String(order.cashier || '').toLowerCase() !== String(req.user.username || '').toLowerCase()) {
             return res.status(403).json({ error: 'Cashiers can refund only their own orders.' });
         }
@@ -1048,7 +1082,8 @@ app.post('/api/orders/:id/refund', authRequired(), async (req, res) => {
             'order.refund',
             req.user.username,
             String(order._id),
-            `Order #${order.receiptId} was refunded by ${req.user.username}`
+            `Order #${order.receiptId} refunded by ${req.user.username}` +
+            `${override.authorizer ? ` - Authorized by ${override.authorizer.username}` : ''}`
         );
 
         res.json(order);
@@ -1079,7 +1114,7 @@ function categoryExistsFilter(name) {
     return { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' };
 }
 
-app.get('/api/categories', authRequired(['Admin']), async (req, res) => {
+app.get('/api/categories', authRequired(['Admin', 'Manager']), async (req, res) => {
     try {
         const reserved = await Category.find({}).sort({ name: 1 }).lean();
         const used = await Product.distinct('category');
@@ -1089,7 +1124,7 @@ app.get('/api/categories', authRequired(['Admin']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/categories', authRequired(['Admin']), async (req, res) => {
+app.post('/api/categories', authRequired(['Admin', 'Manager']), async (req, res) => {
     try {
         const name = normalizeCategoryName(req.body && req.body.name);
         if (!name) return res.status(400).json({ error: 'Category name is required.' });
@@ -1103,7 +1138,7 @@ app.post('/api/categories', authRequired(['Admin']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/categories/:name', authRequired(['Admin']), async (req, res) => {
+app.put('/api/categories/:name', authRequired(['Admin', 'Manager']), async (req, res) => {
     try {
         const oldName = decodeURIComponent(req.params.name);
         const newName = normalizeCategoryName(req.body && req.body.name);
@@ -1126,7 +1161,7 @@ app.put('/api/categories/:name', authRequired(['Admin']), async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/categories/:name', authRequired(['Admin']), async (req, res) => {
+app.delete('/api/categories/:name', authRequired(['Admin', 'Manager']), async (req, res) => {
     try {
         const name = decodeURIComponent(req.params.name);
         const inUse = await Product.countDocuments({ category: name });
@@ -1139,7 +1174,7 @@ app.delete('/api/categories/:name', authRequired(['Admin']), async (req, res) =>
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/products', authRequired(['Admin']), async (req, res) => {
+app.post('/api/products', authRequired(['Admin', 'Manager']), async (req, res) => {
     try {
         const { name, category, price, status, image, stock, lowStockThreshold } = req.body || {};
         if (!name || !category || !Number.isFinite(Number(price))) {
@@ -1163,7 +1198,7 @@ app.post('/api/products', authRequired(['Admin']), async (req, res) => {
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-app.put('/api/products/:id', authRequired(['Admin']), async (req, res) => {
+app.put('/api/products/:id', authRequired(['Admin', 'Manager']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid product id' });
         const update = { ...req.body };
@@ -1210,7 +1245,7 @@ app.put('/api/products/:id', authRequired(['Admin']), async (req, res) => {
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-app.delete('/api/products/:id', authRequired(['Admin']), async (req, res) => {
+app.delete('/api/products/:id', authRequired(['Admin', 'Manager']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid product id' });
         const deleted = await Product.findOneAndDelete(idMatchFilter(req.params.id));
@@ -1223,7 +1258,7 @@ app.delete('/api/products/:id', authRequired(['Admin']), async (req, res) => {
 // Restock a menu product — bumps the stock count, revives a sold-out item,
 // and leaves an audit trail. Used by the admin menu table and the AI
 // insights restock suggestions.
-app.post('/api/products/:id/restock', authRequired(['Admin']), async (req, res) => {
+app.post('/api/products/:id/restock', authRequired(['Admin', 'Manager']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid product id' });
         const quantity = Number(req.body && req.body.quantity);
@@ -1261,8 +1296,8 @@ app.post('/api/users', authRequired(['Admin']), async (req, res) => {
         if (String(password).length < 8) {
             return res.status(400).json({ error: 'Password must be at least 8 characters.' });
         }
-        if (!['Admin', 'Cashier'].includes(role)) {
-            return res.status(400).json({ error: 'Role must be Admin or Cashier.' });
+        if (!['Admin', 'Manager', 'Cashier'].includes(role)) {
+            return res.status(400).json({ error: 'Role must be Admin, Manager, or Cashier.' });
         }
 
         const exists = await User.findOne({ username: String(username).trim().toLowerCase() });
@@ -1293,8 +1328,8 @@ app.put('/api/users/:id', authRequired(['Admin']), async (req, res) => {
         const update = { ...req.body };
         if (update.username) update.username = String(update.username).trim().toLowerCase();
 
-        if (update.role && !['Admin', 'Cashier'].includes(update.role)) {
-            return res.status(400).json({ error: 'Role must be Admin or Cashier.' });
+        if (update.role && !['Admin', 'Manager', 'Cashier'].includes(update.role)) {
+            return res.status(400).json({ error: 'Role must be Admin, Manager, or Cashier.' });
         }
 
         // Only re-hash when the password actually changed.
@@ -1342,7 +1377,7 @@ app.get('/api/inventory', authRequired(), async (req, res) => {
     try { res.json(await InventoryItem.find({})); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/inventory', authRequired(['Admin']), async (req, res) => {
+app.post('/api/inventory', authRequired(['Admin', 'Manager']), async (req, res) => {
     try {
         const input = { ...req.body };
         let product = null;
@@ -1368,7 +1403,7 @@ app.post('/api/inventory', authRequired(['Admin']), async (req, res) => {
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-app.put('/api/inventory/:id', authRequired(['Admin']), async (req, res) => {
+app.put('/api/inventory/:id', authRequired(['Admin', 'Manager']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid inventory token id' });
         const existing = await InventoryItem.findOne(idMatchFilter(req.params.id));
@@ -1404,7 +1439,7 @@ app.put('/api/inventory/:id', authRequired(['Admin']), async (req, res) => {
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-app.delete('/api/inventory/:id', authRequired(['Admin']), async (req, res) => {
+app.delete('/api/inventory/:id', authRequired(['Admin', 'Manager']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid inventory id' });
         const deleted = await InventoryItem.findOneAndDelete(idMatchFilter(req.params.id));
@@ -1416,7 +1451,7 @@ app.delete('/api/inventory/:id', authRequired(['Admin']), async (req, res) => {
 
 // Restock a standalone supply item — accepts { amount } or { quantity } for
 // backward compatibility. Clamps stock to 0 and auto-revives sold-out status.
-app.post('/api/inventory/:id/restock', authRequired(['Admin']), async (req, res) => {
+app.post('/api/inventory/:id/restock', authRequired(['Admin', 'Manager']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid inventory id' });
         // Accept `amount` (spec) or `quantity` (legacy restock.js) interchangeably.
@@ -1453,18 +1488,20 @@ app.post('/api/inventory/:id/restock', authRequired(['Admin']), async (req, res)
 });
 
 // ---------------------- FOOD WASTE ENDPOINTS (CRUD) ----------------------
-app.get('/api/waste', authRequired(), async (req, res) => {
+app.get('/api/waste', authRequired(['Admin', 'Manager']), async (req, res) => {
     try { res.json(await WasteItem.find({}).sort({ _id: -1 })); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/waste', authRequired(), async (req, res) => {
     try {
         const payload = normalizeWastePayload(req.body);
+        const override = await verifyManagerOverride(req);
+        if (override.error) return res.status(override.status).json({ error: override.error });
         if (!payload.productName || !Number.isFinite(payload.quantity) || payload.quantity <= 0) {
             return res.status(400).json({ error: 'Product name and a quantity above zero are required.' });
         }
         // The cashier is whoever is authenticated — never a client default.
-        if (!payload.cashier) payload.cashier = req.user.username;
+        if (req.user.role === 'Cashier' || !payload.cashier) payload.cashier = req.user.username;
         // Wasted food leaves the inventory — deduct stock when the item is on the menu.
         await Product.updateOne(
             { name: payload.productName },
@@ -1483,7 +1520,9 @@ app.post('/api/waste', authRequired(), async (req, res) => {
         const newWaste = new WasteItem(payload);
         const savedWaste = await newWaste.save();
         writeLog('waste.create', req.user.username, String(savedWaste._id),
-            `Logged waste "${savedWaste.productName}" × ${savedWaste.quantity} (₱${savedWaste.totalCost.toFixed(2)})`);
+            `Logged waste "${savedWaste.productName}" × ${savedWaste.quantity} by ${req.user.username}` +
+            `${override.authorizer ? ` - Authorized by ${override.authorizer.username}` : ''}` +
+            ` (₱${savedWaste.totalCost.toFixed(2)})`);
         res.status(201).json(savedWaste);
     } catch (err) { res.status(400).json({ error: err.message }); }
 });
@@ -1555,7 +1594,7 @@ async function getInsights() {
     return data;
 }
 
-app.get('/api/insights', authRequired(['Admin']), async (req, res) => {
+app.get('/api/insights', authRequired(['Admin', 'Manager']), async (req, res) => {
     try {
         res.json(await getInsights());
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1571,7 +1610,7 @@ const aiReportLimiter = rateLimit({
     legacyHeaders: false,
     message: { error: 'Too many report requests. Try again in a minute.' }
 });
-app.post('/api/ai/report', aiReportLimiter, authRequired(['Admin']), async (req, res) => {
+app.post('/api/ai/report', aiReportLimiter, authRequired(['Admin', 'Manager']), async (req, res) => {
     try {
         const data = await getInsights();
         const report = await fetchAiReport(buildReportPrompt(data));

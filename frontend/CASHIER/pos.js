@@ -75,6 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
     renderOrderId();
     setupQuickTenderChips();
     setupCalculatorModal();
+    setupManagerOverrideModal();
     setupSeniorDiscount();
     setupCartDrawer();
     setupCashierDarkMode();
@@ -107,7 +108,7 @@ function getApiBaseUrl() {
 
 function apiFetch(path, options = {}) {
     const headers = { ...(options.headers || {}) };
-    const token = localStorage.getItem("posToken") || "";
+    const token = localStorage.getItem("posToken") || localStorage.getItem("posAdminToken") || "";
     if (token) {
         headers["Authorization"] = `Bearer ${token}`;
     }
@@ -116,6 +117,8 @@ function apiFetch(path, options = {}) {
         if (response.status === 401) {
             localStorage.removeItem("posToken");
             localStorage.removeItem("posUser");
+            localStorage.removeItem("posAdminToken");
+            localStorage.removeItem("posAdminUser");
             window.location.href = "../login.html";
         }
         return response;
@@ -133,7 +136,7 @@ async function guardCashierPage() {
             return;
         }
         const data = await response.json();
-        if (data.role !== "Cashier") {
+        if (!["Admin", "Manager", "Cashier"].includes(data.role)) {
             window.location.href = "../ADMIN/admin.html";
         }
     } catch (err) {
@@ -1089,15 +1092,20 @@ function requestOrderRefund(orderId) {
         bodyHtml: `<p class="pos-modal-note">Are you sure you want to refund this order?</p>
             <p class="pos-modal-note"><strong>#${escapeHtml(order.receiptId)}</strong> · ₱${Number(order.total || 0).toFixed(2)}</p>`
     }).then(confirmed => {
-        if (confirmed) fetchRefundOrder(orderId);
+        if (confirmed) {
+            requestManagerOverride("this refund").then(pin => {
+                if (pin !== null) fetchRefundOrder(orderId, pin);
+            });
+        }
     });
 }
 
-async function fetchRefundOrder(orderId) {
+async function fetchRefundOrder(orderId, managerOverridePin = "") {
     try {
         const response = await apiFetch(`/api/orders/${orderId}/refund`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" }
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ managerOverridePin })
         });
         if (!response.ok) {
             const data = await response.json().catch(() => ({}));
@@ -1146,16 +1154,20 @@ function requestOrderVoid(orderId) {
     }).then(confirmed => {
         if (!confirmed) return;
         const input = document.getElementById("voidReasonInput");
-        fetchVoidOrder(orderId, input ? input.value : "");
+        requestManagerOverride("this void").then(managerOverridePin => {
+            if (managerOverridePin !== null) {
+                fetchVoidOrder(orderId, input ? input.value : "", managerOverridePin);
+            }
+        });
     });
 }
 
-async function fetchVoidOrder(orderId, reason) {
+async function fetchVoidOrder(orderId, reason, managerOverridePin = "") {
     try {
         const response = await apiFetch(`/api/orders/${orderId}/void`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ reason })
+            body: JSON.stringify({ reason, managerOverridePin })
         });
         if (!response.ok) {
             const data = await response.json().catch(() => ({}));
@@ -2394,10 +2406,60 @@ function cancelOrder(silent = false) {
 }
 
 function getCashierName() {
-    const saved = JSON.parse(localStorage.getItem("posUser") || "null");
+    const saved = JSON.parse(localStorage.getItem("posUser") || localStorage.getItem("posAdminUser") || "null");
     if (saved && saved.username) return saved.username;
     const admin = JSON.parse(localStorage.getItem("posAdminUser") || "null");
     return (admin && admin.username) || "Pranselen";
+}
+
+function getPosRole() {
+    try {
+        const saved = JSON.parse(localStorage.getItem("posUser") || localStorage.getItem("posAdminUser") || "null");
+        return saved && saved.role ? saved.role : "Cashier";
+    } catch {
+        return "Cashier";
+    }
+}
+
+function setupManagerOverrideModal() {
+    const modal = document.getElementById("managerOverrideModal");
+    const pinInput = document.getElementById("managerOverridePin");
+    const cancelBtn = document.getElementById("managerOverrideCancelBtn");
+    const submitBtn = document.getElementById("managerOverrideSubmitBtn");
+    if (!modal || !pinInput || !cancelBtn || !submitBtn) return;
+
+    const close = () => {
+        if (modal._resolve) {
+            const resolve = modal._resolve;
+            modal._resolve = null;
+            resolve(null);
+        }
+        modal.classList.remove("show");
+        pinInput.value = "";
+    };
+    cancelBtn.addEventListener("click", close);
+    submitBtn.addEventListener("click", () => {
+        const pin = pinInput.value.trim();
+        if (!pin) return;
+        const resolve = modal._resolve;
+        modal._resolve = null;
+        resolve(pin);
+        close();
+    });
+}
+
+function requestManagerOverride(action) {
+    if (["Admin", "Manager"].includes(getPosRole())) return Promise.resolve("");
+    const modal = document.getElementById("managerOverrideModal");
+    const message = document.getElementById("managerOverrideMessage");
+    const pinInput = document.getElementById("managerOverridePin");
+    if (!modal || !pinInput) return Promise.resolve(null);
+    if (message) message.textContent = `A Manager or Admin must authorize ${action}.`;
+    modal.classList.add("show");
+    pinInput.focus();
+    return new Promise(resolve => {
+        modal._resolve = resolve;
+    });
 }
 
 // ── Waste Food Logging ────────────────────────────────────────────────────
@@ -2659,6 +2721,9 @@ function setupWasteLogForm() {
                 reason: reasonSelect ? reasonSelect.value : "Other"
             };
             try {
+                const managerOverridePin = await requestManagerOverride("logging food waste");
+                if (managerOverridePin === null) return;
+                payload.managerOverridePin = managerOverridePin;
                 const response = await apiFetch("/api/waste", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -2675,6 +2740,16 @@ function setupWasteLogForm() {
             } catch (err) {
                 console.error("❌ Waste save failed:", err);
                 // Server unreachable — save for automatic sync later.
+                if (getPosRole() === "Cashier" && navigator.onLine) {
+                    showPosAlert({
+                        title: "Waste Log Failed",
+                        icon: "fa-circle-exclamation",
+                        iconClass: "danger",
+                        bodyHtml: `<p class="pos-modal-note">${escapeHtml(err.message || "Manager authorization was rejected.")}</p>`
+                    });
+                    return;
+                }
+                delete payload.managerOverridePin;
                 queueOfflineWaste(payload);
                 updateOfflineBanner();
                 showPosAlert({
@@ -2698,7 +2773,7 @@ function setupCashierProfile() {
     const logoutBtn = document.getElementById("cashierLogoutBtn");
     if (!badge || !wrap) return;
 
-    const saved = JSON.parse(localStorage.getItem("posUser") || "null");
+    const saved = JSON.parse(localStorage.getItem("posUser") || localStorage.getItem("posAdminUser") || "null");
     const username = getCashierName();
     const role = (saved && saved.role) || "Cashier";
     const initials = username.slice(0, 2).toUpperCase();
@@ -2742,6 +2817,8 @@ function setupCashierProfile() {
             } catch (err) { /* ignore */ }
             localStorage.removeItem("posToken");
             localStorage.removeItem("posUser");
+            localStorage.removeItem("posAdminToken");
+            localStorage.removeItem("posAdminUser");
             showLogoutTransition(name, () => {
                 window.location.href = "../login.html";
             });

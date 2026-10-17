@@ -9,11 +9,16 @@ function setupSidebarNavigation() {
 
     navButtons.forEach(button => {
         button.addEventListener("click", () => {
+            const target = button.getAttribute("data-target");
+            if (currentAdminRole === "Manager" && ["users-view", "audit-view", "settings-view"].includes(target)) {
+                window.location.href = "../CASHIER/pos.html";
+                return;
+            }
             navButtons.forEach(btn => btn.classList.remove("active"));
             adminPanels.forEach(panel => panel.classList.add("hidden"));
 
             button.classList.add("active");
-            activePanelId = button.getAttribute("data-target");
+            activePanelId = target;
             const targetPanel = document.getElementById(activePanelId);
 
             if (targetPanel) {

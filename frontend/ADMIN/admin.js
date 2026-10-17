@@ -30,6 +30,7 @@ let salesLineChart = null;
 let itemsRadarChart = null;
 let usageBarChart  = null;
 let activePanelId  = "dashboard-view";
+let currentAdminRole = "Admin";
 
 // ── Profile Dropdown (animated open/close) ─────────────────────────────────
 
@@ -111,6 +112,8 @@ function setupProfileBadge() {
         } catch (err) { /* ignore */ }
         localStorage.removeItem("posAdminToken");
         localStorage.removeItem("posAdminUser");
+        localStorage.removeItem("posToken");
+        localStorage.removeItem("posUser");
         showLogoutTransition(name, () => {
             window.location.href = "../login.html";
         });
@@ -123,21 +126,32 @@ async function guardAdminPage() {
         const response = await apiFetch("/api/auth/me");
         if (!response.ok) {
             window.location.href = "../login.html";
-            return;
+            return false;
         }
         const data = await response.json();
-        if (data.role !== "Admin") {
+        if (!["Admin", "Manager"].includes(data.role)) {
             window.location.href = "../CASHIER/pos.html";
+            return false;
         }
+        currentAdminRole = data.role;
+        if (data.role === "Manager") {
+            document.querySelectorAll(".nav-btn[data-target='users-view'], .nav-btn[data-target='audit-view'], .nav-btn[data-target='settings-view']")
+                .forEach(button => {
+                    button.style.display = "none";
+                    button.setAttribute("aria-hidden", "true");
+                });
+        }
+        return true;
     } catch (err) {
         window.location.href = "../login.html";
+        return false;
     }
 }
 
 // ── Application Bootstrap ──────────────────────────────────────────────────
 
-document.addEventListener("DOMContentLoaded", () => {
-    guardAdminPage();
+document.addEventListener("DOMContentLoaded", async () => {
+    if (!await guardAdminPage()) return;
 
     // Components
     setupSidebarNavigation();

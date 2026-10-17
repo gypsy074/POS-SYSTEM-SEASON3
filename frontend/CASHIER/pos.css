@@ -4362,3 +4362,6 @@ body.dark .pos-modal-summary {
     gap: 4px;
   }
 }
+.manager-override-modal {
+  z-index: 1100;
+}

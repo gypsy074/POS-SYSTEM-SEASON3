@@ -58,6 +58,103 @@ function setupInventoryFilters() {
         renderInventoryTable(allInventory);
     });
     setupInventoryLinkPicker();
+    setupCategoryDropdowns();
+}
+
+function getInventoryCategories() {
+    const categories = new Set();
+    document.querySelectorAll("#invFilterCategory option").forEach(option => {
+        if (option.value) categories.add(option.value);
+    });
+    (allInventory || []).forEach(item => {
+        const category = String(item.category || "").trim();
+        if (category) categories.add(category);
+    });
+    return [...categories].sort((a, b) => a.localeCompare(b));
+}
+
+function setupCategoryDropdowns() {
+    const filterDropdown = document.getElementById("invFilterCategoryDropdown");
+    const categoryDropdown = document.getElementById("invCategoryDropdown");
+    const filterSelect = document.getElementById("invFilterCategory");
+    const categoryInput = document.getElementById("invCategory");
+    if (!filterDropdown || !categoryDropdown || !filterSelect || !categoryInput) return;
+
+    const categories = getInventoryCategories();
+    const renderOptions = (menu, values, selectedValue, allowAll = false) => {
+        const options = allowAll ? ["", ...values] : values;
+        menu.innerHTML = options.map(value => `
+            <button type="button" class="category-dropdown-option${value === selectedValue ? " selected" : ""}"
+                role="option" data-value="${escapeHtml(value)}" aria-selected="${value === selectedValue}">
+                ${escapeHtml(value || "All Categories")}
+            </button>
+        `).join("") || `<span class="category-dropdown-empty">No categories yet</span>`;
+    };
+
+    const filterMenu = filterDropdown.querySelector(".category-dropdown-menu");
+    const filterValue = filterDropdown.querySelector(".category-dropdown-value");
+    const filterTrigger = filterDropdown.querySelector(".category-dropdown-trigger");
+    renderOptions(filterMenu, categories, filterSelect.value, true);
+    filterValue.textContent = filterSelect.value || "All Categories";
+
+    filterTrigger.addEventListener("click", () => {
+        renderOptions(filterMenu, getInventoryCategories(), filterSelect.value, true);
+        const open = filterDropdown.classList.toggle("open");
+        filterTrigger.setAttribute("aria-expanded", String(open));
+    });
+    filterMenu.addEventListener("click", event => {
+        const option = event.target.closest(".category-dropdown-option");
+        if (!option) return;
+        filterSelect.value = option.dataset.value || "";
+        filterSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        filterValue.textContent = filterSelect.value || "All Categories";
+        renderOptions(filterMenu, getInventoryCategories(), filterSelect.value, true);
+        filterDropdown.classList.remove("open");
+        filterTrigger.setAttribute("aria-expanded", "false");
+    });
+
+    const editableMenu = categoryDropdown.querySelector(".category-dropdown-menu");
+    const categoryArrow = categoryDropdown.querySelector(".category-dropdown-arrow");
+    const renderEditableOptions = () => {
+        const query = categoryInput.value.trim().toLowerCase();
+        renderOptions(editableMenu, getInventoryCategories().filter(category =>
+            !query || category.toLowerCase().includes(query)
+        ), categoryInput.value.trim());
+    };
+    const openEditable = () => {
+        renderEditableOptions();
+        categoryDropdown.classList.add("open");
+        categoryInput.setAttribute("aria-expanded", "true");
+    };
+    categoryArrow.addEventListener("click", () => {
+        if (categoryDropdown.classList.contains("open")) {
+            categoryDropdown.classList.remove("open");
+            categoryInput.setAttribute("aria-expanded", "false");
+        } else {
+            openEditable();
+            categoryInput.focus();
+        }
+    });
+    categoryInput.addEventListener("focus", openEditable);
+    categoryInput.addEventListener("input", renderEditableOptions);
+    editableMenu.addEventListener("click", event => {
+        const option = event.target.closest(".category-dropdown-option");
+        if (!option) return;
+        categoryInput.value = option.dataset.value || "";
+        categoryDropdown.classList.remove("open");
+        categoryInput.setAttribute("aria-expanded", "false");
+    });
+
+    document.addEventListener("click", event => {
+        [filterDropdown, categoryDropdown].forEach(dropdown => {
+            if (dropdown.contains(event.target)) return;
+            dropdown.classList.remove("open");
+            const input = dropdown.querySelector("input");
+            const trigger = dropdown.querySelector("[aria-expanded]");
+            if (input) input.setAttribute("aria-expanded", "false");
+            if (trigger) trigger.setAttribute("aria-expanded", "false");
+        });
+    });
 }
 
 // ── Multi-link Picker ──────────────────────────────────────────────────────

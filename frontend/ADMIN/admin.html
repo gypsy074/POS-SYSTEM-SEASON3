@@ -298,6 +298,7 @@
                                 <select id="roleSelect">
                                     <option value="" disabled selected>Select Role</option>
                                     <option value="Admin">Admin</option>
+                                    <option value="Manager">Manager</option>
                                     <option value="Cashier">Cashier</option>
                                 </select>
                             </div>
@@ -348,7 +349,6 @@
                                     <th>Stock</th>
                                     <th>Status</th>
                                     <th>Date Added</th>
-                                    <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody id="menuItemsTableBody"></tbody>
@@ -443,7 +443,7 @@
                         </div>
                         <div class="inventory-filter-row">
                             <input type="text" id="invSearch" class="inv-filter-input" placeholder="Search products…">
-                            <select id="invFilterCategory" class="inv-filter-select">
+                            <select id="invFilterCategory" class="inv-filter-select inv-filter-category-native">
                                 <option value="">All Categories</option>
                                 <option value="Coffee Beans">Coffee Beans</option>
                                 <option value="Syrups & Flavorings">Syrups & Flavorings</option>
@@ -453,6 +453,14 @@
                                 <option value="Meat">Meat</option>
                                 <option value="Vegetables">Vegetables</option>
                             </select>
+                            <div class="category-dropdown" id="invFilterCategoryDropdown">
+                                <button type="button" class="category-dropdown-trigger" aria-haspopup="listbox"
+                                    aria-expanded="false">
+                                    <span class="category-dropdown-value">All Categories</span>
+                                    <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                                </button>
+                                <div class="category-dropdown-menu" role="listbox"></div>
+                            </div>
                             <select id="invFilterStatus" class="inv-filter-select">
                                 <option value="">All Statuses</option>
                                 <option value="Available">Available</option>
@@ -500,7 +508,18 @@
                                 </div>
                                 <div class="inline-input">
                                     <label>Category:</label>
-                                    <input type="text" id="invCategory" placeholder="Enter inventory category">
+                                    <div class="category-dropdown category-dropdown-editable" id="invCategoryDropdown">
+                                        <div class="category-input-wrap">
+                                            <input type="text" id="invCategory"
+                                                placeholder="Select or enter inventory category" autocomplete="off"
+                                                aria-haspopup="listbox" aria-expanded="false">
+                                            <button type="button" class="category-dropdown-arrow"
+                                                aria-label="Show category options">
+                                                <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                                            </button>
+                                        </div>
+                                        <div class="category-dropdown-menu" role="listbox"></div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="form-row-group">

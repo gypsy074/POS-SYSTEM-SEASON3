@@ -115,22 +115,26 @@ async function handleLogin(e, isRetry = false) {
         // ── Store session user + token for profile widgets & API calls ──
         // Each app keeps its own session keys (admin vs cashier) so one
         // browser can hold both logins without them overwriting each other.
-        const isAdmin = data.role === "Admin";
+        const isAdminSurface = data.role === "Admin" || data.role === "Manager";
         localStorage.setItem(
-            isAdmin ? "posAdminUser" : "posUser",
+            isAdminSurface ? "posAdminUser" : "posUser",
             JSON.stringify({
                 username: data.username,
                 role: data.role
             })
         );
         if (data.token) {
-            localStorage.setItem(isAdmin ? "posAdminToken" : "posToken", data.token);
+            // Managers use the admin dashboard and may also operate the POS.
+            // Keep the same token in both stores so either surface can call
+            // the backend without weakening server-side authorization.
+            if (isAdminSurface) localStorage.setItem("posAdminToken", data.token);
+            if (!isAdminSurface || data.role === "Manager") localStorage.setItem("posToken", data.token);
         }
 
         // ── Route by role ──────────────────────────────────────────────
         // Relative paths so redirects also work when the frontend is opened
         // directly via file:// (not just when served by the backend).
-        if (data.role === "Admin" || data.role === "Cashier") {
+        if (["Admin", "Manager", "Cashier"].includes(data.role)) {
             redirectAfterLogin(data.role, data.username);
         } else {
             showError("Unknown user role. Contact an administrator.");
@@ -165,12 +169,12 @@ function redirectAfterLogin(role, username) {
     const roleEl   = document.getElementById("transitionRole");
 
     const go = () => {
-        window.location.href = role === "Admin" ? "ADMIN/admin.html" : "CASHIER/pos.html";
+        window.location.href = role === "Admin" || role === "Manager" ? "ADMIN/admin.html" : "CASHIER/pos.html";
     };
 
     if (overlay) {
         if (welcome) welcome.textContent = `Welcome, ${String(username || "").trim() || "there"}!`;
-        if (roleEl)  roleEl.textContent  = role === "Admin" ? "Administrator" : "Cashier";
+        if (roleEl)  roleEl.textContent  = role === "Admin" ? "Administrator" : role;
         overlay.classList.add("show");
         redirectAfterTransition(overlay, go);
     } else {
