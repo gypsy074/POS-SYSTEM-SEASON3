@@ -210,9 +210,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Owner email alerts settings panel
     setupSettingsForm();
 
-    // CSV export for Sales Analytics
+    // Excel export for Sales Analytics
     const exportBtn = document.getElementById("exportCsvBtn");
-    if (exportBtn) exportBtn.addEventListener("click", exportSalesCsv);
+    if (exportBtn) exportBtn.addEventListener("click", exportSalesExcel);
 
     // Auto-refresh the active view + notification badge every 25s.
     // Ticks are skipped while the tab is hidden or a previous load is still

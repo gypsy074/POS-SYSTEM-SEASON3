@@ -5,6 +5,7 @@
    ========================================================================== */
 
 process.env.JWT_SECRET = 'test-secret';
+process.env.SEED_ADMIN_PASSWORD = 'admin123';
 delete process.env.AI_API_KEY; // force the statistics fallback path
 
 const { MongoMemoryServer } = require('mongodb-memory-server');

@@ -693,11 +693,19 @@ function setupCashierControls() {
     }
 
     const paymentRadios = document.querySelectorAll('input[name="payment"]');
+    const gcashInput = document.getElementById("gcashReferenceInput");
+    if (gcashInput) {
+        gcashInput.addEventListener("input", () => {
+            gcashInput.value = gcashInput.value.replace(/\D/g, "");
+        });
+    }
+
     paymentRadios.forEach(radio => {
         radio.addEventListener('change', () => {
             selectedPayment = radio.value;
             updateSwipeSummary();
             updateCalculatorVisibility();
+            updateGcashReferenceVisibility();
             updateChangeCalculator();
         });
     });
@@ -1574,6 +1582,22 @@ function updateCalculatorVisibility() {
     }
 }
 
+function updateGcashReferenceVisibility() {
+    const refField = document.getElementById("gcashRefField");
+    const refInput = document.getElementById("gcashReferenceInput");
+    if (!refField || !refInput) {
+        return;
+    }
+
+    const isGcash = selectedPayment === "gcash";
+    refField.classList.toggle("hidden", !isGcash);
+    if (!isGcash) {
+        refInput.value = "";
+    }
+
+    refInput.value = refInput.value.replace(/\D/g, "");
+}
+
 function updateChangeCalculator() {
     const input = document.getElementById("amountTenderedInput");
     const changeEl = document.getElementById("changeAmount");
@@ -1843,6 +1867,22 @@ async function submitOrder() {
         }
     }
 
+    if (selectedPayment === "gcash") {
+        const refInput = document.getElementById("gcashReferenceInput");
+        const refNo = refInput ? refInput.value.trim() : "";
+        if (!refNo) {
+            playSound("error");
+            await showPosAlert({
+                title: "GCash reference needed",
+                icon: "fa-money-bill-transfer",
+                iconClass: "danger",
+                bodyHtml: '<p class="pos-modal-error-text">Enter the GCash reference number before placing the order.</p>',
+                buttonLabel: "OK"
+            });
+            return;
+        }
+    }
+
     // Senior discount guard: the SC/PWD ID and customer name are required.
     const seniorIdInput = document.getElementById("seniorIdInput");
     const seniorNameInput = document.getElementById("seniorNameInput");
@@ -1863,6 +1903,8 @@ async function submitOrder() {
     const customerInput = document.getElementById("customerNameInput");
     const customer = customerInput ? customerInput.value.trim() : "Walk-in Customer";
     const tableNo = "";
+    const gcashRefInput = document.getElementById("gcashReferenceInput");
+    const gcashReferenceNo = selectedPayment === "gcash" && gcashRefInput ? gcashRefInput.value.trim() : "";
 
     // Idempotency key: unique per order, stable across sync retries so the
     // backend never saves the same order twice.
@@ -1874,6 +1916,7 @@ async function submitOrder() {
         tableNo,
         mode: selectedMode,
         paymentMethod: selectedPayment,
+        referenceNo: gcashReferenceNo,
         receiptId: currentOrderId,
         clientOrderId,
         date: new Date().toISOString(),
@@ -1909,6 +1952,7 @@ async function submitOrder() {
                 <div class="pos-modal-summary">
                     <div class="row"><span>Mode</span><strong>${escapeHtml(selectedMode)}</strong></div>
                     <div class="row"><span>Payment</span><strong>${selectedPayment.toUpperCase()}</strong></div>
+                    ${selectedPayment === "gcash" && gcashReferenceNo ? `<div class="row"><span>Reference</span><strong>${escapeHtml(gcashReferenceNo)}</strong></div>` : ""}
                     <div class="row"><span>Cashier</span><strong>${escapeHtml(getCashierName())}</strong></div>
                     ${seniorDiscountActive ? `
                     <div class="row"><span>Subtotal</span><strong>₱${cartSubtotal().toFixed(2)}</strong></div>
@@ -1952,6 +1996,7 @@ async function submitOrder() {
                     <div class="receipt-id">${escapeHtml(createdOrder.receiptId || currentOrderId)}</div>
                     <div class="row"><span>Customer</span><strong>${escapeHtml(payload.customer)}</strong></div>
                     <div class="row"><span>Payment</span><strong>${selectedPayment.toUpperCase()}</strong></div>
+                    ${selectedPayment === "gcash" && createdOrder.referenceNo ? `<div class="row"><span>Reference</span><strong>${escapeHtml(createdOrder.referenceNo)}</strong></div>` : ""}
                     ${createdOrder.discountType ? `
                     <div class="row"><span>Subtotal</span><strong>₱${Number(createdOrder.subtotal ?? payload.total).toFixed(2)}</strong></div>
                     <div class="row"><span>Senior Discount</span><strong>−₱${Number(createdOrder.discountAmount || 0).toFixed(2)}</strong></div>
@@ -2044,6 +2089,7 @@ function printReceipt(order) {
                 <div><span>Customer</span><strong>${escapeHtml(order.customer || "Walk-in Customer")}</strong></div>
                 <div><span>Mode</span><strong>${escapeHtml(order.mode || "Dine In")}</strong></div>
                 <div><span>Payment</span><strong>${escapeHtml(order.paymentMethod || "Cash")}</strong></div>
+                ${order.paymentMethod === "G-Cash" && order.referenceNo ? `<div><span>Reference</span><strong>${escapeHtml(order.referenceNo)}</strong></div>` : ""}
             </div>
             <div class="print-items">${items}</div>
             <div class="print-total">
@@ -2132,6 +2178,9 @@ function buildReceiptText(order) {
         "Customer: " + (order.customer || "Walk-in Customer"),
         "Mode: " + (order.mode || "Dine In") + "  Payment: " + (order.paymentMethod || "Cash")
     ];
+    if (order.paymentMethod === "G-Cash" && order.referenceNo) {
+        meta.push("Reference: " + order.referenceNo);
+    }
     const items = (order.items || []).map(it => {
         const name = String(it.name || "");
         const qty = Number(it.quantity || 0);

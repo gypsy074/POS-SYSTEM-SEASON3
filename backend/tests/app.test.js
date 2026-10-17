@@ -4,7 +4,10 @@
    ========================================================================== */
 
 process.env.JWT_SECRET = 'test-secret';
+process.env.SEED_ADMIN_PASSWORD = 'admin123';
 
+const { spawnSync } = require('child_process');
+const path = require('path');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const mongoose = require('mongoose');
 const request = require('supertest');
@@ -82,6 +85,37 @@ async function getProduct(name) {
 }
 
 describe('Auth', () => {
+    test('production server refuses to start without an explicit JWT secret', () => {
+        const env = { ...process.env, NODE_ENV: 'production', JWT_SECRET: ' ' };
+        delete env.RENDER;
+        delete env.MONGO_URI;
+        const result = spawnSync(process.execPath, [path.join(__dirname, '..', 'server.js')], {
+            cwd: path.join(__dirname, '..'),
+            env,
+            encoding: 'utf8',
+            timeout: 10000
+        });
+
+        expect(result.status).toBe(1);
+        expect(`${result.stdout}\n${result.stderr}`).toContain('JWT_SECRET must be configured');
+    });
+
+    test('password reset rejects command-line passwords without echoing them', () => {
+        const sentinel = 'do-not-print-this-password';
+        const scriptPath = path.join(__dirname, '..', 'scripts', 'reset-admin-password.js');
+        const result = spawnSync(process.execPath, [scriptPath, 'admin', sentinel], {
+            cwd: path.join(__dirname, '..'),
+            env: { ...process.env, MONGO_URI: '' },
+            encoding: 'utf8',
+            timeout: 10000
+        });
+        const output = `${result.stdout}\n${result.stderr}`;
+
+        expect(result.status).toBe(1);
+        expect(output).toContain('Do not pass passwords as command-line arguments');
+        expect(output).not.toContain(sentinel);
+    });
+
     test('rejects invalid credentials', async () => {
         const res = await request(app).post('/api/login').send({ username: 'admin', password: 'wrong' });
         expect(res.status).toBe(401);
@@ -97,6 +131,115 @@ describe('Auth', () => {
             .delete('/api/orders/000000000000000000000000')
             .set('Authorization', `Bearer ${cashierToken}`);
         expect(res.status).toBe(403);
+    });
+});
+
+describe('Session authorization changes', () => {
+    test('changing a user role invalidates their existing token', async () => {
+        const created = await request(app)
+            .post('/api/users')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ username: 'session-role-test', password: 'tester123', role: 'Cashier' });
+        expect(created.status).toBe(201);
+
+        const userLogin = await login('session-role-test', 'tester123');
+        expect(userLogin.status).toBe(200);
+
+        const updated = await request(app)
+            .put(`/api/users/${created.body._id}`)
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ role: 'Manager' });
+        expect(updated.status).toBe(200);
+
+        const oldSession = await request(app)
+            .get('/api/auth/me')
+            .set('Authorization', `Bearer ${userLogin.token}`);
+        expect(oldSession.status).toBe(401);
+
+        const newLogin = await login('session-role-test', 'tester123');
+        expect(newLogin.status).toBe(200);
+        expect(newLogin.role).toBe('Manager');
+    });
+
+    test('deleting a user revokes their active session immediately', async () => {
+        const created = await request(app)
+            .post('/api/users')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ username: 'session-revoke-test', password: 'tester123', role: 'Cashier' });
+        expect(created.status).toBe(201);
+
+        const userLogin = await login('session-revoke-test', 'tester123');
+        expect(userLogin.status).toBe(200);
+        const beforeDelete = await request(app)
+            .get('/api/auth/me')
+            .set('Authorization', `Bearer ${userLogin.token}`);
+        expect(beforeDelete.status).toBe(200);
+
+        const deleted = await request(app)
+            .delete(`/api/users/${created.body._id}`)
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(deleted.status).toBe(200);
+
+        const afterDelete = await request(app)
+            .get('/api/auth/me')
+            .set('Authorization', `Bearer ${userLogin.token}`);
+        expect(afterDelete.status).toBe(401);
+    });
+
+    test('cashier manager-override failures are rate-limited', async () => {
+        await createProduct('TestOverrideThrottle', 40, 2);
+        const created = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({ items: [{ name: 'TestOverrideThrottle', quantity: 1, price: 40 }], total: 40 });
+        expect(created.status).toBe(201);
+
+        const clientIp = '203.0.113.42';
+        for (let attempt = 0; attempt < 10; attempt++) {
+            const denied = await request(app)
+                .patch(`/api/orders/${created.body._id}/void`)
+                .set('Authorization', `Bearer ${cashierToken}`)
+                .set('X-Forwarded-For', clientIp)
+                .send({ managerOverridePin: 'wrong-pin' });
+            expect(denied.status).toBe(403);
+        }
+        const limited = await request(app)
+            .patch(`/api/orders/${created.body._id}/void`)
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .set('X-Forwarded-For', clientIp)
+            .send({ managerOverridePin: 'wrong-pin' });
+        expect(limited.status).toBe(429);
+    }, 30000);
+});
+
+describe('Audit log export paging', () => {
+    test('date-bounded pages include target IDs and do not repeat entries', async () => {
+        const uniqueSuffix = Date.now();
+        const from = '2099-01-01';
+        const to = '2099-01-01';
+        const fixtureDate = new Date(2099, 0, 1, 12);
+        await mongoose.connection.db.collection('auditlogs').insertMany([0, 1, 2].map(index => ({
+            action: 'user.create',
+            actor: 'admin',
+            targetId: `audit-target-${uniqueSuffix}-${index}`,
+            detail: `Audit paging fixture ${index}`,
+            date: new Date(fixtureDate.getTime() + index)
+        })));
+
+        const query = `action=user.create&from=${encodeURIComponent(from)}&to=${to}&limit=2&sort=asc`;
+        const first = await request(app)
+            .get(`/api/audit?${query}&skip=0`)
+            .set('Authorization', `Bearer ${adminToken}`);
+        const second = await request(app)
+            .get(`/api/audit?${query}&skip=2`)
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(first.status).toBe(200);
+        expect(second.status).toBe(200);
+        expect(first.body).toHaveLength(2);
+        expect(second.body).toHaveLength(1);
+        const targetIds = [...first.body, ...second.body].map(entry => entry.targetId);
+        expect(new Set(targetIds).size).toBe(3);
+        expect(targetIds).toEqual(expect.arrayContaining([0, 1, 2].map(index => `audit-target-${uniqueSuffix}-${index}`)));
     });
 });
 
@@ -157,6 +300,24 @@ describe('Orders & stock', () => {
         expect(orderRes.body.status).toBe('Completed');
         expect(orderRes.body.tendered).toBe(500);
         expect(orderRes.body.change).toBe(260);
+    });
+
+    test('gcash orders persist a numeric reference number', async () => {
+        await createProduct('TestGcashItem', 110, 4);
+
+        const res = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                cashier: 'tester',
+                paymentMethod: 'G-Cash',
+                referenceNo: '123456',
+                items: [{ name: 'TestGcashItem', quantity: 1, price: 110 }],
+                total: 110
+            });
+
+        expect(res.status).toBe(201);
+        expect(res.body.referenceNo).toBe('123456');
     });
 
     test('order exceeding stock → 409 and no stock change', async () => {
@@ -258,7 +419,8 @@ describe('Order void', () => {
 
         const voidRes = await request(app)
             .patch(`/api/orders/${created.body._id}/void`)
-            .set('Authorization', `Bearer ${otherLogin.token}`);
+            .set('Authorization', `Bearer ${otherLogin.token}`)
+            .send({ managerOverridePin: 'admin123' });
         expect(voidRes.status).toBe(403);
         expect((await getProduct('TestOwnershipDish')).stock).toBe(1);
     });
@@ -282,7 +444,7 @@ describe('Order void', () => {
         const voidRes = await request(app)
             .patch(`/api/orders/${orderId}/void`)
             .set('Authorization', `Bearer ${cashierToken}`)
-            .send({ reason: 'Customer changed mind' });
+            .send({ reason: 'Customer changed mind', managerOverridePin: 'admin123' });
         expect(voidRes.status).toBe(200);
         expect(voidRes.body.status).toBe('Voided');
         expect(voidRes.body.voidReason).toBe('Customer changed mind');
@@ -290,7 +452,8 @@ describe('Order void', () => {
 
         const doubleVoid = await request(app)
             .patch(`/api/orders/${orderId}/void`)
-            .set('Authorization', `Bearer ${cashierToken}`);
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({ managerOverridePin: 'admin123' });
         expect(doubleVoid.status).toBe(409);
 
         const noAuth = await request(app)
@@ -325,7 +488,7 @@ describe('Order delete guard', () => {
         expect((stillThere.body || []).some(o => String(o._id) === String(created.body._id))).toBe(true);
     });
 
-    test('admin can hard-delete an already-voided order → 200', async () => {
+    test('admin cannot hard-delete an already-voided order → 409 and record remains', async () => {
         await createProduct('TestDeleteVoided', 70, 3);
 
         const created = await request(app)
@@ -340,18 +503,45 @@ describe('Order delete guard', () => {
 
         const voidRes = await request(app)
             .patch(`/api/orders/${created.body._id}/void`)
-            .set('Authorization', `Bearer ${cashierToken}`);
+            .set('Authorization', `Bearer ${adminToken}`);
         expect(voidRes.status).toBe(200);
 
         const del = await request(app)
             .delete(`/api/orders/${created.body._id}`)
             .set('Authorization', `Bearer ${adminToken}`);
-        expect(del.status).toBe(200);
+        expect(del.status).toBe(409);
 
-        const gone = await request(app)
-            .delete(`/api/orders/${created.body._id}`)
+        const stillThere = await request(app)
+            .get('/api/orders?limit=5000')
             .set('Authorization', `Bearer ${adminToken}`);
-        expect(gone.status).toBe(404);
+        expect((stillThere.body || []).some(o => String(o._id) === String(created.body._id))).toBe(true);
+    });
+
+    test('refunded order cannot be voided again or restore stock twice', async () => {
+        await createProduct('TestRefundThenVoid', 45, 3);
+
+        const created = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                cashier: 'tester',
+                items: [{ name: 'TestRefundThenVoid', quantity: 1, price: 45 }],
+                total: 45
+            });
+        expect(created.status).toBe(201);
+        expect(Number((await getProduct('TestRefundThenVoid')).stock)).toBe(2);
+
+        const refund = await request(app)
+            .post(`/api/orders/${created.body._id}/refund`)
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(refund.status).toBe(200);
+        expect(Number((await getProduct('TestRefundThenVoid')).stock)).toBe(3);
+
+        const voidRes = await request(app)
+            .patch(`/api/orders/${created.body._id}/void`)
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(voidRes.status).toBe(409);
+        expect(Number((await getProduct('TestRefundThenVoid')).stock)).toBe(3);
     });
 });
 
@@ -371,6 +561,28 @@ describe('Orders fetch bounds', () => {
         expect(res.status).toBe(200);
         expect(Array.isArray(res.body)).toBe(true);
         expect(res.body.length).toBeLessThanOrEqual(2);
+    });
+
+    test('?skip returns the next page without repeating order IDs', async () => {
+        await createProduct('TestOrderPaging', 30, 20);
+        for (let i = 0; i < 3; i++) {
+            await request(app)
+                .post('/api/orders')
+                .set('Authorization', `Bearer ${cashierToken}`)
+                .send({ cashier: 'tester', items: [{ name: 'TestOrderPaging', quantity: 1, price: 30 }] });
+        }
+
+        const first = await request(app)
+            .get('/api/orders?limit=2&skip=0')
+            .set('Authorization', `Bearer ${adminToken}`);
+        const second = await request(app)
+            .get('/api/orders?limit=2&skip=2')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(first.status).toBe(200);
+        expect(second.status).toBe(200);
+        expect(first.body).toHaveLength(2);
+        expect(second.body).toHaveLength(2);
+        expect(first.body.map(order => String(order._id))).not.toEqual(second.body.map(order => String(order._id)));
     });
 
     test('out-of-range params are ignored (no 500, no filtering)', async () => {
@@ -642,7 +854,7 @@ describe('String _id compatibility', () => {
         expect(after.body.some(w => String(w._id) === STRING_ID)).toBe(false);
     });
 
-    test('order with a string _id is fetched, voided, and hard-deleted by id', async () => {
+    test('order with a string _id is fetched and voided; deleting preserves it', async () => {
         await insertRaw('orders', {
             _id: STRING_ID,
             customer: 'String-Id Customer',
@@ -673,6 +885,11 @@ describe('String _id compatibility', () => {
         const deleted = await request(app)
             .delete(`/api/orders/${STRING_ID}`)
             .set('Authorization', `Bearer ${adminToken}`);
-        expect(deleted.status).toBe(200);
+        expect(deleted.status).toBe(409);
+
+        const afterDelete = await request(app)
+            .get('/api/orders')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(afterDelete.body.some(order => String(order._id) === STRING_ID)).toBe(true);
     });
 });

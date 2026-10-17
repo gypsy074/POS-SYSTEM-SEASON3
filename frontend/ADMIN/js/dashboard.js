@@ -495,52 +495,253 @@ function renderDailySnapshot() {
         </div>`;
 }
 
-// ── CSV Export (Sales Analytics) ───────────────────────────────────────────
+// ── Pivot-ready Excel Export (Sales Analytics) ──────────────────────────────
 
-function exportSalesCsv() {
-    const orders = latestOrders || [];
-    if (!orders.length) {
-        showToast("No orders to export yet.", "info");
-        return;
+const SALES_EXPORT_PAGE_SIZE = 1000;
+
+async function fetchSalesExportOrders() {
+    const orders = [];
+    let skip = 0;
+    while (true) {
+        const params = new URLSearchParams({ limit: String(SALES_EXPORT_PAGE_SIZE), skip: String(skip) });
+        if (activeSalesRange !== "all") params.set("days", "90");
+        const response = await apiFetch(`/api/orders?${params.toString()}`);
+        if (!response.ok) throw new Error("Could not load all sales for export.");
+        const page = await response.json();
+        orders.push(...page);
+        if (page.length < SALES_EXPORT_PAGE_SIZE) return orders;
+        skip += page.length;
+    }
+}
+
+function filterSalesExportOrders(orders) {
+    if (activeSalesRange === "all") return orders;
+    const selected = new Set(activeSalesFilters[activeSalesRange] || []);
+    if (selected.size) {
+        return orders.filter(order => {
+            const date = new Date(order.date);
+            if (Number.isNaN(date.getTime())) return false;
+            if (activeSalesRange === "day") return selected.has(formatLocalDate(date));
+            if (activeSalesRange === "month") return selected.has(formatLocalMonth(date));
+            return selected.has(formatLocalWeek(date).key);
+        });
+    }
+    const days = { day: 7, week: 28, month: 90 }[activeSalesRange] || 7;
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    return orders.filter(order => new Date(order.date).getTime() >= cutoff);
+}
+
+function exportPaymentMethod(order) {
+    const method = String(order.paymentMethod || "");
+    return method.toLowerCase().replace(/[-\s]/g, "") === "gcash" ? "GCash" : method;
+}
+
+function excelDate(value) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "" : date;
+}
+
+function addExportTable(workbook, name, headers, rows, paymentHeader, duplicateHeader = "", statusHeader = "") {
+    const sheet = workbook.addWorksheet(name);
+    sheet.columns = headers.map(header => ({ width: Math.min(34, Math.max(13, header.length + 3)) }));
+    sheet.addTable({
+        name: name.replace(/[^A-Za-z0-9]/g, "") + "Table",
+        ref: "A1",
+        headerRow: true,
+        totalsRow: false,
+        style: { theme: "TableStyleMedium2", showRowStripes: true },
+        columns: headers.map(header => ({ name: header, filterButton: true })),
+        rows
+    });
+    sheet.views = [{ state: "frozen", ySplit: 1 }];
+    sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+    sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF34423A" } };
+
+    const paymentColumn = headers.indexOf(paymentHeader) + 1;
+    for (let rowIndex = 2; paymentColumn && rowIndex <= sheet.rowCount; rowIndex++) {
+        const cell = sheet.getRow(rowIndex).getCell(paymentColumn);
+        const method = String(cell.value || "").toLowerCase().replace(/[-\s]/g, "");
+        if (method === "cash") {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD9EAD3" } };
+            cell.font = { color: { argb: "FF274E13" }, bold: true };
+        } else if (method === "gcash") {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFCFE2F3" } };
+            cell.font = { color: { argb: "FF073763" }, bold: true };
+        }
     }
 
-    const rangeLimit = { day: 7, week: 28, month: 90, all: Infinity }[activeSalesRange] || 7;
-    const cutoff = activeSalesRange === "all"
-        ? null
-        : Date.now() - (rangeLimit * 24 * 60 * 60 * 1000);
+    const duplicateColumn = headers.indexOf(duplicateHeader) + 1;
+    if (duplicateColumn) {
+        const counts = new Map();
+        rows.forEach(row => {
+            const value = String(row[duplicateColumn - 1] || "");
+            if (value) counts.set(value, (counts.get(value) || 0) + 1);
+        });
+        for (let rowIndex = 2; rowIndex <= sheet.rowCount; rowIndex++) {
+            const cell = sheet.getRow(rowIndex).getCell(duplicateColumn);
+            if ((counts.get(String(cell.value || "")) || 0) > 1) {
+                cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2CC" } };
+                cell.font = { color: { argb: "FF7F6000" }, bold: true };
+            }
+        }
+    }
 
-    const rows = [["Receipt", "Customer", "Cashier", "Mode", "Payment", "Items", "Total", "Tendered", "Change", "Status", "Date"]];
-    orders
-        .filter(order => activeSalesRange === "all" || new Date(order.date).getTime() >= cutoff)
-        .sort((a, b) => new Date(b.date) - new Date(a.date))
-        .forEach(order => rows.push([
-            String(order.receiptId || ""),
-            String(order.customer || ""),
-            String(order.cashier || ""),
-            String(order.mode || ""),
-            String(order.paymentMethod || ""),
-            String((order.items || []).map(item => `${item.name} x${item.quantity}`).join("; ")),
-            Number(order.total || 0).toFixed(2),
-            Number(order.tendered ?? 0).toFixed(2),
-            Number(order.change ?? 0).toFixed(2),
-            String(order.status || "Completed"),
-            new Date(order.date).toLocaleString()
-        ]));
+    const statusColumn = headers.indexOf(statusHeader) + 1;
+    for (let rowIndex = 2; statusColumn && rowIndex <= sheet.rowCount; rowIndex++) {
+        const cell = sheet.getRow(rowIndex).getCell(statusColumn);
+        const status = String(cell.value || "").toLowerCase();
+        if (status === "completed") {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD9EAD3" } };
+            cell.font = { color: { argb: "FF274E13" }, bold: true };
+        } else if (status === "voided" || status === "refunded") {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF4CCCC" } };
+            cell.font = { color: { argb: "FF990000" }, bold: true };
+        }
+    }
+    return sheet;
+}
 
-    // Neutralize spreadsheet formula injection: cells starting with =, +, -,
-    // or @ would execute as a formula when the CSV is opened in Excel/Sheets.
-    const csv = rows.map(row => row.map(cell =>
-        `"${String(cell).replace(/^[=+\-@]/, "'$&").replace(/"/g, '""')}"`
-    ).join(",")).join("\r\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `season3-sales-${activeSalesRange}-${localDateStamp()}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+function salesExportRangeLabel() {
+    if (activeSalesRange === "all") return "All available order history";
+    const selected = activeSalesFilters[activeSalesRange] || [];
+    return selected.length
+        ? `${activeSalesRange}: ${selected.join(", ")}`
+        : `${activeSalesRange}: recent ${({ day: 7, week: 28, month: 90 })[activeSalesRange] || 7} days`;
+}
+
+async function exportSalesExcel() {
+    const button = document.getElementById("exportCsvBtn");
+    if (!window.ExcelJS) {
+        showToast("Excel export is unavailable. Check the internet connection and try again.", "error");
+        return;
+    }
+    if (button) button.disabled = true;
+    showToast("Preparing Excel workbook…", "info");
+    try {
+        const allOrders = await fetchSalesExportOrders();
+        const orders = filterSalesExportOrders(allOrders).sort((a, b) => new Date(b.date) - new Date(a.date));
+        if (!orders.length) {
+            showToast("No orders found for this export range.", "info");
+            return;
+        }
+
+        const transactionHeaders = [
+            "Order ID", "Date/Time", "Cashier", "Customer", "Mode", "Payment", "Payment Reference",
+            "Status", "Subtotal", "Discount Type", "Discount Amount", "Order Total", "Completed Sales",
+            "Voided Amount", "Refunded Amount", "Tendered", "Change", "Voided By", "Voided At",
+            "Void Reason", "Refunded By", "Refunded At"
+        ];
+        const itemHeaders = [
+            "Order ID", "Date/Time", "Cashier", "Mode", "Payment", "Payment Reference", "Status",
+            "Item", "Quantity", "Unit Price", "Original Line Total"
+        ];
+        const itemRows = [];
+        const transactionRows = orders.map(order => {
+            const status = String(order.status || "Completed");
+            const total = Number(order.total || 0);
+            const payment = exportPaymentMethod(order);
+            const orderId = String(order.receiptId || "");
+            const date = excelDate(order.date);
+            (order.items || []).forEach(item => {
+                const quantity = Number(item.quantity || 0);
+                const unitPrice = Number(item.price || 0);
+                itemRows.push([
+                    orderId, date, String(order.cashier || ""), String(order.mode || ""), payment,
+                    String(order.referenceNo || ""), status, String(item.name || ""), quantity,
+                    unitPrice, quantity * unitPrice
+                ]);
+            });
+            return [
+                orderId, date, String(order.cashier || ""), String(order.customer || ""),
+                String(order.mode || ""), payment, String(order.referenceNo || ""), status,
+                Number(order.subtotal ?? total), String(order.discountType || ""),
+                Number(order.discountAmount || 0), total, status === "Completed" ? total : 0,
+                status === "Voided" ? total : 0, status === "Refunded" ? total : 0,
+                Number(order.tendered || 0), Number(order.change || 0), String(order.voidedBy || ""),
+                excelDate(order.voidedAt), String(order.voidReason || ""), String(order.refundedBy || ""),
+                excelDate(order.refundedAt)
+            ];
+        });
+
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = "Season 3 POS";
+        workbook.created = new Date();
+        const transactions = addExportTable(workbook, "Transactions", transactionHeaders, transactionRows, "Payment", "", "Status");
+        const items = addExportTable(workbook, "Sales Items", itemHeaders, itemRows, "Payment", "Order ID", "Status");
+        [transactions, items].forEach(sheet => {
+            sheet.columns.forEach((column, index) => {
+                const header = sheet.getRow(1).getCell(index + 1).value;
+                if (["Date/Time", "Voided At", "Refunded At"].includes(header)) {
+                    column.width = 24;
+                    column.numFmt = "yyyy-mm-dd hh:mm";
+                }
+                if (["Subtotal", "Discount Amount", "Order Total", "Completed Sales", "Voided Amount", "Refunded Amount", "Tendered", "Change", "Unit Price", "Original Line Total"].includes(header)) {
+                    column.width = 22;
+                    column.numFmt = "#,##0.00;[Red](#,##0.00);-";
+                }
+                if (["Order ID", "Payment Reference"].includes(header)) column.numFmt = "@";
+                if (header === "Item") {
+                    column.width = 36;
+                    sheet.getColumn(index + 1).alignment = { vertical: "top", wrapText: true };
+                }
+            });
+        });
+
+        const dateBounds = orders.reduce((bounds, order) => {
+            const time = new Date(order.date).getTime();
+            if (!Number.isFinite(time)) return bounds;
+            bounds.min = Math.min(bounds.min, time);
+            bounds.max = Math.max(bounds.max, time);
+            return bounds;
+        }, { min: Infinity, max: -Infinity });
+        const info = workbook.addWorksheet("Export Info");
+        info.addRows([
+            ["Export Field", "Value"],
+            ["Generated", new Date()],
+            ["Selected Range", salesExportRangeLabel()],
+            ["Transactions", orders.length],
+            ["Item Rows", itemRows.length],
+            ["Earliest Order", Number.isFinite(dateBounds.min) ? new Date(dateBounds.min) : ""],
+            ["Latest Order", Number.isFinite(dateBounds.max) ? new Date(dateBounds.max) : ""]
+        ]);
+        info.columns = [{ width: 24 }, { width: 42 }];
+        info.views = [{ state: "frozen", ySplit: 1 }];
+        info.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+        info.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF34423A" } };
+        [2, 6, 7].forEach(rowIndex => { info.getCell(`B${rowIndex}`).numFmt = "yyyy-mm-dd hh:mm"; });
+
+        const dictionary = workbook.addWorksheet("Data Dictionary");
+        dictionary.addRows([
+            ["Sheet", "Field", "Meaning"],
+            ["Transactions", "Completed Sales", "Order total for Completed orders; zero for Voided or Refunded orders."],
+            ["Transactions", "Voided Amount / Refunded Amount", "Original order total grouped by reversal status; separate from completed sales."],
+            ["Sales Items", "Original Line Total", "Quantity multiplied by unit price, before any order-level discount."],
+            ["Sales Items", "Payment Reference", "Payment reference stored with the order; exported as text."],
+            ["All", "Status", "Use this field to filter Completed, Voided, and Refunded records."],
+            ["All", "Tax fields", "Not included; VAT treatment has not been confirmed for this business."]
+        ]);
+        dictionary.columns = [{ width: 22 }, { width: 30 }, { width: 90 }];
+        dictionary.views = [{ state: "frozen", ySplit: 1 }];
+        dictionary.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+        dictionary.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF34423A" } };
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `season3-sales-${activeSalesRange}-${localDateStamp()}.xlsx`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        showToast(`Excel workbook exported: ${orders.length} transactions, ${itemRows.length} item rows.`, "success");
+    } catch (error) {
+        console.error("Sales Excel export failed:", error);
+        showToast(error.message || "Could not create the Excel workbook.", "error");
+    } finally {
+        if (button) button.disabled = false;
+    }
 }
 
 // ── Waste Food Panel (view + remove) ───────────────────────────────────────

@@ -4,6 +4,7 @@
    ========================================================================== */
 
 process.env.JWT_SECRET = 'test-secret';
+process.env.SEED_ADMIN_PASSWORD = 'admin123';
 
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const mongoose = require('mongoose');

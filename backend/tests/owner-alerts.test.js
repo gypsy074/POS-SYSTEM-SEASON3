@@ -5,6 +5,7 @@
    ========================================================================== */
 
 process.env.JWT_SECRET = 'test-secret';
+process.env.SEED_ADMIN_PASSWORD = 'admin123';
 // Pretend SMTP is configured so the real pipeline (email.js) runs; the
 // transporter is replaced with a fake below.
 process.env.SMTP_HOST = 'smtp.test.local';
