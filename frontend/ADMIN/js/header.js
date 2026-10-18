@@ -111,6 +111,7 @@ let notifCloseTimer = null;
 function openNotificationDropdown() {
     const dropdown = document.getElementById("notificationDropdown");
     if (!dropdown) return;
+    closeProfileDropdown();
     if (notifCloseTimer) {
         clearTimeout(notifCloseTimer);
         notifCloseTimer = null;

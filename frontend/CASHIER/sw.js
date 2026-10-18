@@ -5,7 +5,7 @@
    connection returns.
    ========================================================================== */
 
-const CACHE_NAME = 'pos-shell-v6';
+const CACHE_NAME = 'pos-shell-v7';
 
 const APP_SHELL = [
     './pos.html',

@@ -39,6 +39,7 @@ let profileCloseTimer = null;
 function openProfileDropdown() {
     const dropdown = document.getElementById("profileDropdown");
     if (!dropdown) return;
+    closeNotificationDropdown();
     if (profileCloseTimer) {
         clearTimeout(profileCloseTimer);
         profileCloseTimer = null;
@@ -95,6 +96,11 @@ function setupProfileBadge() {
         if (dropdown.classList.contains("show")) closeProfileDropdown();
         else openProfileDropdown();
     });
+
+    const accountButton = document.getElementById("profileAccountBtn");
+    if (accountButton) {
+        accountButton.addEventListener("click", closeProfileDropdown);
+    }
 
     document.addEventListener("click", event => {
         if (dropdown.classList.contains("show") && !dropdown.contains(event.target)) {

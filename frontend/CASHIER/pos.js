@@ -668,7 +668,12 @@ function setupCashierControls() {
             const dropdown = document.getElementById("notificationDropdown");
             if (dropdown) {
                 const wasOpen = dropdown.classList.contains("show");
-                dropdown.classList.toggle("show");
+                if (wasOpen) {
+                    closeCashierNotificationDropdown();
+                } else {
+                    closeCashierProfileDropdown();
+                    dropdown.classList.add("show");
+                }
                 if (!wasOpen) {
                     dismissSeenNotifications();
                 }
@@ -685,7 +690,7 @@ function setupCashierControls() {
         if (dropdown.contains(event.target) || event.target.closest(".notification-wrap")) {
             return;
         }
-        dropdown.classList.remove("show");
+        closeCashierNotificationDropdown();
     });
 
     if (cancelOrderBtn) {
@@ -2813,6 +2818,18 @@ function setupWasteLogForm() {
     }
 }
 
+function closeCashierNotificationDropdown() {
+    const dropdown = document.getElementById("notificationDropdown");
+    if (dropdown) dropdown.classList.remove("show");
+}
+
+function closeCashierProfileDropdown() {
+    const wrap = document.getElementById("cashierProfileWrap");
+    const dropdown = document.getElementById("cashierDropdown");
+    if (wrap) wrap.classList.remove("open");
+    if (dropdown) dropdown.classList.remove("show");
+}
+
 // ── Cashier Profile ───────────────────────────────────────────────────────
 
 function setupCashierProfile() {
@@ -2843,21 +2860,24 @@ function setupCashierProfile() {
 
     badge.addEventListener("click", event => {
         event.stopPropagation();
-        wrap.classList.toggle("open");
-        if (dropdown) dropdown.classList.toggle("show");
+        const shouldOpen = !dropdown || !dropdown.classList.contains("show");
+        if (shouldOpen) closeCashierNotificationDropdown();
+        wrap.classList.toggle("open", shouldOpen);
+        if (dropdown) dropdown.classList.toggle("show", shouldOpen);
     });
 
     document.addEventListener("click", event => {
         if (dropdown && dropdown.classList.contains("show") && !wrap.contains(event.target)) {
-            wrap.classList.remove("open");
-            dropdown.classList.remove("show");
+            closeCashierProfileDropdown();
         }
     });
 
+    const accountButton = document.getElementById("cashierAccountBtn");
+    if (accountButton) accountButton.addEventListener("click", closeCashierProfileDropdown);
+
     if (logoutBtn) {
         logoutBtn.addEventListener("click", () => {
-            wrap.classList.remove("open");
-            if (dropdown) dropdown.classList.remove("show");
+            closeCashierProfileDropdown();
             apiFetch("/api/logout", { method: "POST" }).catch(() => { });
             let name = "";
             try {
