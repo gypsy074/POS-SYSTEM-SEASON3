@@ -1,6 +1,6 @@
 # Season 3 POS System
 
-A web-based Point-of-Sale system for Season 3 Cafe: menu management, cashier ordering with offline support, inventory tracking, food waste logging, sales analytics, AI insights, and audit logging.
+A web-based Point-of-Sale system for Season 3 Cafe: menu management, cashier ordering with offline support, inventory tracking, food waste logging, sales analytics, local business insights, and audit logging.
 
 - **Live site:** https://season3-pos.onrender.com
 - **Stack:** Node.js + Express 5 + MongoDB Atlas (Mongoose 9) | Vanilla JS admin panel + cashier PWA | Chart.js
@@ -10,7 +10,7 @@ A web-based Point-of-Sale system for Season 3 Cafe: menu management, cashier ord
 - **Login & roles** - Admin and Cashier accounts (JWT auth, bcrypt-hashed passwords, per-device sessions)
 - **Cashier page** - touch-friendly ordering, payment/change calculator, receipts, order history, live notifications, barcode-style search, waste logging
 - **Offline mode** - service worker caches the cashier app; orders placed offline are queued and auto-synced (idempotent via `clientOrderId`)
-- **Admin panel** - dashboard (revenue, performance, live transactions with search), sales analytics (line/radar/usage charts, calendar, CSV export), AI insights (forecast, restock, anomalies, AI business report), menu, users, inventory, waste, audit log
+- **Admin panel** - dashboard (revenue, performance, live transactions with search), sales analytics (line/radar/usage charts, calendar, Excel export), local insights (forecast, restock, waste, anomaly alerts), menu, users, inventory, waste, audit log
 - **Separate stock tracking** - menu stock counts sellable portions; Inventory tracks ingredients and supplies separately, and linked supplies are consumed by their configured units per sale
 - **Account & sessions** - see every device logged in, kill sessions, revoke others, change password, new-sign-in alerts
 - **Audit logging** - logins/logouts, password changes, session revokes, order voids/deletes, and user + waste actions are recorded with actor + detail
@@ -65,9 +65,9 @@ value after saving. Update or restock each stock record independently.
 3. `npm start` - server runs at http://localhost:3000
 4. Admin page: http://localhost:3000/ADMIN - Cashier page: http://localhost:3000/CASHIER
 
-A default admin is seeded on first boot. Locally you can set
-`SEED_ADMIN_USERNAME`/`SEED_ADMIN_PASSWORD`; in production the password is
-**random** and printed in the logs — check Render → Logs on first boot.
+A default admin is seeded on first boot when `SEED_ADMIN_PASSWORD` is configured.
+Production requires a unique password of at least 16 characters; passwords are
+never written to server logs.
 
 ## Tests
 
@@ -131,8 +131,8 @@ organized by file. "What does X do?" → find the file, read the row.
 | `authRequired(roles)` | Middleware factory: rejects unauthenticated requests, optionally restricted to specific roles (e.g. `authRequired(['Admin'])`); also blocks tokens whose session was revoked |
 | `cleanupLegacyOrderFields()` | One-time migration: normalizes old payment-method values in existing orders |
 | `cleanupLegacyProductStock()` | One-time migration: backfills stock fields on legacy products |
-| `getInsights()` | Aggregates orders/products/inventory/waste from MongoDB into the AI Insights payload (cached 5 min) |
-| `seedDefaultAdmin()` | Creates the first admin account if no users exist (random password in production) |
+| `getInsights()` | Aggregates orders/products/inventory/waste from MongoDB into local insight data (cached 5 min) |
+| `seedDefaultAdmin()` | Creates the first admin account if no users exist, using the configured bootstrap password |
 | `checkRenderStatus()` | Verifies the environment on boot: exits the process if `JWT_SECRET`/`MONGO_URI` are missing (fail-fast) |
 
 ### API routes
@@ -161,19 +161,7 @@ organized by file. "What does X do?" → find the file, read the row.
 | `GET /api/waste` `POST /api/waste` | auth: * | Read / log food waste (cashiers log waste at end of day) |
 | `DELETE /api/waste/:id` | auth: Admin | Delete a waste entry |
 | `GET /api/audit` | auth: Admin | Returns the audit log, filterable by action + date |
-| `GET /api/insights` | auth: Admin | Returns the AI Insights payload (forecast, restock, anomalies, waste) |
-| `POST /api/ai/report` | auth: Admin, limit: 5/min/IP | Generates the AI business report (or a stats fallback when no API key) |
-
-## Backend — `backend/ai-report.js`
-
-| Function | What it does |
-|---|---|
-| `currency(n)` | Formats a number as `₱` peso text for the report prompt |
-| `aiProvider()` / `aiModel(provider)` / `aiKey(provider)` | Resolve the configured provider (`gemini` default, `groq`), model, and API key from env vars |
-| `buildAiRequest(provider, prompt)` | Builds the provider-specific request body (Gemini vs Groq differ in shape) |
-| `buildReportPrompt(insights)` | Turns the insights data into a text prompt: "You are a business analyst for a canteen…" |
-| `buildStatsReport(insights)` | Generates the plain statistics summary used when no AI key is configured |
-| `fetchAiReport(prompt)` | Calls the AI provider with a 20-second timeout and returns the text |
+| `GET /api/insights` | auth: Admin, Manager | Returns locally computed forecast, restock, waste, and anomaly insights |
 
 ## Backend — `backend/ai-insights.js`
 
@@ -281,15 +269,7 @@ organized by file. "What does X do?" → find the file, read the row.
 
 | Function | What it does |
 |---|---|
-| `aiPeso(value)` / `aiEmpty(text)` | Format helpers (peso strings / "—" for empty values) |
-| `renderForecastCard(data)` / `renderRestockCard(items)` / `renderWasteCard(data)` / `renderAnomaliesCard(items)` | Render each AI insight card (tomorrow's forecast, restock list, waste stats, anomaly flags) |
-| `renderInsights(data)` | Orchestrates rendering all four cards |
-| `renderAiReportCard()` / `fillAiReportCard(report)` | The AI report card: shows the "Generate" button state, then fills it with the report text (HTML-escaped) |
-| `generateAiReport()` | Calls `POST /api/ai/report` with a spinner, rate-limit error handling, and the result render |
-| `updateAiPillCount(data)` | Puts the anomaly/alert count on the sidebar "Insights" pill |
-| `loadInsights()` | Fetches `/api/insights` and renders everything |
-| `aiTapGuarded()` | The **ghost-tap guard**: ignores taps for 1.5s after a tap so a double-tap never fires two AI requests |
-| `setAiPanelOpen(open)` / `setupAiHeaderPanel()` | The collapsible AI panel in the header: tracks open state (so the mobile header stays visible) and wires the toggle |
+| `loadInsights()` | Fetches `/api/insights`, stores the local insight data, and refreshes notifications and the daily snapshot |
 
 ### `account.js`
 
@@ -524,20 +504,14 @@ cashier → Waste form → searchable product picker → logWasteItems(items, re
   → admin can delete entries (audited)
 ```
 
-## 7. AI insights flow
+## 7. Local insights flow
 
 ```
 server: getInsights() aggregates orders/products/inventory/waste
   → cached 5 minutes (INSIGHTS_TTL_MS) so the dashboard never hammers the DB
   → ai-insights.js: forecastRevenue (last 7 days), computeRestock,
      computeWasteInsights, computeAnomalies (>1.5 stddev from mean)
-  → Admin > Insights renders 4 cards
-
-AI report: Generate → POST /api/ai/report (rate-limited 5/min/IP)
-  → buildReportPrompt(insights) → provider call (Gemini default / Groq,
-     20s timeout) → no API key? buildStatsReport() plain summary instead
-  → result HTML-escaped before rendering (XSS guard)
-  → ghost-tap guard ignores double-taps (1.5s) so one tap = one request
+  → Admin notifications and the daily snapshot use the local results
 ```
 
 ## 8. Audit flow

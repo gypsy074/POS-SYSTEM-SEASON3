@@ -1614,7 +1614,6 @@ app.get('/api/audit', authRequired(['Admin']), async (req, res) => {
 // In-house statistical forecasts & alerts — computed from the last 30 days of
 // orders/products/inventory/waste. Result is cached for 5 minutes.
 const { computeInsights } = require('./ai-insights');
-const { buildReportPrompt, buildStatsReport, fetchAiReport } = require('./ai-report');
 let insightsCache = { data: null, at: 0 };
 const INSIGHTS_TTL_MS = 5 * 60 * 1000;
 
@@ -1637,28 +1636,6 @@ async function getInsights() {
 app.get('/api/insights', authRequired(['Admin', 'Manager']), async (req, res) => {
     try {
         res.json(await getInsights());
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// Optional LLM weekly report (free Gemini tier). Falls back to a statistics
-// summary when AI_API_KEY is missing or the API call fails — never errors.
-// Rate-limited per IP so a stuck script can't burn the free AI quota.
-const aiReportLimiter = rateLimit({
-    windowMs: 60 * 1000,
-    max: 5,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'Too many report requests. Try again in a minute.' }
-});
-app.post('/api/ai/report', aiReportLimiter, authRequired(['Admin', 'Manager']), async (req, res) => {
-    try {
-        const data = await getInsights();
-        const report = await fetchAiReport(buildReportPrompt(data));
-        res.json({
-            report: report || buildStatsReport(data),
-            source: report ? 'ai' : 'stats',
-            generatedAt: new Date().toISOString()
-        });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

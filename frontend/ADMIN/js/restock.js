@@ -2,8 +2,7 @@
    restock.js — Quick restock flow for menu products and supply items.
    A small modal asks for the quantity (+ optional reason), calls the
    product/inventory restock endpoint, and refreshes the affected views.
-   Entry points: menu table rows, inventory table rows, and the AI Insights
-   restock suggestions (matched by product name).
+    Entry points: menu table rows and inventory table rows.
    ========================================================================== */
 
 let restockRequest = null;
@@ -128,24 +127,4 @@ function setupRestockButtons() {
         });
     }
 
-    // AI Insights restock suggestions — matched by product name so the
-    // suggested order quantity comes pre-filled.
-    const aiBody = document.getElementById("aiHeaderPanelBody");
-    if (aiBody) {
-        aiBody.addEventListener("click", event => {
-            const btn = event.target.closest(".ai-restock-btn");
-            if (!btn) return;
-            const name = btn.dataset.aiName;
-            if (!name) return;
-            const product = (allProducts || []).find(p => p.name === name);
-            const invItem = (allInventory || []).find(i => i.productName === name);
-            if (product) {
-                openRestockModal({ id: product._id, type: "menu", label: product.name, suggested: btn.dataset.aiQty || "" });
-            } else if (invItem) {
-                openRestockModal({ id: invItem._id, type: "inventory", label: invItem.productName, suggested: btn.dataset.aiQty || "" });
-            } else {
-                showToast(`"${name}" is not tracked in the menu or inventory.`, "warning");
-            }
-        });
-    }
 }

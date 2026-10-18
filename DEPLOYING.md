@@ -42,10 +42,7 @@ Then open:
 | `JWT_SECRET` | Secret that signs login sessions — **required in production**. The server refuses to boot without it (fail-fast), so there is never a weak built-in fallback |
 | `CORS_ORIGIN` | Comma-separated allowed origins. **Empty = CORS closed** (only same-origin requests work). Set it to `https://season3-pos.onrender.com` (plus your LAN IP during class demos, e.g. `http://192.168.1.50:3000`) |
 | `SEED_ADMIN_USERNAME` | Optional. Admin username created on first boot if no users exist (default `admin`) |
-| `SEED_ADMIN_PASSWORD` | Optional. Local dev only. In production this is ignored — a **random password** is generated and printed in the logs instead |
-| `AI_API_KEY` | Optional. Google AI Studio key (`gemini-2.0-flash`) for the AI business report. Without it the report falls back to a statistics summary |
-| `AI_PROVIDER` | Optional. `gemini` (default) or `groq` (free tier, `llama-3.3-70b-versatile`) |
-| `GROQ_API_KEY` / `AI_MODEL` | Optional. Only when `AI_PROVIDER=groq` |
+| `SEED_ADMIN_PASSWORD` | Required only when initializing an empty database; in production it must be at least 16 characters and is never logged |
 | `JWT_EXPIRES_IN` | Optional. Session lifetime, default `8h` |
 
 A default **admin** account is created automatically on first boot if no users exist.
@@ -77,7 +74,7 @@ Render builds and runs the backend from the `render.yaml` blueprint:
 | Build command | `npm install` |
 | Start command | `node server.js` |
 | Env vars (required) | `MONGO_URI`, `JWT_SECRET` |
-| Env vars (optional) | `CORS_ORIGIN`, `AI_API_KEY`, `AI_PROVIDER`, `GROQ_API_KEY`, `AI_MODEL`, `JWT_EXPIRES_IN` |
+| Env vars (optional) | `CORS_ORIGIN`, `JWT_EXPIRES_IN` |
 
 > If a deploy fails instantly, the first thing to check is the **Environment tab**:
 > the server now refuses to boot without `JWT_SECRET` and a valid `MONGO_URI`.
@@ -277,13 +274,11 @@ cron-job.org you get both.
 - **Login timing equalizer** — unknown usernames are hashed with the same bcrypt
   cost as real ones, so attackers can't tell which usernames exist
 - **Password minimum length 8** — enforced on create, change, and reset
-- **AI report rate limit** — 5 requests / minute / IP
 - **Request size limits** — 100 KB default, 10 MB for product images (413 on oversized)
-- **Production seed admin has a random password** — printed once in the logs on
-  first boot. **Still: change the live admin password immediately** if it is ever
-  the known `admin123` default
+- **First Admin bootstrap uses an explicitly configured secret password** — do
+  not reuse the local development password in production
 - **Output is HTML-escaped** everywhere user data is rendered (sessions page,
-  AI report, toasts, tables) to prevent stored XSS
+  toasts, tables) to prevent stored XSS
 - The old Atlas user that appeared in public git history was retired; the live DB
   uses a separate user. If you ever leak credentials again, rotate them immediately
   in Atlas (Database Access → the user → edit) and update `backend/.env` + the

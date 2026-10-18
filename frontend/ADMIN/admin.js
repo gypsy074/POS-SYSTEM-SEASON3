@@ -189,9 +189,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Updates card — tap a section header to expand it full-screen
     setupUpdateSectionExpand();
 
-    // AI Insights header pill — open/close the dropdown panel
-    setupAiHeaderPanel();
-
     // Header center — current view title + live clock
     setupHeaderCenter();
 
