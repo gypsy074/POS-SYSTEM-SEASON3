@@ -1,10 +1,33 @@
-flowchart LR
-    A["Cashier picks items"] --> B["POST /api/orders"]
-    B --> C{"Linked ingredients<br/>enough stock?"}
-    C -- "NO" --> D["409 Shortage blocked<br/>'name (needs productName)'"]
-    C -- "YES" --> E["Order saved<br/>ingredient stock −= unitsPerSale × qty"]
-    E --> F["Audit log entry"]
-    E --> G["Dashboard / insights update"]
-    H["Void order"] --> I["Ingredient stock restored<br/>+ unitsPerSale × qty"]
-    I --> F
-    J["Manual stock edit / restock"] -. "never propagates (independent ledgers)" .-> E
+flowchart TB
+    cashier["Cashier builds order"] --> submit["POST /api/orders"]
+    submit --> validation["Normalize order and validate payment"]
+    validation --> senior{"Senior discount?"}
+    senior -- "Yes" --> seniorCheck{"ID and customer name valid?"}
+    seniorCheck -- "No" --> rejectDiscount["Reject order"]
+    seniorCheck -- "Yes" --> idempotency
+    senior -- "No" --> idempotency
+    idempotency{"clientOrderId already saved?"}
+    idempotency -- "Yes" --> existing["Return existing order"]
+    idempotency -- "No" --> stock{"Menu or linked supply stock available?"}
+    stock -- "No" --> shortage["409 shortage<br/>Do not save order"]
+    stock -- "Yes" --> save["Save order"]
+    save --> deduct["Deduct menu and linked supply stock"]
+    deduct --> availability["Recompute linked menu availability"]
+    availability --> alert{"Below low-stock threshold?"}
+    alert -- "Yes" --> email["Try deduplicated owner alert"]
+    alert -- "No" --> complete["Return saved order"]
+    email --> complete
+
+    complete --> status["Completed order remains in history"]
+    status --> action{"Void or refund requested?"}
+    action -- "No" --> reports["Included in completed sales"]
+    action -- "Yes" --> override{"Role, ownership, and any override valid?"}
+    override -- "No" --> rejectAction["Reject action"]
+    override -- "Yes" --> state{"Current status allows action?"}
+    state -- "No" --> rejectAction
+    state -- "Yes" --> restore["Restore menu and linked supply stock"]
+    restore --> mark["Mark Voided or Refunded"]
+    mark --> audit["Write order action audit event"]
+    mark --> excluded["Exclude from completed sales"]
+
+    restock["Manual linked inventory edit or restock"] --> availability
