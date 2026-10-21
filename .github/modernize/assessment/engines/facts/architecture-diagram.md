@@ -1,6 +1,6 @@
 # Architecture Diagram
 
-Season 3 POS is a browser-based point-of-sale application backed by a single Node.js service. The service hosts the web pages and REST API, persists operational data in MongoDB Atlas, and can send owner alerts through a configured email provider.
+Season 3 POS is an installable browser-based point-of-sale application backed by a single Node.js service. The service hosts the web pages and REST API, persists operational data in MongoDB Atlas, and can send owner alerts through a configured email provider.
 
 ## Application Architecture
 
@@ -13,7 +13,7 @@ flowchart TD
         CashierUi["Cashier POS"]
         AdminUi["Admin dashboard"]
         BrowserState["Browser storage"]
-        OfflineCache["Cashier offline cache"]
+        OfflineCache["PWA app shell cache"]
     end
     subgraph AppLayer["Application Layer - Node.js and Express"]
         StaticHost["Static frontend hosting"]
@@ -60,7 +60,7 @@ flowchart TD
 |---|---|---|---|
 | Frontend | HTML, CSS, browser JavaScript | No build step declared | Login, cashier POS, and admin dashboard |
 | Frontend libraries | Chart.js, ExcelJS, Font Awesome | Loaded from CDNs | Charts, spreadsheet export, and icons |
-| Frontend offline support | Service Worker and browser storage | Browser APIs | Cache cashier app shell and queue orders locally |
+| Frontend offline support | Installable PWA, service worker, and browser storage | Browser APIs | Cache app shell and queue cashier orders locally |
 | Runtime | Node.js | Node 18+ documented; Render selects runtime | Hosts the backend application |
 | Web/API | Express | 5.2.1 | Serves frontend files and REST endpoints |
 | Data access | Mongoose | 9.7.1 | MongoDB schemas, indexes, and queries |
@@ -72,7 +72,7 @@ flowchart TD
 
 ### Data Storage & External Services
 
-MongoDB Atlas is the persistent data store; Mongoose models cover orders, products, users, sessions, inventory items, waste records, audit logs, categories, and owner alert settings. The browser stores frontend session state and the cashier service worker caches the app shell and supports offline order queuing; queued orders are synchronized through the REST API when connectivity returns. Optional owner email is sent through Resend over HTTPS or SMTP through Nodemailer. Cashier printing can use the browser print dialog or an optional local printer bridge. Browser libraries and icons are loaded from external CDNs.
+MongoDB Atlas is the persistent data store; Mongoose models cover orders, products, users, sessions, inventory items, waste records, audit logs, categories, and owner alert settings. The root-scoped PWA service worker caches application entry pages and assets, while the cashier retains local offline order queuing and synchronization through the REST API when connectivity returns. Optional owner email is sent through Resend over HTTPS or SMTP through Nodemailer. Cashier printing can use the browser print dialog or an optional local printer bridge. Browser libraries and icons are loaded from external CDNs.
 
 ### Key Architectural Decisions
 

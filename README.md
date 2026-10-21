@@ -69,6 +69,28 @@ A default admin is seeded on first boot when `SEED_ADMIN_PASSWORD` is configured
 Production requires a unique password of at least 16 characters; passwords are
 never written to server logs.
 
+## Install as an app (free)
+
+The POS can be installed as a Progressive Web App (PWA) at no app-store cost.
+Open [the live HTTPS site](https://season3-pos.onrender.com) on the device and
+use the **Install app** button in the page header when available. The installed
+app opens at login and includes the Admin and Cashier pages.
+
+- **Android (Chrome):** tap **Install app** and confirm, or open Chrome's menu
+  and choose **Install app** / **Add to Home screen**.
+- **Windows/macOS (Chrome or Edge):** click **Install app** and confirm, or use
+  the install option in the browser address bar/menu.
+- **iPhone/iPad (Safari):** tap **Install app** for instructions, then use
+  **Share → Add to Home Screen** and confirm.
+
+The browser may only offer its install prompt after the site has loaded
+successfully over HTTPS. Installing the app does not install a private server
+or database on the device: login, Admin data, and normal sales still need the
+POS server connection. The existing Cashier offline queue continues to save
+orders locally for later synchronization. The cashier screen is designed for
+tablets and desktops; the current small-screen notice still blocks checkout on
+phones.
+
 ## Tests
 
 ```

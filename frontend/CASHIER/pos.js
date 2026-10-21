@@ -335,13 +335,6 @@ function showSyncBanner(message) {
 }
 
 function setupOfflineSupport() {
-    // Service worker powers the app shell cache so the POS opens offline.
-    if ("serviceWorker" in navigator && window.location.protocol.startsWith("http")) {
-        navigator.serviceWorker.register("sw.js").catch(err => {
-            console.error("❌ Service worker registration failed:", err);
-        });
-    }
-
     window.addEventListener("online", () => {
         updateOfflineBanner();
         flushOfflineOrders();

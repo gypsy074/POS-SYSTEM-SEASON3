@@ -5,6 +5,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Season 3</title>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#3a2417">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Season 3 POS">
+    <link rel="apple-touch-icon" href="/assets/pwa-icon-180.png">
+    <link rel="stylesheet" href="/js/pwa.css?v=4">
     <link rel="stylesheet" href="admin.css?v=40">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -45,6 +51,9 @@
 
                 <div class="header-right-group">
                     <div class="header-icons">
+                        <button class="pwa-install-button" type="button" data-pwa-install title="Install Season 3 POS" aria-label="Install Season 3 POS">
+                            <i class="fas fa-download" aria-hidden="true"></i>
+                        </button>
                         <button class="icon-circle white-btn" type="button" id="darkModeBtn"
                             title="Toggle dark mode"><i class="fas fa-moon"></i></button>
                         <button class="icon-circle white-btn" type="button" id="refreshAdminBtn"
@@ -715,6 +724,7 @@
 
     <!-- Shared account/session panel -->
     <script src="js/account.js?v=39"></script>
+    <script src="/js/pwa.js?v=2"></script>
 </body>
 
 </html>
