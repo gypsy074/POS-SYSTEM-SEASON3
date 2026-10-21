@@ -69,7 +69,12 @@ body > .pwa-install-button {
 }
 
 .pwa-install-help {
-    width: min(92vw, 420px);
+    position: fixed;
+    inset: 0;
+    width: min(420px, calc(100vw - 32px));
+    max-height: calc(100dvh - 32px);
+    margin: auto;
+    overflow: auto;
     border: 0;
     border-radius: 16px;
     padding: 24px;
