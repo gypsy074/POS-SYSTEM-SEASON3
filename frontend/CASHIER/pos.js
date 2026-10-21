@@ -19,7 +19,7 @@ let cartDrawerExpanded = false;
 // on the phone, e.g. http://127.0.0.1:8080).
 // width: "80" or "58" (mm) — 58 adds the narrow .thermal-58 layout.
 const PRINT_SETTINGS_KEY = "posPrintSettings";
-const DEFAULT_PRINT_SETTINGS = { mode: "dialog", width: "80", url: "http://127.0.0.1:8080", kot: true };
+const DEFAULT_PRINT_SETTINGS = { mode: "dialog", width: "58", url: "http://127.0.0.1:8080", kot: true };
 
 // Senior/PWD discount state — 20% off drinks only, requires the SC/PWD ID +
 // customer name (server re-validates and recomputes every amount).
@@ -2065,6 +2065,16 @@ function printReceipt(order) {
         </div>
         ${settings.kot === false ? "" : buildKotHtml(order, settings)}`;
 
+    const pageStyle = document.createElement("style");
+    pageStyle.id = "printReceiptPageStyle";
+    pageStyle.textContent = `@page { size: ${settings.width === "58" ? "58mm" : "80mm"} auto; margin: 0.5mm; }`;
+    document.head.appendChild(pageStyle);
+
+    const removePageStyle = () => {
+        pageStyle.remove();
+        window.removeEventListener("afterprint", removePageStyle);
+    };
+    window.addEventListener("afterprint", removePageStyle);
     window.print();
 }
 
@@ -2110,7 +2120,18 @@ function buildKotText(order) {
         const pad = Math.max(2, 30 - left.length - right.length);
         return left + " ".repeat(pad) + right;
     });
-    const foot = ["", line, "   MAKE IT FRESH!", ""];
+
+    // Add extra empty strings to feed paper past the cutter blade in raw text mode
+    const foot = [
+        "", 
+        line, 
+        "   MAKE IT FRESH!", 
+        "", 
+        "", 
+        "", 
+        ""
+    ];
+
     return meta.concat(line, items, foot).join("\n");
 }
 

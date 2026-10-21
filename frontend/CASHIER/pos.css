@@ -1155,6 +1155,15 @@ body.banner-visible .app-container {
   overflow-y: auto;
   margin-bottom: 8px;
 }
+.print-receipt .print-meta strong,
+.print-receipt .print-total,
+.print-receipt .print-total strong,
+.print-receipt .print-kot,
+.print-receipt .kot-title,
+.print-receipt .kot-items {
+  color: #000 !important;
+  font-weight: 700;
+}
 
 .cart-drawer-preview-btn {
   display: flex;
@@ -2787,11 +2796,14 @@ qty-btn {
 
 .print-receipt {
   font-family: "Courier New", Courier, monospace;
-  color: #000;
+  color: #000 !important;
   width: 80mm;
+  box-sizing: border-box;
   margin: 0 auto;
   padding: 8px 4px;
-  background: #fff;
+  box-shadow: none !important;
+  filter: none !important;
+  text-shadow: none !important;
 }
 .print-receipt .print-head {
   text-align: center;
@@ -2874,7 +2886,7 @@ qty-btn {
   text-align: center;
   letter-spacing: 1px;
   font-size: 0.75rem;
-  color: #888;
+  color: #000;
   border-top: 2px dashed #aaa;
   border-bottom: 2px dashed #aaa;
   margin: 14px 0;
@@ -2943,22 +2955,152 @@ qty-btn {
 }
 
 @media print {
-  body {
-    background: #fff !important;
+  @page {
+    size: 58mm auto;
+    margin: 0;
   }
+
+  html,
+  body {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+    -webkit-font-smoothing: none !important;
+    -moz-osx-font-smoothing: unset !important;
+  }
+
   .app-container,
   .history-panel,
   .history-backdrop,
   .pos-modal-overlay,
   .calc-modal-overlay,
-  .device-block {
+  .device-block,
+  .offline-banner {
     display: none !important;
   }
+
   #printReceiptHost {
-    display: block;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  #printReceiptHost *,
+  #printReceiptHost *::before,
+  #printReceiptHost *::after {
+    background: transparent !important;
+    color: #000000 !important;
+    border-color: #000000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    filter: none !important;
+    opacity: 1 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Main receipt container - reduced base font size & added bottom clearance */
+  #printReceiptHost > .print-receipt {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 2mm 2mm 12mm 2mm !important;
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+    overflow: visible !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Store Title */
+  #printReceiptHost .print-shop {
+    font-size: 13px !important;
+    font-weight: 800 !important;
+  }
+
+  /* Kitchen Order Title - scaled down to fit on a single line */
+  #printReceiptHost .print-kot .kot-title,
+  #printReceiptHost .kitchen-title {
+    font-size: 13px !important;
+    font-weight: 900 !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+    margin: 2mm 0 !important;
+  }
+
+  /* Kitchen Order Line Items */
+  #printReceiptHost .print-kot .kot-items,
+  #printReceiptHost .print-kot .kitchen-item,
+  #printReceiptHost .kitchen-item {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+  }
+
+  /* Standard text elements */
+  #printReceiptHost .print-head span,
+  #printReceiptHost .print-foot,
+  #printReceiptHost .print-meta,
+  #printReceiptHost .print-line {
+    font-size: 10px !important;
+    font-weight: 600 !important;
+  }
+
+  #printReceiptHost .print-meta strong,
+  #printReceiptHost .print-line strong,
+  #printReceiptHost .print-total,
+  #printReceiptHost .print-total div {
+    font-size: 11px !important;
+    font-weight: 800 !important;
+  }
+
+  /* Cut line divider */
+  #printReceiptHost .print-cut-line {
+    width: 100% !important;
+    margin: 3mm 0 !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    border-top: 1px dashed #000000 !important;
+    border-bottom: 1px dashed #000000 !important;
+  }
+
+  /* Kitchen section wrapper */
+  #printReceiptHost .print-kot,
+  #printReceiptHost .kitchen-order {
+    padding-bottom: 4mm !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Tagline text */
+  #printReceiptHost .tagline {
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    text-align: center !important;
+    margin-top: 2mm !important;
+  }
+
+  /* Physical spacer for POS cutter feed */
+  #printReceiptHost .print-spacer {
+    height: 15mm !important;
+    display: block !important;
+    clear: both !important;
+  }
+
+  #printReceiptHost img {
+    image-rendering: pixelated !important;
+    image-rendering: crisp-edges !important;
   }
 }
-
 /* ==========================================================================
    PWA offline banner � connection status strip on top of the cashier
    ========================================================================== */
@@ -3719,8 +3861,7 @@ body.dark .senior-discount-toggle {
 
 /* Receipt preview — dark "paper" on screen, stays light when printing */
 body.dark .print-receipt {
-  background: #241f1a;
-  color: #e8dcc9;
+  color: #000;
 }
 body.dark .print-receipt .print-head,
 body.dark .print-receipt .print-items,
@@ -3741,7 +3882,6 @@ body.dark .print-receipt.print-kot {
 
 @media print {
   body.dark .print-receipt {
-    background: #fff !important;
     color: #000 !important;
   }
   body.dark .print-receipt .print-head,
