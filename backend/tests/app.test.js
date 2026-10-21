@@ -230,13 +230,23 @@ describe('Orders & stock', () => {
 });
 
 describe('Waste & stock', () => {
-    test('logging waste decrements menu stock', async () => {
+    test('cashier cannot log waste without manager override PIN', async () => {
+        await createProduct('TestKapeNoAuth', 90, 10);
+        const res = await request(app)
+            .post('/api/waste')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({ productName: 'TestKapeNoAuth', quantity: 1, price: 90, reason: 'Unit Test' });
+        expect(res.status).toBe(403);
+        expect(res.body.error).toBe('Manager or Admin authorization is required for this action.');
+    });
+
+    test('logging waste decrements menu stock with manager override PIN', async () => {
         await createProduct('TestKape', 90, 10);
 
         const res = await request(app)
             .post('/api/waste')
             .set('Authorization', `Bearer ${cashierToken}`)
-            .send({ productName: 'TestKape', quantity: 3, price: 90, reason: 'Unit Test' });
+            .send({ productName: 'TestKape', quantity: 3, price: 90, reason: 'Unit Test', managerOverridePin: 'admin123' });
         expect(res.status).toBe(201);
 
         const product = await getProduct('TestKape');
@@ -245,7 +255,7 @@ describe('Waste & stock', () => {
 });
 
 describe('Order void', () => {
-    test('cashier cannot void another cashier order', async () => {
+    test('cashier cannot void another cashier order even with override PIN', async () => {
         const otherLogin = await login('othercashier', 'tester123');
         expect(otherLogin.status).toBe(200);
         await createProduct('TestOwnershipDish', 85, 2);
@@ -258,12 +268,14 @@ describe('Order void', () => {
 
         const voidRes = await request(app)
             .patch(`/api/orders/${created.body._id}/void`)
-            .set('Authorization', `Bearer ${otherLogin.token}`);
+            .set('Authorization', `Bearer ${otherLogin.token}`)
+            .send({ managerOverridePin: 'admin123' });
         expect(voidRes.status).toBe(403);
+        expect(voidRes.body.error).toBe('Cashiers can void only their own orders.');
         expect((await getProduct('TestOwnershipDish')).stock).toBe(1);
     });
 
-    test('voiding restores stock, rejects double-void, needs auth', async () => {
+    test('voiding restores stock, rejects double-void, needs auth and manager override for cashier', async () => {
         await createProduct('TestHaloHalo', 95, 4);
 
         const created = await request(app)
@@ -279,10 +291,18 @@ describe('Order void', () => {
         const orderId = created.body._id;
         expect(Number((await getProduct('TestHaloHalo')).stock)).toBe(0);
 
-        const voidRes = await request(app)
+        // Without override PIN, cashier void is rejected
+        const noPinRes = await request(app)
             .patch(`/api/orders/${orderId}/void`)
             .set('Authorization', `Bearer ${cashierToken}`)
             .send({ reason: 'Customer changed mind' });
+        expect(noPinRes.status).toBe(403);
+        expect(noPinRes.body.error).toBe('Manager or Admin authorization is required for this action.');
+
+        const voidRes = await request(app)
+            .patch(`/api/orders/${orderId}/void`)
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({ reason: 'Customer changed mind', managerOverridePin: 'admin123' });
         expect(voidRes.status).toBe(200);
         expect(voidRes.body.status).toBe('Voided');
         expect(voidRes.body.voidReason).toBe('Customer changed mind');
@@ -290,7 +310,8 @@ describe('Order void', () => {
 
         const doubleVoid = await request(app)
             .patch(`/api/orders/${orderId}/void`)
-            .set('Authorization', `Bearer ${cashierToken}`);
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({ managerOverridePin: 'admin123' });
         expect(doubleVoid.status).toBe(409);
 
         const noAuth = await request(app)
@@ -340,7 +361,8 @@ describe('Order delete guard', () => {
 
         const voidRes = await request(app)
             .patch(`/api/orders/${created.body._id}/void`)
-            .set('Authorization', `Bearer ${cashierToken}`);
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({ managerOverridePin: 'admin123' });
         expect(voidRes.status).toBe(200);
 
         const del = await request(app)
