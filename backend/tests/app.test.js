@@ -279,7 +279,7 @@ describe('Orders & stock', () => {
     });
 
     test('placing an order deducts menu stock', async () => {
-        await createProduct('TestPancit', 120, 5);
+        await createProduct('TestPancit', 120, 5, 'Rice Meals');
 
         const orderRes = await request(app)
             .post('/api/orders')
@@ -300,6 +300,7 @@ describe('Orders & stock', () => {
         expect(orderRes.body.status).toBe('Completed');
         expect(orderRes.body.tendered).toBe(500);
         expect(orderRes.body.change).toBe(260);
+        expect(orderRes.body.items[0].category).toBe('Rice Meals');
     });
 
     test('gcash orders persist a numeric reference number', async () => {

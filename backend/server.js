@@ -155,6 +155,7 @@ mongoose.connect(mongoUri, {
 // --- Order System Schema Configuration ---
 const orderItemSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true },
+    category: { type: String, default: "", trim: true },
     quantity: { type: Number, required: true, min: 1, default: 1 },
     price: { type: Number, required: true, min: 0, default: 0 }
 }, { _id: false });
@@ -426,6 +427,7 @@ async function normalizeOrderPayload(input) {
     const items = Array.isArray(input.items)
         ? input.items.map(item => ({
             name: String(item.name || "Item").trim(),
+            category: String(item.category || "").trim(),
             quantity: Math.max(1, Number(item.quantity) || 1),
             price: Math.max(0, Number(item.price) || 0)
         }))
@@ -441,8 +443,10 @@ async function normalizeOrderPayload(input) {
     const itemCategories = new Map();
     for (const item of items) {
         const product = productMap.get(item.name);
-        const category = String(product && product.category ? product.category : "").trim().toLowerCase();
-        itemCategories.set(item.name, category);
+        const category = String(product && product.category ? product.category : item.category).trim();
+        item.category = category;
+        const normalizedCategory = category.toLowerCase();
+        itemCategories.set(item.name, normalizedCategory);
     }
 
     const computedSubtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);

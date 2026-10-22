@@ -2850,6 +2850,11 @@ qty-btn {
   font-size: 1rem;
   margin: 4px 0 2px;
 }
+.print-receipt .print-head .print-contact {
+  display: block;
+  font-size: 0.68rem;
+  line-height: 1.3;
+}
 .print-receipt .print-head span {
   font-size: 0.72rem;
 }
@@ -2966,6 +2971,9 @@ qty-btn {
 }
 .print-receipt.thermal-58 .print-head span {
   font-size: 0.62rem;
+}
+.print-receipt.thermal-58 .print-head .print-contact {
+  font-size: 0.58rem;
 }
 .print-receipt.thermal-58 .print-meta {
   font-size: 0.68rem;
