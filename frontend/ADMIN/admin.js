@@ -39,6 +39,7 @@ let profileCloseTimer = null;
 function openProfileDropdown() {
     const dropdown = document.getElementById("profileDropdown");
     if (!dropdown) return;
+    closeNotificationDropdown();
     if (profileCloseTimer) {
         clearTimeout(profileCloseTimer);
         profileCloseTimer = null;
@@ -95,6 +96,11 @@ function setupProfileBadge() {
         if (dropdown.classList.contains("show")) closeProfileDropdown();
         else openProfileDropdown();
     });
+
+    const accountButton = document.getElementById("profileAccountBtn");
+    if (accountButton) {
+        accountButton.addEventListener("click", closeProfileDropdown);
+    }
 
     document.addEventListener("click", event => {
         if (dropdown.classList.contains("show") && !dropdown.contains(event.target)) {
@@ -189,9 +195,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Updates card — tap a section header to expand it full-screen
     setupUpdateSectionExpand();
 
-    // AI Insights header pill — open/close the dropdown panel
-    setupAiHeaderPanel();
-
     // Header center — current view title + live clock
     setupHeaderCenter();
 
@@ -210,9 +213,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Owner email alerts settings panel
     setupSettingsForm();
 
-    // CSV export for Sales Analytics
+    // Excel export for Sales Analytics
     const exportBtn = document.getElementById("exportCsvBtn");
-    if (exportBtn) exportBtn.addEventListener("click", exportSalesCsv);
+    if (exportBtn) exportBtn.addEventListener("click", exportSalesExcel);
 
     // Auto-refresh the active view + notification badge every 25s.
     // Ticks are skipped while the tab is hidden or a previous load is still

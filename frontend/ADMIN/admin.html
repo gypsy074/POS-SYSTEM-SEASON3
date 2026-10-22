@@ -5,6 +5,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Season 3</title>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#3a2417">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Season 3 POS">
+    <link rel="apple-touch-icon" href="/assets/pwa-icon-180.png">
+    <link rel="stylesheet" href="/js/pwa.css?v=5">
     <link rel="stylesheet" href="admin.css?v=40">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -37,21 +43,6 @@
                     <span class="status-text">Checking...</span>
                 </div>
 
-                <div class="ai-header-pill" id="aiHeaderPill" role="button" tabindex="0"
-                    aria-haspopup="true" aria-expanded="false">
-                    <i class="fas fa-robot"></i>
-                    <span>AI</span>
-                    <span class="ai-header-count" id="aiPillCount">&ndash;</span>
-                    <div class="ai-header-panel" id="aiHeaderPanel" role="dialog" aria-label="AI Insights">
-                        <div class="ai-header-panel-head">
-                            <span><i class="fas fa-robot"></i> AI Insights</span>
-                            <button type="button" class="ai-header-panel-close" id="aiHeaderPanelClose"
-                                aria-label="Close"><i class="fas fa-times"></i></button>
-                        </div>
-                        <div class="ai-header-panel-body" id="aiHeaderPanelBody"></div>
-                    </div>
-                </div>
-
                 <div class="header-center" id="headerCenter" aria-live="off">
                     <i class="fas fa-gauge-high" id="headerCenterIcon"></i>
                     <span class="header-center-title" id="headerCenterTitle">Dashboard</span>
@@ -60,6 +51,9 @@
 
                 <div class="header-right-group">
                     <div class="header-icons">
+                        <button class="pwa-install-button" type="button" data-pwa-install title="Install Season 3 POS" aria-label="Install Season 3 POS">
+                            <i class="fas fa-download" aria-hidden="true"></i>
+                        </button>
                         <button class="icon-circle white-btn" type="button" id="darkModeBtn"
                             title="Toggle dark mode"><i class="fas fa-moon"></i></button>
                         <button class="icon-circle white-btn" type="button" id="refreshAdminBtn"
@@ -630,7 +624,7 @@
                                 <input type="date" id="auditFrom" class="audit-date-filter" title="From date">
                                 <input type="date" id="auditTo" class="audit-date-filter" title="To date">
                                 <button type="button" class="csv-export-btn" id="exportAuditCsvBtn"
-                                    title="Export audit log as CSV"><i class="fas fa-download"></i> Export</button>
+                                    title="Export audit log as an Excel workbook"><i class="fas fa-file-excel"></i> Export Excel</button>
                             </div>
                         </div>
                         <div class="table-container">
@@ -713,22 +707,24 @@
 
     <!-- Reusable Components -->
     <script src="js/sidebar.js?v=28"></script>
-    <script src="js/header.js?v=38"></script>
+    <script src="js/header.js?v=40"></script>
 
     <!-- Feature Modules -->
-    <script src="js/dashboard.js?v=44"></script>
-    <script src="js/insights.js?v=41"></script>
+    <script src="js/dashboard.js?v=46"></script>
+    <script src="js/insights.js?v=42"></script>
 <script src="js/menu.js?v=43"></script>
     <script src="js/users.js?v=41"></script>
     <script src="js/inventory.js?v=44"></script>
-    <script src="js/restock.js?v=2"></script>
-    <script src="js/audit.js?v=41"></script>
+    <script src="js/restock.js?v=3"></script>
+    <script src="js/audit.js?v=43"></script>
     <script src="js/settings.js?v=1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
     <!-- Main Entry Point (runs last) -->
-    <script src="admin.js?v=42"></script>
+    <script src="admin.js?v=44"></script>
 
     <!-- Shared account/session panel -->
     <script src="js/account.js?v=39"></script>
+    <script src="/js/pwa.js?v=2"></script>
 </body>
 
 </html>

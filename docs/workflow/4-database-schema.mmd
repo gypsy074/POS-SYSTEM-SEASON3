@@ -1,61 +1,94 @@
 erDiagram
-    PRODUCTS ||--o{ ORDERS : "sold in"
-    PRODUCTS ||--o{ INVENTORYITEMS : "linked supply"
-    PRODUCTS ||--o{ WASTEITEMS : "wasted as"
-    USERS ||--o{ ORDERS : "cashier"
-    USERS ||--o{ WASTEITEMS : "logged by"
-    USERS ||--o{ SESSIONS : "holds"
-    USERS ||--o{ AUDITLOGS : "acted by"
+    USERS ||--o{ SESSIONS : "owns"
+    PRODUCTS }o--o{ INVENTORYITEMS : "linked by menuProductIds"
+
+    USERS {
+        ObjectId _id PK
+        string username UK
+        string password
+        string role
+        string status
+        date lastActiveAt
+    }
+
+    SESSIONS {
+        ObjectId _id PK
+        ObjectId userId FK
+        string jti UK
+        string ip
+        string userAgent
+        date createdAt
+        date expiresAt
+        boolean revoked
+    }
 
     PRODUCTS {
         ObjectId _id PK
         string name
-        number price
         string category
+        number price
         number stock
+        number lowStockThreshold
         string status
         string image
     }
+
     INVENTORYITEMS {
         ObjectId _id PK
-        ObjectId productId FK
-        string name
-        number unitsPerSale
+        string productName
+        string category
         number stock
-        number threshold
+        number unitsPerSale
+        number lowStockThreshold
+        ObjectId menuProductIds FK
     }
+
     ORDERS {
         ObjectId _id PK
-        array items
-        number qty
+        string customer
         string cashier
+        string receiptId
+        string status
+        string paymentMethod
+        array items
+        number subtotal
+        number discountAmount
         number total
-        date createdAt
+        string clientOrderId UK
+        date date
     }
+
     WASTEITEMS {
         ObjectId _id PK
-        string item
-        number qty
-        string reason
+        string productName
         string cashier
-        date createdAt
+        number quantity
+        number totalCost
+        string reason
+        date date
     }
-    USERS {
+
+    CATEGORIES {
         ObjectId _id PK
-        string username
-        string passwordHash
-        string role
+        string name
     }
-    SESSIONS {
-        ObjectId _id PK
-        ObjectId userId FK
-        string token
-        date expiresAt
-    }
+
     AUDITLOGS {
         ObjectId _id PK
         string action
-        string user
-        string target
-        date createdAt
+        string actor
+        string targetId
+        string detail
+        date date
+    }
+
+    OWNERALERTSETTINGS {
+        string _id PK
+        number dailySalesTarget
+        array recipients
+        boolean lowStockEnabled
+        boolean dailySummaryEnabled
+        number dailySummaryHour
+        string lastDailySentDate
+        map lowStockLastSent
     }

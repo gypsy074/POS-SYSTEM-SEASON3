@@ -5,7 +5,7 @@
    connection returns.
    ========================================================================== */
 
-const CACHE_NAME = 'pos-shell-v6';
+const CACHE_NAME = 'pos-shell-v7';
 
 const APP_SHELL = [
     './pos.html',
@@ -34,7 +34,7 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
     event.waitUntil(
         caches.keys()
-            .then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))))
+            .then(keys => Promise.all(keys.filter(key => key.startsWith('pos-shell-') && key !== CACHE_NAME).map(key => caches.delete(key))))
             .then(() => self.clients.claim())
     );
 });

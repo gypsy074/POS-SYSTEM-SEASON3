@@ -18,6 +18,34 @@
   display: none !important;
 }
 
+.gcash-ref-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.gcash-ref-field label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.gcash-ref-field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(107, 79, 59, 0.38);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text-dark);
+  font-size: 0.95rem;
+}
+
+.gcash-ref-field input:focus {
+  outline: 2px solid rgba(166, 124, 82, 0.28);
+  border-color: var(--accent-brown);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -3217,10 +3245,15 @@ body.dark .waste-log-form textarea,
 body.dark .history-search-wrap input,
 body.dark .senior-discount-panel input,
 body.dark .senior-discount-panel select,
-body.dark .calc-modal-card input {
+body.dark .calc-modal-card input,
+body.dark .gcash-ref-field input {
   background: #241f1a;
   border-color: #4a4036;
   color: var(--text-dark);
+}
+
+body.dark .gcash-ref-field label {
+  color: var(--text-muted);
 }
 
 body.dark .food-card {

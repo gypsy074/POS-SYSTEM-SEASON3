@@ -7,6 +7,12 @@
       content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content"
     />
     <title>Season 3 POS System</title>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#3a2417">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Season 3 POS">
+    <link rel="apple-touch-icon" href="/assets/pwa-icon-180.png">
+    <link rel="stylesheet" href="/js/pwa.css?v=5">
     <link rel="stylesheet" href="pos.css" />
     <link
       rel="stylesheet"
@@ -65,6 +71,9 @@
           </div>
 
           <div class="nav-controls">
+            <button class="pwa-install-button" type="button" data-pwa-install title="Install Season 3 POS" aria-label="Install Season 3 POS">
+              <i class="fa-solid fa-download" aria-hidden="true"></i>
+            </button>
             <!-- <button class="icon-nav menu-trigger"><i class="fa-solid fa-bars"></i></button> -->
             <button
               class="icon-nav"
@@ -372,6 +381,19 @@
             </label>
           </div>
 
+          <div class="gcash-ref-field hidden" id="gcashRefField">
+            <label for="gcashReferenceInput">Reference no.</label>
+            <input
+              type="text"
+              id="gcashReferenceInput"
+              maxlength="20"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              placeholder="Enter GCash reference no."
+              autocomplete="off"
+            />
+          </div>
+
           <!-- Cash change calculator launcher (cash payments only) -->
           <div class="cash-calc-bar hidden" id="cashCalcBar">
             <button
@@ -613,5 +635,6 @@
     <script src="pos.js"></script>
     <script src="../ADMIN/js/account.js?v=39"></script>
     <script src="../js/logoutTransition.js"></script>
+    <script src="/js/pwa.js?v=2"></script>
   </body>
 </html>

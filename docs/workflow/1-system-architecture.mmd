@@ -1,39 +1,75 @@
 flowchart TB
-    subgraph devices["CAFÉ FLOOR — devices (any browser)"]
-        cashier["Cashier App — /CASHIER/pos.html<br/>menu grid · cart · pay · void · waste · offline queue"]
-        admin["Admin App — /ADMIN/admin.html<br/>dashboard · menu · inventory · users · audit · insights"]
+    subgraph clients["CAFE FLOOR - browser clients"]
+        cashier["Cashier POS<br/>checkout, history, waste, offline queue"]
+        admin["Admin dashboard<br/>sales, menu, staff, inventory, reports"]
+        login["Login page<br/>role-based routing"]
     end
 
-    subgraph backend["BACKEND — Node.js + Express (backend/server.js)"]
-        api["REST API /api/*<br/>auth · orders · waste · products · inventory<br/>dashboard · insights · audit · users · account"]
-        static["Serves the frontend statically"]
+    subgraph app["POS application - Node.js and Express"]
+        frontend["Static frontend hosting"]
+        middleware["HTTP middleware<br/>security, parsing, compression, rate limits"]
+        api["REST API<br/>auth, orders, menu, stock, waste, reports"]
+        auth["JWT and persisted session checks"]
+        rules["Role checks and POS business rules"]
+        odm["Mongoose models and queries"]
     end
 
-    subgraph cloud["CLOUD MODE — Render + Atlas"]
-        render["Render service — season3-pos.onrender.com"]
-        atlas[("MongoDB Atlas — pos_season3cafe")]
+    browser["Staff browser"]
+    browser -->|"opens"| login
+    browser -->|"opens"| cashier
+    browser -->|"opens"| admin
+    login -->|"loads from"| frontend
+    cashier -->|"loads from"| frontend
+    admin -->|"loads from"| frontend
+    login -->|"login requests"| middleware
+    cashier -->|"POS requests"| middleware
+    admin -->|"management requests"| middleware
+    middleware --> api
+    api --> auth
+    auth --> rules
+    api --> rules
+    rules --> odm
+
+    subgraph hosting["HOSTING OPTIONS - run one deployment"]
+        render["Render web service"]
+        laptop["Cafe laptop server"]
     end
+    posServer["Running POS service"]
+    render -->|"hosts"| posServer
+    laptop -->|"hosts"| posServer
+    posServer --> frontend
+    posServer --> middleware
 
-    subgraph laptop["LAPTOP MODE — café server (brownout-proof)"]
-        local[("MongoDB local — 127.0.0.1:27017")]
-        nssm["NSSM service — Season3POS<br/>auto-starts on boot"]
+    databaseChoice{"MONGO_URI target"}
+    odm --> databaseChoice
+    atlas[("MongoDB Atlas")]
+    localdb[("Local MongoDB")]
+    databaseChoice -->|"Cloud deployment"| atlas
+    databaseChoice -->|"Local deployment"| localdb
+    mail["Optional Resend or SMTP email"]
+    printer["Optional local receipt printer bridge"]
+    assetCdn["Browser library and icon CDNs"]
+    api -.->|"low-stock and daily summary alerts"| mail
+    cashier -.->|"optional thermal printing"| printer
+    browser -.->|"loads frontend libraries"| assetCdn
+
+    subgraph automation["GITHUB AUTOMATION"]
+        ci["CI on push and pull request<br/>Node 22, npm ci, npm test"]
+        keepalive["Keep-alive every 5 minutes"]
     end
+    gitPush["Push to ulan or main"]
+    pullRequest["Pull request to ulan or main"]
+    gitPush --> ci
+    pullRequest --> ci
+    gitPush -.->|"Render auto deploy when configured"| render
+    keepalive -.->|"pings health endpoint"| render
 
-    cashier --> api
-    admin --> api
-    static -. serves .-> cashier
-    static -. serves .-> admin
-    api --> atlas
-    api --> local
-    nssm --> local
-    render --> atlas
-
-    backup["backup.js — dump → backend/backup/&lt;date&gt;/*.json"]
-    restore["restore.js — replay JSON → any MongoDB"]
-    mirror["mirror.js — local → Atlas (one command)"]
-    backup -. dumps .-> atlas
-    backup -. dumps .-> local
-    restore -. replays .-> local
-    mirror -. pushes .-> atlas
-
-    keepalive["GitHub keep-alive workflow — pings /api/health every 5 min"] -. pings .-> render
+    backup["backup.js exports selected database"]
+    restore["restore.js imports JSON to selected database"]
+    mirror["mirror.js replaces Atlas data from local data"]
+    backup -.->|"reads selected MONGO_URI"| atlas
+    backup -.->|"reads selected MONGO_URI"| localdb
+    restore -.->|"restores to chosen target"| atlas
+    restore -.->|"restores to chosen target"| localdb
+    localdb -.->|"source data"| mirror
+    mirror -.->|"replaces collection contents"| atlas

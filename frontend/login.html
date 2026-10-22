@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Season 3 - Login</title>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#3a2417">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Season 3 POS">
+    <link rel="apple-touch-icon" href="/assets/pwa-icon-180.png">
+    <link rel="stylesheet" href="/js/pwa.css?v=5">
     <link rel="stylesheet" href="login.css">
     <link rel="stylesheet" href="css/cup-transition.css?v=3">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -53,6 +59,9 @@
     </style>
 </head>
 <body>
+    <button class="pwa-install-button" type="button" data-pwa-install aria-label="Install Season 3 POS">
+        <i class="fa-solid fa-download" aria-hidden="true"></i>
+    </button>
 
     <!-- Warm blurred cafe photo wall behind the login card -->
     <div class="cafe-wall" aria-hidden="true">
@@ -76,14 +85,14 @@
         <div class="peek-cup" id="peekCup" aria-hidden="true">
             <div class="peek-cup-body">
                 <div class="peek-cup-coffee"></div>
-                <span class="peek-steam s1"></span>
-                <span class="peek-steam s2"></span>
-                <span class="peek-sweat"></span>
-                <span class="peek-heart"></span>
                 <div class="peek-eyes">
                     <div class="peek-eye"><span class="peek-pupil"></span></div>
                     <div class="peek-eye"><span class="peek-pupil"></span></div>
                 </div>
+                <span class="peek-steam s1"></span>
+                <span class="peek-steam s2"></span>
+                <span class="peek-sweat"></span>
+                <span class="peek-heart"></span>
                 <div class="peek-mouth"></div>
                 <div class="peek-blush peek-blush-l"></div>
                 <div class="peek-blush peek-blush-r"></div>
@@ -152,5 +161,6 @@
     <script src="js/peekCup.js"></script>
     <script src="js/logoutTransition.js"></script>
     <script src="login.js"></script>
+    <script src="/js/pwa.js?v=2"></script>
 </body>
 </html>

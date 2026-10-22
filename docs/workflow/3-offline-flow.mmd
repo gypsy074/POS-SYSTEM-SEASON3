@@ -1,9 +1,25 @@
 flowchart TD
-    A["Device opens app"] --> B{"Online?"}
-    B -- "YES" --> C["Normal operation"]
-    B -- "NO" --> D["Service worker + cached menu<br/>PRODUCTS_CACHE_KEY"]
-    D --> E["Sell / log waste normally"]
-    E --> F["Queue in localStorage<br/>posOfflineOrders / posOfflineWaste"]
-    F --> G{"Retry every 30 s<br/>or Sync-now button"}
-    G -- "still unreachable" --> F
-    G -- "success" --> H["Queue flushed → server applies<br/>same stock + shortage rules"]
+    start["Cashier opens POS"] --> shell{"App shell already cached?"}
+    shell -- "No" --> networkShell["Load POS files from server"]
+    shell -- "Yes" --> cachedShell["Service worker serves cached app shell"]
+    networkShell --> products["Load current products and supply availability"]
+    cachedShell --> cachedProducts["Use locally cached product data if API is unavailable"]
+    products --> checkout["Cashier builds order or waste entry"]
+    cachedProducts --> checkout
+    checkout --> reachable{"API request succeeds?"}
+    reachable -- "Yes" --> server["Server validates role, payment, and stock"]
+    server --> accepted{"Business rules pass?"}
+    accepted -- "Yes" --> saved["Save order or waste and update stock"]
+    accepted -- "No" --> rejected["Show server validation or stock error"]
+    reachable -- "No" --> queue["Queue order or waste in localStorage"]
+    queue --> retry{"Reconnect, manual sync, or 30 second retry?"}
+    retry -- "No" --> queued["Keep pending entry on device"]
+    queued --> retry
+    retry -- "Yes" --> send["Retry queued entries with API"]
+    send --> server
+    saved --> remove["Remove successful entry from local queue"]
+    remove --> done["Refresh POS data and show sync result"]
+    rejected --> queued
+
+    note["Offline product and stock data may be stale.<br/>Server remains authoritative when syncing."]
+    cachedProducts -.-> note

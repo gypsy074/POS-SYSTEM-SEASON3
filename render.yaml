@@ -18,6 +18,9 @@ services:
       # Randomly generated strong secret on first provision — overridable.
       - key: JWT_SECRET
         generateValue: true
+      # Required only when the database has no users; set it securely in Render.
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
       # Explicit origins only. Add a concrete LAN origin when a separately
       # hosted device must call the API; never use "*" in production.
       - key: CORS_ORIGIN

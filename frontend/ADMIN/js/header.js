@@ -111,6 +111,7 @@ let notifCloseTimer = null;
 function openNotificationDropdown() {
     const dropdown = document.getElementById("notificationDropdown");
     if (!dropdown) return;
+    closeProfileDropdown();
     if (notifCloseTimer) {
         clearTimeout(notifCloseTimer);
         notifCloseTimer = null;
@@ -229,13 +230,6 @@ function setupScrollHeader() {
         const now = Date.now();
         if (now - lastRun < 80) return;
         lastRun = now;
-        // While the AI panel is open, never hide the header — its transform
-        // re-anchors the panel (fixed inside the header) and yanks it offscreen.
-        const pill = document.getElementById("aiHeaderPill");
-        if (pill && pill.classList.contains("open")) {
-            header.classList.remove("header-hidden");
-            return;
-        }
         const y = window.scrollY;
         const dy = y - lastY;
         if (dy > 8 && y > 80) {

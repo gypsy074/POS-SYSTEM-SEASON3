@@ -1,15 +1,45 @@
-flowchart LR
-    subgraph cloud_deploy["CLOUD"]
-        A["git push origin ulan"] --> B["POST Render deploy hook"]
-        B --> C["Render rebuilds + restarts season3-pos"]
-        C --> D["Live site + Atlas DB"]
+flowchart TB
+    push["Push to ulan or main"] --> ci["GitHub Actions CI"]
+    pr["Pull request to ulan or main"] --> ci
+    ci --> setup["Node.js 22 and npm ci"]
+    setup --> tests["Run backend npm test"]
+    tests --> result{"Tests pass?"}
+    result -- "No" --> fix["Review failure before release"]
+    fix --> push
+    result -- "Yes" --> passed["CI reports success"]
+
+    push -.->|"If Render auto deploy is enabled"| renderBuild
+    manualDeploy["Manual deploy requested in Render"] --> renderBuild
+
+    subgraph cloud["RENDER CLOUD SERVICE"]
+        renderBuild["Root backend<br/>npm ci --omit=dev"]
+        start["Start node server.js"]
+        app["Express serves frontend and REST API"]
+        health["Health check /api/health"]
+        atlas[("MongoDB Atlas via MONGO_URI")]
+        renderBuild --> start --> app
+        app --> health
+        app --> atlas
+    end
+    keepalive["GitHub keep-alive workflow<br/>health request every 5 minutes"]
+    keepalive -.-> health
+
+    subgraph laptop["LOCAL CAFE LAPTOP"]
+        install["Install Node.js and backend dependencies"]
+        env["Configure backend .env and MONGO_URI"]
+        localApp["Run node server.js"]
+        localDb[("Local MongoDB")]
+        install --> env --> localApp
+        localApp --> localDb
     end
 
-    subgraph laptop_deploy["CÁFÉ LAPTOP"]
-        E["Copy project → npm install"] --> F["backend/.env (local URIs + ATLAS_MONGO_URI)"]
-        F --> G["npm run restore -- &lt;backup folder&gt;"]
-        G --> H["NSSM install Season3POS → service"]
-        H --> I["Devices open http://&lt;laptop-IP&gt;:3000"]
-        I --> J["Scheduled daily: npm run backup + npm run mirror"]
-        J -. mirrors .-> D
-    end
+    backup["Manual npm run backup<br/>exports selected MONGO_URI database"]
+    backupFiles["backend/backup timestamp folder"]
+    restore["npm run restore<br/>imports JSON into selected database"]
+    mirror["npm run mirror<br/>replaces Atlas collection data"]
+    backup --> backupFiles
+    backupFiles --> restore
+    restore -.->|"Target may be local or Atlas"| localDb
+    restore -.->|"Target may be local or Atlas"| atlas
+    localDb -.->|"Source"| mirror
+    mirror -.->|"Replaces matching collections"| atlas

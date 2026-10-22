@@ -1142,6 +1142,22 @@ body {
 
 .password-wrap input {
   padding-right: 44px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.password-wrap input[type="password"]::-ms-reveal,
+.password-wrap input[type="password"]::-ms-clear,
+.password-wrap input[type="password"]::-webkit-textfield-decoration-container,
+.password-wrap input::-webkit-credentials-auto-fill-button,
+.password-wrap input::-webkit-strong-password-auto-fill-button {
+  display: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 .password-toggle {
@@ -1157,6 +1173,7 @@ body {
   font-size: 0.95rem;
   line-height: 1;
   transition: color 0.2s ease;
+  z-index: 2;
 }
 
 .password-toggle:hover {

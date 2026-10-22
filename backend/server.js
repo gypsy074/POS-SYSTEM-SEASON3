@@ -27,15 +27,13 @@ const app = express();
 // the app trusts the proxy hop.
 app.set('trust proxy', 1);
 
-// JWT signing secret — never run on Render with the public dev fallback.
-// Render services always set RENDER=true, so a missing JWT_SECRET there is
-// a fatal misconfiguration, not a local convenience.
-const JWT_SECRET = process.env.JWT_SECRET || (process.env.RENDER ? null : 'season3-pos-dev-secret');
+// Do not allow a public fallback secret in any environment.
+const JWT_SECRET = String(process.env.JWT_SECRET || '').trim();
 if (!JWT_SECRET) {
-    console.error('FATAL: JWT_SECRET is not set on this Render service.');
-    console.error('   Add it under Render → Environment (e.g. from "node -e ' + "'console.log(require('crypto').randomBytes(32).toString('hex')))" + '" ), then redeploy.');
+    console.error('FATAL: JWT_SECRET must be configured before the POS server can start.');
     process.exit(1);
 }
+const IS_PRODUCTION_CONFIG = process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER);
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
 
 // Middleware Engine Configuration
@@ -107,6 +105,16 @@ const loginLimiter = rateLimit({
     message: { error: 'Too many login attempts. Please try again in 15 minutes.' }
 });
 
+const managerOverrideLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    skipSuccessfulRequests: true,
+    skip: req => !req.user || req.user.role !== 'Cashier',
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many manager authorization attempts. Try again in 15 minutes.' }
+});
+
 // Valid bcrypt hash of a random throwaway string — burned once when a login
 // hits an unknown username so timing doesn't leak account existence.
 const DUMMY_BCRYPT_HASH = '$2b$10$ar11.Gs8ucHBPvwSbx/DIOCAxZ4jmsGIqh6Zi/oI0in4E9nLBeVs.';
@@ -163,6 +171,7 @@ const orderSchema = new mongoose.Schema({
     voidReason: { type: String, default: "" },
     refundedBy: { type: String, default: "" },
     refundedAt: { type: Date, default: null },
+    referenceNo: { type: String, default: "", trim: true },
     date: { type: Date, default: Date.now },
     receiptId: { type: String, default: () => String(Date.now()).slice(-8) },
     items: { type: [orderItemSchema], default: [] },
@@ -473,12 +482,22 @@ async function normalizeOrderPayload(input) {
         payloadExtra.discountName = discountName;
     }
 
+    const paymentMethod = normalizePaymentMethod(input.paymentMethod);
+    const rawReferenceNo = String(input.referenceNo || "").trim();
+    if (paymentMethod === "G-Cash") {
+        if (!/^\d+$/.test(rawReferenceNo)) {
+            throw new Error('GCash reference number must contain numbers only.');
+        }
+    }
+    const referenceNo = rawReferenceNo;
+
     const payload = {
         customer: String(input.customer || "Walk-in Customer").trim() || "Walk-in Customer",
         cashier: String(input.cashier || "").trim(),
         tableNo: String(input.tableNo || "").trim(),
         mode: ["Dine In", "To Go", "Online Order"].includes(input.mode) ? input.mode : "Dine In",
-        paymentMethod: normalizePaymentMethod(input.paymentMethod),
+        paymentMethod,
+        referenceNo,
         receiptId: String(input.receiptId || String(Date.now()).slice(-8)),
         date: input.date ? new Date(input.date) : new Date(),
         items,
@@ -568,15 +587,23 @@ function requireRoles(roles) {
         } catch (err) {
             return res.status(401).json({ error: 'Session expired or invalid. Please log in again.' });
         }
-        if (allowed && !allowed.has(payload.role)) {
-            return res.status(403).json({ error: 'Access denied for your account role.' });
-        }
         try {
-            const session = await Session.findOne({ jti: payload.jti });
+            if (!isValidObjectId(payload.id) || !payload.jti) {
+                return res.status(401).json({ error: 'Session expired or invalid. Please log in again.' });
+            }
+            const session = await Session.findOne({ jti: payload.jti, userId: payload.id });
             if (!session || session.revoked) {
                 return res.status(401).json({ error: 'Session expired or invalid. Please log in again.' });
             }
-            req.user = payload;
+            const user = await User.findOne(idMatchFilter(payload.id)).select('username role status');
+            if (!user || user.status !== 'Active' || user.role !== payload.role) {
+                await Session.updateOne({ _id: session._id }, { $set: { revoked: true } });
+                return res.status(401).json({ error: 'Account access changed. Please log in again.' });
+            }
+            if (allowed && !allowed.has(user.role)) {
+                return res.status(403).json({ error: 'Access denied for your account role.' });
+            }
+            req.user = { ...payload, username: user.username, role: user.role };
             req.session = session;
             touchUserActivity(payload.id);
             next();
@@ -859,6 +886,10 @@ app.get('/api/orders', authRequired(), async (req, res) => {
         if (Number.isInteger(limit) && limit > 0 && limit <= 5000) {
             find = find.limit(limit);
         }
+        const skip = parseInt(req.query.skip, 10);
+        if (Number.isInteger(skip) && skip >= 0 && skip <= 2147483647) {
+            find = find.skip(skip);
+        }
         res.json(await find);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -977,17 +1008,7 @@ app.delete('/api/orders/:id', authRequired(['Admin']), async (req, res) => {
         const order = await Order.findOne(idMatchFilter(req.params.id));
         if (!order) return res.status(404).json({ error: 'Order not found' });
 
-        // Paid orders must be voided first: hard-deleting them would silently
-        // rewrite yesterday's revenue, charts, insights, and CSV exports.
-        // Voiding keeps the row visible (status: Voided) and excludes it from
-        // stats — the transparent way to remove an order from the numbers.
-        if (order.status !== 'Voided') {
-            return res.status(409).json({ error: 'Void the order first. Deleting a paid order would corrupt sales history.' });
-        }
-
-        await Order.findOneAndDelete(idMatchFilter(req.params.id));
-        writeLog('order.delete', req.user.username, req.params.id, `Order ${req.params.id} hard-deleted (was voided)`);
-        res.json({ message: 'Order successfully deleted' });
+        return res.status(409).json({ error: 'Orders cannot be deleted. Void or refund the order to preserve sales history.' });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1004,8 +1025,8 @@ const voidOrderHandler = async (req, res) => {
         if (req.user.role === 'Cashier' && String(order.cashier || '').toLowerCase() !== String(req.user.username || '').toLowerCase()) {
             return res.status(403).json({ error: 'Cashiers can void only their own orders.' });
         }
-        if (order.status === "Voided") {
-            return res.status(409).json({ error: 'Order is already voided.' });
+        if (order.status === "Voided" || order.status === "Refunded") {
+            return res.status(409).json({ error: 'Voided or refunded orders cannot be voided again.' });
         }
 
         // Restore menu stock for every item, then clear sold-out flags.
@@ -1041,12 +1062,12 @@ const voidOrderHandler = async (req, res) => {
         res.json(order);
     } catch (err) { res.status(500).json({ error: err.message }); }
 };
-app.patch('/api/orders/:id/void', authRequired(), voidOrderHandler);
+app.patch('/api/orders/:id/void', authRequired(), managerOverrideLimiter, voidOrderHandler);
 // Accept POST as well for clients that model state-changing actions uniformly.
-app.post('/api/orders/:id/void', authRequired(), voidOrderHandler);
+app.post('/api/orders/:id/void', authRequired(), managerOverrideLimiter, voidOrderHandler);
 
 // Refund a completed order and return its menu/raw-material stock.
-app.post('/api/orders/:id/refund', authRequired(), async (req, res) => {
+app.post('/api/orders/:id/refund', authRequired(), managerOverrideLimiter, async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order id' });
 
@@ -1344,15 +1365,16 @@ app.put('/api/users/:id', authRequired(['Admin']), async (req, res) => {
 
         const updated = await User.findOneAndUpdate(idMatchFilter(req.params.id), update, { new: true });
 
-        // Password was reset — kill every session so the old password
-        // stops working everywhere immediately.
-        if (update.password) {
+        const accessChanged = Boolean(update.password)
+            || (Object.prototype.hasOwnProperty.call(update, 'role') && update.role !== existing.role)
+            || (Object.prototype.hasOwnProperty.call(update, 'status') && update.status !== existing.status);
+        if (accessChanged) {
             const revoked = await Session.updateMany(
                 { userId: updated._id, revoked: false },
                 { $set: { revoked: true } }
             );
             writeLog('user.update', req.user.username, String(updated._id),
-                `Reset password for "${updated.username}" — ${revoked.modifiedCount} session(s) revoked`);
+                `Access changed for "${updated.username}" — ${revoked.modifiedCount} session(s) revoked`);
         } else {
             writeLog('user.update', req.user.username, String(updated._id), `Updated account "${updated.username}"`);
         }
@@ -1364,6 +1386,12 @@ app.delete('/api/users/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid user id' });
         const deleted = await User.findOneAndDelete(idMatchFilter(req.params.id));
+        if (deleted) {
+            await Session.updateMany(
+                { userId: deleted._id, revoked: false },
+                { $set: { revoked: true } }
+            );
+        }
         writeLog('user.delete', req.user.username, req.params.id,
             deleted ? `Deleted account "${deleted.username}"` : `Delete attempt on missing account ${req.params.id}`);
         res.json({ message: 'User account deactivated and erased' });
@@ -1545,27 +1573,39 @@ app.get('/api/audit', authRequired(['Admin']), async (req, res) => {
     try {
         const filter = {};
         const { from, to, date, limit, action } = req.query;
+        const parseBoundary = (value, endOfDay = false) => {
+            const raw = String(value || '').trim();
+            const dayOnly = /^\d{4}-\d{2}-\d{2}$/.test(raw);
+            const dateValue = new Date(dayOnly
+                ? `${raw}T${endOfDay ? '23:59:59.999' : '00:00:00'}`
+                : raw);
+            return Number.isNaN(dateValue.getTime()) ? null : dateValue;
+        };
         // ?date=YYYY-MM-DD — single-day shorthand (overrides from/to)
         if (date) {
-            const d = new Date(date);
-            if (!isNaN(d)) {
-                const dayStart = new Date(date + 'T00:00:00');
-                const dayEnd   = new Date(date + 'T23:59:59.999');
+            const dayStart = parseBoundary(date);
+            const dayEnd = parseBoundary(date, true);
+            if (dayStart && dayEnd) {
                 filter.date = { $gte: dayStart, $lte: dayEnd };
             }
         } else {
             if (from) {
-                const fromDate = new Date(from);
-                if (!isNaN(fromDate)) filter.date = { ...(filter.date || {}), $gte: fromDate };
+                const fromDate = parseBoundary(from);
+                if (fromDate) filter.date = { ...(filter.date || {}), $gte: fromDate };
             }
             if (to) {
-                const toDate = new Date(to);
-                if (!isNaN(toDate)) filter.date = { ...(filter.date || {}), $lte: toDate };
+                const toDate = parseBoundary(to, true);
+                if (toDate) filter.date = { ...(filter.date || {}), $lte: toDate };
             }
         }
         if (action) filter.action = action;
         const max = Math.min(Math.max(Number(limit) || 500, 1), 5000);
-        const logs = await AuditLog.find(filter).sort({ date: -1 }).limit(max);
+        let logsQuery = AuditLog.find(filter).sort(req.query.sort === 'asc' ? { date: 1, _id: 1 } : { date: -1, _id: -1 }).limit(max);
+        const skip = parseInt(req.query.skip, 10);
+        if (Number.isInteger(skip) && skip >= 0 && skip <= 2147483647) {
+            logsQuery = logsQuery.skip(skip);
+        }
+        const logs = await logsQuery;
         res.json(logs);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1574,7 +1614,6 @@ app.get('/api/audit', authRequired(['Admin']), async (req, res) => {
 // In-house statistical forecasts & alerts — computed from the last 30 days of
 // orders/products/inventory/waste. Result is cached for 5 minutes.
 const { computeInsights } = require('./ai-insights');
-const { buildReportPrompt, buildStatsReport, fetchAiReport } = require('./ai-report');
 let insightsCache = { data: null, at: 0 };
 const INSIGHTS_TTL_MS = 5 * 60 * 1000;
 
@@ -1597,28 +1636,6 @@ async function getInsights() {
 app.get('/api/insights', authRequired(['Admin', 'Manager']), async (req, res) => {
     try {
         res.json(await getInsights());
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// Optional LLM weekly report (free Gemini tier). Falls back to a statistics
-// summary when AI_API_KEY is missing or the API call fails — never errors.
-// Rate-limited per IP so a stuck script can't burn the free AI quota.
-const aiReportLimiter = rateLimit({
-    windowMs: 60 * 1000,
-    max: 5,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'Too many report requests. Try again in a minute.' }
-});
-app.post('/api/ai/report', aiReportLimiter, authRequired(['Admin', 'Manager']), async (req, res) => {
-    try {
-        const data = await getInsights();
-        const report = await fetchAiReport(buildReportPrompt(data));
-        res.json({
-            report: report || buildStatsReport(data),
-            source: report ? 'ai' : 'stats',
-            generatedAt: new Date().toISOString()
-        });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1846,17 +1863,20 @@ async function seedDefaultAdmin() {
         const count = await User.countDocuments();
         if (count === 0) {
             const username = (process.env.SEED_ADMIN_USERNAME || 'admin').trim().toLowerCase();
-            // Never ship the well-known default password in production — a
-            // random one is generated and printed to the logs once instead.
-            const password = process.env.SEED_ADMIN_PASSWORD
-                || (process.env.RENDER ? require('crypto').randomBytes(8).toString('hex') : 'admin123');
+            const password = String(process.env.SEED_ADMIN_PASSWORD || '');
+            if (!password) {
+                throw new Error('SEED_ADMIN_PASSWORD is required before creating the first Admin account.');
+            }
+            if (IS_PRODUCTION_CONFIG && password.length < 16) {
+                throw new Error('SEED_ADMIN_PASSWORD must be at least 16 characters in production.');
+            }
             const hashed = await bcrypt.hash(password, 10);
             await User.create({ username, password: hashed, role: 'Admin', status: 'Active' });
-            console.log(`Seeded default Admin account - username: "${username}", password: "${password}"`);
-            console.log('   Change this password in the Admin -> Add Users panel immediately.');
+            console.log(`Seeded default Admin account - username: "${username}".`);
         }
     } catch (err) {
         console.error('Default admin seeding failed:', err.message);
+        process.exit(1);
     }
 }
 
