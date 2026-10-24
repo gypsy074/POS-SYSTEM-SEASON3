@@ -113,22 +113,26 @@ async function handleLogin(e, isRetry = false) {
         sessionStorage.setItem("posRole", data.role);
 
         // ── Store session user + token for profile widgets & API calls ──
-        // Each app keeps its own session keys (admin vs cashier) so one
-        // browser can hold both logins without them overwriting each other.
+        // Session storage keeps each tab on its own login; local storage
+        // remains as a fallback for existing sessions.
         const isAdminSurface = data.role === "Admin" || data.role === "Manager";
-        localStorage.setItem(
-            isAdminSurface ? "posAdminUser" : "posUser",
-            JSON.stringify({
-                username: data.username,
-                role: data.role
-            })
-        );
+        const userKey = isAdminSurface ? "posAdminUser" : "posUser";
+        const userData = JSON.stringify({ username: data.username, role: data.role });
+        localStorage.setItem(userKey, userData);
+        sessionStorage.setItem(userKey, userData);
         if (data.token) {
             // Managers use the admin dashboard and may also operate the POS.
             // Keep the same token in both stores so either surface can call
-            // the backend without weakening server-side authorization.
-            if (isAdminSurface) localStorage.setItem("posAdminToken", data.token);
-            if (!isAdminSurface || data.role === "Manager") localStorage.setItem("posToken", data.token);
+            // the backend without weakening server-side authorization. The
+            // tab-scoped copy prevents another tab's login replacing this one.
+            if (isAdminSurface) {
+                sessionStorage.setItem("posAdminToken", data.token);
+                localStorage.setItem("posAdminToken", data.token);
+            }
+            if (!isAdminSurface || data.role === "Manager") {
+                sessionStorage.setItem("posToken", data.token);
+                localStorage.setItem("posToken", data.token);
+            }
         }
 
         // ── Route by role ──────────────────────────────────────────────

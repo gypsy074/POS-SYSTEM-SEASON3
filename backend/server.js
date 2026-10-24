@@ -775,6 +775,7 @@ app.post('/api/logout', authRequired(), async (req, res) => {
 // Active sessions for the current user — powers "my devices" + new-sign-in banner.
 app.get('/api/auth/sessions', authRequired(), async (req, res) => {
     try {
+        res.set('Cache-Control', 'no-store');
         const sessions = await Session.find({ userId: req.user.id, revoked: false }).sort({ createdAt: -1 }).limit(20);
         res.json({
             success: true,
