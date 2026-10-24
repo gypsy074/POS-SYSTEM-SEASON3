@@ -26,14 +26,28 @@ function getApiBaseUrl() {
 const API_BASE_URL = getApiBaseUrl();
 
 function getAuthToken() {
-    return localStorage.getItem("posAdminToken") || localStorage.getItem("posToken") || "";
+    for (const key of ["posAdminToken", "posToken"]) {
+        const sessionToken = sessionStorage.getItem(key);
+        if (sessionToken) return sessionToken;
+    }
+    for (const key of ["posAdminToken", "posToken"]) {
+        const localToken = localStorage.getItem(key);
+        if (localToken) {
+            sessionStorage.setItem(key, localToken);
+            return localToken;
+        }
+    }
+    return "";
 }
 
 function clearSession() {
-    localStorage.removeItem("posAdminToken");
-    localStorage.removeItem("posAdminUser");
-    localStorage.removeItem("posToken");
-    localStorage.removeItem("posUser");
+    ["posAdminToken", "posToken", "posAdminUser", "posUser"].forEach(key => {
+        const sessionValue = sessionStorage.getItem(key);
+        sessionStorage.removeItem(key);
+        if (sessionValue && localStorage.getItem(key) === sessionValue) {
+            localStorage.removeItem(key);
+        }
+    });
 }
 
 function redirectToLogin() {

@@ -125,20 +125,39 @@ function getApiBaseUrl() {
 
 function apiFetch(path, options = {}) {
     const headers = { ...(options.headers || {}) };
-    const token = localStorage.getItem("posToken") || localStorage.getItem("posAdminToken") || "";
+    const token = getCashierAuthToken();
     if (token) {
         headers["Authorization"] = `Bearer ${token}`;
     }
 
     return fetch(`${API_BASE_URL}${path}`, { ...options, headers }).then(response => {
         if (response.status === 401) {
-            localStorage.removeItem("posToken");
-            localStorage.removeItem("posUser");
-            localStorage.removeItem("posAdminToken");
-            localStorage.removeItem("posAdminUser");
+            clearCashierAuth();
             window.location.href = "../login.html";
         }
         return response;
+    });
+}
+
+function getStoredCashierValue(key) {
+    const sessionValue = sessionStorage.getItem(key);
+    if (sessionValue) return sessionValue;
+    const localValue = localStorage.getItem(key);
+    if (localValue) sessionStorage.setItem(key, localValue);
+    return localValue;
+}
+
+function getCashierAuthToken() {
+    return getStoredCashierValue("posToken") || getStoredCashierValue("posAdminToken") || "";
+}
+
+function clearCashierAuth() {
+    ["posToken", "posAdminToken", "posUser", "posAdminUser"].forEach(key => {
+        const sessionValue = sessionStorage.getItem(key);
+        sessionStorage.removeItem(key);
+        if (sessionValue && localStorage.getItem(key) === sessionValue) {
+            localStorage.removeItem(key);
+        }
     });
 }
 
@@ -157,7 +176,7 @@ async function guardCashierPage() {
             window.location.href = "../ADMIN/admin.html";
         }
     } catch (err) {
-        const token = localStorage.getItem("posToken");
+        const token = getStoredCashierValue("posToken");
         if (!token) {
             window.location.href = "../login.html";
         }
@@ -2502,15 +2521,15 @@ function cancelOrder(silent = false) {
 }
 
 function getCashierName() {
-    const saved = JSON.parse(localStorage.getItem("posUser") || localStorage.getItem("posAdminUser") || "null");
+    const saved = JSON.parse(getStoredCashierValue("posUser") || getStoredCashierValue("posAdminUser") || "null");
     if (saved && saved.username) return saved.username;
-    const admin = JSON.parse(localStorage.getItem("posAdminUser") || "null");
+    const admin = JSON.parse(getStoredCashierValue("posAdminUser") || "null");
     return (admin && admin.username) || "Pranselen";
 }
 
 function getPosRole() {
     try {
-        const saved = JSON.parse(localStorage.getItem("posUser") || localStorage.getItem("posAdminUser") || "null");
+        const saved = JSON.parse(getStoredCashierValue("posUser") || getStoredCashierValue("posAdminUser") || "null");
         return saved && saved.role ? saved.role : "Cashier";
     } catch {
         return "Cashier";
@@ -2881,7 +2900,7 @@ function setupCashierProfile() {
     const logoutBtn = document.getElementById("cashierLogoutBtn");
     if (!badge || !wrap) return;
 
-    const saved = JSON.parse(localStorage.getItem("posUser") || localStorage.getItem("posAdminUser") || "null");
+    const saved = JSON.parse(getStoredCashierValue("posUser") || getStoredCashierValue("posAdminUser") || "null");
     const username = getCashierName();
     const role = (saved && saved.role) || "Cashier";
     const initials = username.slice(0, 2).toUpperCase();
@@ -2923,13 +2942,10 @@ function setupCashierProfile() {
             apiFetch("/api/logout", { method: "POST" }).catch(() => { });
             let name = "";
             try {
-                const stored = JSON.parse(localStorage.getItem("posUser") || "{}");
+                const stored = JSON.parse(getStoredCashierValue("posUser") || "{}");
                 name = stored.username || "";
             } catch (err) { /* ignore */ }
-            localStorage.removeItem("posToken");
-            localStorage.removeItem("posUser");
-            localStorage.removeItem("posAdminToken");
-            localStorage.removeItem("posAdminUser");
+            clearCashierAuth();
             showLogoutTransition(name, () => {
                 window.location.href = "../login.html";
             });

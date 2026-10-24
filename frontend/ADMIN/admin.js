@@ -67,7 +67,7 @@ function closeProfileDropdown() {
 function setupProfileBadge() {
     let user = null;
     try {
-        user = JSON.parse(localStorage.getItem("posAdminUser") || "null");
+        user = JSON.parse(sessionStorage.getItem("posAdminUser") || localStorage.getItem("posAdminUser") || "null");
     } catch (err) {
         console.warn("Unable to read the saved admin profile; using the default profile.", err);
     }
@@ -113,13 +113,10 @@ function setupProfileBadge() {
         apiFetch("/api/logout", { method: "POST" }).catch(() => {});
         let name = "";
         try {
-            const stored = JSON.parse(localStorage.getItem("posAdminUser") || "{}");
+            const stored = JSON.parse(sessionStorage.getItem("posAdminUser") || localStorage.getItem("posAdminUser") || "{}");
             name = stored.username || "";
         } catch (err) { /* ignore */ }
-        localStorage.removeItem("posAdminToken");
-        localStorage.removeItem("posAdminUser");
-        localStorage.removeItem("posToken");
-        localStorage.removeItem("posUser");
+        clearSession();
         showLogoutTransition(name, () => {
             window.location.href = "../login.html";
         });
