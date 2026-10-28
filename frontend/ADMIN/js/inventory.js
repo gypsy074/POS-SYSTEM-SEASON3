@@ -569,7 +569,10 @@ function renderInventoryTable(items) {
 
     tbody.innerHTML = filtered.map(item => {
         const stock = Number(item.stock ?? 0);
-        const low = stock <= Number(item.lowStockThreshold ?? 10);
+        const threshold = Number(item.lowStockThreshold ?? item.minStock ?? 10);
+        const low = stock <= threshold;
+        const maxStock = Number(item.maxStock) > 0 ? Number(item.maxStock) : Math.max(threshold * 3, stock, 50);
+        const stockPercent = Math.min(100, Math.max(0, Math.round((stock / maxStock) * 100)));
 
         // Support both legacy single menuProductId and new array menuProductIds
         const linkedIds = Array.isArray(item.menuProductIds) && item.menuProductIds.length
@@ -587,7 +590,12 @@ function renderInventoryTable(items) {
             <td>${escapeHtml(item.productName)}</td>
             <td>${escapeHtml(item.category)}</td>
             <td>₱${Number(item.price).toFixed(2)}</td>
-            <td class="${low ? "low-stock-cell" : ""}">${stock}</td>
+            <td class="${low ? "low-stock-cell" : ""}">
+                <div class="inv-stock-cell-wrap">
+                    <span class="inv-stock-qty">${stock}</span>
+                    <span class="inv-stock-pct" title="Stock level: ${stockPercent}% of capacity (${maxStock} max)">${stockPercent}%</span>
+                </div>
+            </td>
             <td>${escapeHtml(String(item.lowStockThreshold ?? 10))}</td>
             <td>${escapeHtml(String(item.unitsPerSale ?? 1))}</td>
             <td>${linkedBadges || '<span class="inv-standalone-badge">Standalone</span>'}</td>

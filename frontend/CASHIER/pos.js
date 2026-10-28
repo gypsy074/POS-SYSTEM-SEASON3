@@ -1388,7 +1388,6 @@ function displayCategoryItems(category, searchTerm = "", animate = true) {
             ? products.map((product, index) => {
                 const soldOut = productIsSoldOut(product);
                 const lowStock = productIsLowStock(product);
-                const minMaxRatio = normalizeInventoryScore(productStock(product), Number(product.minStock ?? product.lowStockThreshold ?? 0), Number(product.maxStock ?? Math.max(Number(product.minStock ?? product.lowStockThreshold ?? 0) + 1, productStock(product) + 10)));
                 const expandDelay = ` style="animation-delay: ${Math.min(index * 0.035, 0.25).toFixed(3)}s"`;
                 return `
                 <article class="food-card ${soldOut ? "sold-out-card" : ""}${animate ? " menu-card-expand" : ""}"${animate ? expandDelay : ""}>
@@ -1403,7 +1402,7 @@ function displayCategoryItems(category, searchTerm = "", animate = true) {
                         </div>
                         ${soldOut
                         ? '<div class="sold-out-overlay"><span>OUT OF STOCK</span></div>'
-                        : `<div class="stock-badge${lowStock ? " low-stock-badge" : ""}" title="Min-max stock index: ${(minMaxRatio * 100).toFixed(0)}%">Stock: ${productStock(product)} · ${(minMaxRatio * 100).toFixed(0)}%</div>`}
+                        : `<div class="stock-badge${lowStock ? " low-stock-badge" : ""}">Stock: ${productStock(product)}</div>`}
                     </div>
                 </article>
             `;

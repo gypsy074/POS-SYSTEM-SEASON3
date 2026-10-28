@@ -4725,3 +4725,35 @@ body.dark .inv-product-picker-hint {
 body.dark .inv-product-picker-footer {
     border-top-color: #57432c;
 }
+
+/* Inventory Stock Percentage Display */
+.inv-stock-cell-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.inv-stock-pct {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: #eef2f6;
+    color: #475569;
+    border: 1px solid #d8e2ec;
+}
+.low-stock-cell .inv-stock-pct {
+    background: #fff3e0;
+    color: #d97706;
+    border-color: #fcd34d;
+}
+body.dark .inv-stock-pct {
+    background: #273549;
+    color: #94a3b8;
+    border-color: #3e5066;
+}
+body.dark .low-stock-cell .inv-stock-pct {
+    background: #452b12;
+    color: #fbbf24;
+    border-color: #78350f;
+}
