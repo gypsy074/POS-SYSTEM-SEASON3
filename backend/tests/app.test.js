@@ -135,6 +135,28 @@ describe('Auth', () => {
 });
 
 describe('Session authorization changes', () => {
+    test('same account can list both active sign-ins and identify its own session', async () => {
+        const created = await request(app)
+            .post('/api/users')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ username: 'multi-session-test', password: 'tester123', role: 'Cashier' });
+        expect(created.status).toBe(201);
+
+        const firstLogin = await login('multi-session-test', 'tester123');
+        const secondLogin = await login('multi-session-test', 'tester123');
+        expect(firstLogin.status).toBe(200);
+        expect(secondLogin.status).toBe(200);
+
+        const sessions = await request(app)
+            .get('/api/auth/sessions')
+            .set('Authorization', `Bearer ${firstLogin.token}`);
+        expect(sessions.status).toBe(200);
+        expect(sessions.headers['cache-control']).toContain('no-store');
+        expect(sessions.body.sessions).toHaveLength(2);
+        expect(sessions.body.sessions.filter(session => session.isCurrent)).toHaveLength(1);
+        expect(sessions.body.sessions.every(session => session.jti)).toBe(true);
+    });
+
     test('changing a user role invalidates their existing token', async () => {
         const created = await request(app)
             .post('/api/users')
@@ -279,7 +301,7 @@ describe('Orders & stock', () => {
     });
 
     test('placing an order deducts menu stock', async () => {
-        await createProduct('TestPancit', 120, 5);
+        await createProduct('TestPancit', 120, 5, 'Rice Meals');
 
         const orderRes = await request(app)
             .post('/api/orders')
@@ -300,6 +322,7 @@ describe('Orders & stock', () => {
         expect(orderRes.body.status).toBe('Completed');
         expect(orderRes.body.tendered).toBe(500);
         expect(orderRes.body.change).toBe(260);
+        expect(orderRes.body.items[0].category).toBe('Rice Meals');
     });
 
     test('gcash orders persist a numeric reference number', async () => {

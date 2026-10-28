@@ -155,6 +155,7 @@ mongoose.connect(mongoUri, {
 // --- Order System Schema Configuration ---
 const orderItemSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true },
+    category: { type: String, default: "", trim: true },
     quantity: { type: Number, required: true, min: 1, default: 1 },
     price: { type: Number, required: true, min: 0, default: 0 },
     preparationStation: { type: String, enum: ['Kitchen', 'Barista', 'Counter'], default: 'Kitchen' }
@@ -464,6 +465,7 @@ async function normalizeOrderPayload(input) {
     const items = Array.isArray(input.items)
         ? input.items.map(item => ({
             name: String(item.name || "Item").trim(),
+            category: String(item.category || "").trim(),
             quantity: Math.max(1, Number(item.quantity) || 1),
             price: Math.max(0, Number(item.price) || 0),
             preparationStation: inferPreparationStation(item.preparationStation || item.station, item.category || item.productCategory || "")
@@ -480,8 +482,10 @@ async function normalizeOrderPayload(input) {
     const itemCategories = new Map();
     for (const item of items) {
         const product = productMap.get(item.name);
-        const category = String(product && product.category ? product.category : "").trim();
-        itemCategories.set(item.name, category);
+        const category = String(product && product.category ? product.category : item.category).trim();
+        item.category = category;
+        const normalizedCategory = category.toLowerCase();
+        itemCategories.set(item.name, normalizedCategory);
         const productStation = String(product && product.preparationStation ? product.preparationStation : "").trim();
         if (productStation) {
             item.preparationStation = inferPreparationStation(productStation, category);
@@ -835,6 +839,7 @@ app.post('/api/logout', authRequired(), async (req, res) => {
 // Active sessions for the current user — powers "my devices" + new-sign-in banner.
 app.get('/api/auth/sessions', authRequired(), async (req, res) => {
     try {
+        res.set('Cache-Control', 'no-store');
         const sessions = await Session.find({ userId: req.user.id, revoked: false }).sort({ createdAt: -1 }).limit(20);
         res.json({
             success: true,

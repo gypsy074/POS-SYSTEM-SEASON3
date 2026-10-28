@@ -44,6 +44,23 @@ function normalizeInventoryScore(stock, minStock, maxStock) {
     return Math.min(1, Math.max(0, (safeStock - safeMin) / (safeMax - safeMin)));
 }
 
+function sortItemsByCategory(items = []) {
+    const grouped = new Map();
+    const categoryOrder = [];
+
+    items.forEach(item => {
+        const category = String(item && (item.category || item.productCategory || "")).trim();
+        const key = category.toLowerCase() || "uncategorized";
+        if (!grouped.has(key)) {
+            grouped.set(key, []);
+            categoryOrder.push(key);
+        }
+        grouped.get(key).push(item);
+    });
+
+    return categoryOrder.flatMap(category => grouped.get(category));
+}
+
 function cartSubtotal() {
     return cart.reduce((sum, item) => sum + (Number(item.price || 0) * item.quantity), 0);
 }
@@ -128,20 +145,39 @@ function getApiBaseUrl() {
 
 function apiFetch(path, options = {}) {
     const headers = { ...(options.headers || {}) };
-    const token = localStorage.getItem("posToken") || localStorage.getItem("posAdminToken") || "";
+    const token = getCashierAuthToken();
     if (token) {
         headers["Authorization"] = `Bearer ${token}`;
     }
 
     return fetch(`${API_BASE_URL}${path}`, { ...options, headers }).then(response => {
         if (response.status === 401) {
-            localStorage.removeItem("posToken");
-            localStorage.removeItem("posUser");
-            localStorage.removeItem("posAdminToken");
-            localStorage.removeItem("posAdminUser");
+            clearCashierAuth();
             window.location.href = "../login.html";
         }
         return response;
+    });
+}
+
+function getStoredCashierValue(key) {
+    const sessionValue = sessionStorage.getItem(key);
+    if (sessionValue) return sessionValue;
+    const localValue = localStorage.getItem(key);
+    if (localValue) sessionStorage.setItem(key, localValue);
+    return localValue;
+}
+
+function getCashierAuthToken() {
+    return getStoredCashierValue("posToken") || getStoredCashierValue("posAdminToken") || "";
+}
+
+function clearCashierAuth() {
+    ["posToken", "posAdminToken", "posUser", "posAdminUser"].forEach(key => {
+        const sessionValue = sessionStorage.getItem(key);
+        sessionStorage.removeItem(key);
+        if (sessionValue && localStorage.getItem(key) === sessionValue) {
+            localStorage.removeItem(key);
+        }
     });
 }
 
@@ -160,7 +196,7 @@ async function guardCashierPage() {
             window.location.href = "../ADMIN/admin.html";
         }
     } catch (err) {
-        const token = localStorage.getItem("posToken");
+        const token = getStoredCashierValue("posToken");
         if (!token) {
             window.location.href = "../login.html";
         }
@@ -1072,7 +1108,7 @@ function showCashierOrderDetail(orderId) {
             ${order.tableNo ? `<div class="row"><span>Table</span><strong>${escapeHtml(order.tableNo)}</strong></div>` : ""}
         </div>
         <div class="history-items">
-            ${(order.items || []).map(item => `
+            ${sortItemsByCategory(order.items || []).map(item => `
                 <div class="pos-modal-item-row">
                     <span>${escapeHtml(item.name)} × ${item.quantity}</span>
                     <strong>₱${(Number(item.price || 0) * Number(item.quantity || 0)).toFixed(2)}</strong>
@@ -1941,6 +1977,7 @@ async function submitOrder() {
         date: new Date().toISOString(),
         items: cart.map(item => ({
             name: item.name,
+            category: item.category || "",
             quantity: item.quantity,
             price: Number(item.price || 0)
         })),
@@ -1961,7 +1998,7 @@ async function submitOrder() {
             icon: "fa-receipt",
             bodyHtml: `
                 <div class="pos-modal-items">
-                    ${payload.items.map(item => `
+                    ${sortItemsByCategory(payload.items).map(item => `
                         <div class="pos-modal-item-row">
                             <span>${escapeHtml(item.name)} × ${item.quantity}</span>
                             <strong>₱${(Number(item.price) * item.quantity).toFixed(2)}</strong>
@@ -2091,7 +2128,7 @@ function printReceipt(order) {
         document.body.appendChild(host);
     }
 
-    const items = (order.items || []).map(item => `
+    const items = sortItemsByCategory(order.items || []).map(item => `
         <div class="print-line"><span>${escapeHtml(item.name)} × ${item.quantity}</span><span>₱${(Number(item.price || 0) * Number(item.quantity || 0)).toFixed(2)}</span></div>
     `).join("");
 
@@ -2100,6 +2137,10 @@ function printReceipt(order) {
             <div class="print-head">
                 <img src="../assets/logo.png" alt="logo">
                 <strong class="print-shop">Season 3 Kitchen &amp; Cafe</strong>
+                <span class="print-contact">740 Vitales St., Pasay City,</span>
+                <span class="print-contact">Philippines, 1300</span>
+                <span class="print-contact">Phone: 09563174336</span>
+                <span class="print-contact">Facebook: Season 3 Kitchen &amp; Cafe</span>
                 <span>${new Date(order.date || Date.now()).toLocaleString()}</span>
             </div>
             <div class="print-meta">
@@ -2176,8 +2217,7 @@ function groupOrderItemsByStation(order) {
 }
 
 function buildKotHtml(order, settings) {
-    const { kitchen, barista } = groupOrderItemsByStation(order);
-    const renderItems = (items) => (items || []).map(item => `
+    const items = (order.items || []).map(item => `
         <div class="print-line kot-line"><span>${escapeHtml(item.name)}</span><strong>× ${item.quantity}</strong></div>
     `).join("");
     const kitchenHtml = renderItems(kitchen);
@@ -2211,15 +2251,7 @@ function buildKotText(order) {
         "Customer: " + (order.customer || "Walk-in Customer"),
         "Time: " + new Date(order.date || Date.now()).toLocaleTimeString()
     ];
-    const kitchenItems = (kitchen || []).map(it => {
-        const name = String(it.name || "");
-        const qty = Number(it.quantity || 0);
-        const left = name.length > 22 ? name.slice(0, 21) + "." : name;
-        const right = "x" + qty;
-        const pad = Math.max(2, 30 - left.length - right.length);
-        return left + " ".repeat(pad) + right;
-    });
-    const baristaItems = (barista || []).map(it => {
+    const items = (order.items || []).map(it => {
         const name = String(it.name || "");
         const qty = Number(it.quantity || 0);
         const left = name.length > 22 ? name.slice(0, 21) + "." : name;
@@ -2246,6 +2278,10 @@ function buildReceiptText(order) {
     const line = "--------------------------------";
     const head = [
         "   Season 3 Kitchen & Cafe",
+        "740 Vitales St., Pasay City,",
+        "Philippines, 1300",
+        "Phone: 09563174336",
+        "FB: Season 3 Kitchen & Cafe",
         "   " + new Date(order.date || Date.now()).toLocaleString()
     ];
     const meta = [
@@ -2257,7 +2293,7 @@ function buildReceiptText(order) {
     if (order.paymentMethod === "G-Cash" && order.referenceNo) {
         meta.push("Reference: " + order.referenceNo);
     }
-    const items = (order.items || []).map(it => {
+    const items = sortItemsByCategory(order.items || []).map(it => {
         const name = String(it.name || "");
         const qty = Number(it.quantity || 0);
         const amt = (Number(it.price || 0) * qty).toFixed(2);
@@ -2520,6 +2556,8 @@ function cancelOrder(silent = false) {
         playSound("cancel");
     }
     cart = [];
+    const customerInput = document.getElementById("customerNameInput");
+    if (customerInput) customerInput.value = "";
     resetSeniorDiscount();
     setCartDrawerOpen(false);
     cartDrawerExpanded = false;
@@ -2531,15 +2569,15 @@ function cancelOrder(silent = false) {
 }
 
 function getCashierName() {
-    const saved = JSON.parse(localStorage.getItem("posUser") || localStorage.getItem("posAdminUser") || "null");
+    const saved = JSON.parse(getStoredCashierValue("posUser") || getStoredCashierValue("posAdminUser") || "null");
     if (saved && saved.username) return saved.username;
-    const admin = JSON.parse(localStorage.getItem("posAdminUser") || "null");
+    const admin = JSON.parse(getStoredCashierValue("posAdminUser") || "null");
     return (admin && admin.username) || "Pranselen";
 }
 
 function getPosRole() {
     try {
-        const saved = JSON.parse(localStorage.getItem("posUser") || localStorage.getItem("posAdminUser") || "null");
+        const saved = JSON.parse(getStoredCashierValue("posUser") || getStoredCashierValue("posAdminUser") || "null");
         return saved && saved.role ? saved.role : "Cashier";
     } catch {
         return "Cashier";
@@ -2910,7 +2948,7 @@ function setupCashierProfile() {
     const logoutBtn = document.getElementById("cashierLogoutBtn");
     if (!badge || !wrap) return;
 
-    const saved = JSON.parse(localStorage.getItem("posUser") || localStorage.getItem("posAdminUser") || "null");
+    const saved = JSON.parse(getStoredCashierValue("posUser") || getStoredCashierValue("posAdminUser") || "null");
     const username = getCashierName();
     const role = (saved && saved.role) || "Cashier";
     const initials = username.slice(0, 2).toUpperCase();
@@ -2952,13 +2990,10 @@ function setupCashierProfile() {
             apiFetch("/api/logout", { method: "POST" }).catch(() => { });
             let name = "";
             try {
-                const stored = JSON.parse(localStorage.getItem("posUser") || "{}");
+                const stored = JSON.parse(getStoredCashierValue("posUser") || "{}");
                 name = stored.username || "";
             } catch (err) { /* ignore */ }
-            localStorage.removeItem("posToken");
-            localStorage.removeItem("posUser");
-            localStorage.removeItem("posAdminToken");
-            localStorage.removeItem("posAdminUser");
+            clearCashierAuth();
             showLogoutTransition(name, () => {
                 window.location.href = "../login.html";
             });

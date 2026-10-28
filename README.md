@@ -304,7 +304,7 @@ organized by file. "What does X do?" → find the file, read the row.
 | `confirmDialog(title, message, confirmLabel)` | The modal used for kill-session / revoke-others confirmations |
 | `api(path, options)` | Account-page fetch wrapper (same pattern as `api.js`) |
 | `getAlertAudioContext()` / `alertTone(...)` / `playNewSignInAlert()` | Audio alert: plays a tone when a **new device** logs into your account |
-| `evaluateBanner()` | Compares sessions: if a newer session exists than yours, shows the "New sign-in on another device" banner |
+| `evaluateBanner()` | Compares sessions: if a newer session exists than yours, shows the new-sign-in banner; active pages refresh session status every 10 seconds |
 | `switchTab(tab)` / `openAccountModal(tab)` / `closeAccountModal()` | The account modal's Sessions/Password tabs + open/close with animation |
 | `showMsg(text, isError)` | Inline error/success message inside the password form |
 | `loadSessions()` / `renderSessions()` | Fetch and render the session list (device, time, age badge, "This device" marker, Kill button) |

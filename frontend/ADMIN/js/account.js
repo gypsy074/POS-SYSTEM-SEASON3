@@ -205,6 +205,7 @@
     let sessions = [];
     let sessionsFailed = false;
     let lastAlertedJti = null;
+    let sessionsLoading = false;
 
     // ── Alert sound (browser-generated tones — no audio files needed) ────
     let alertAudioCtx = null;
@@ -381,8 +382,10 @@
 
     // ── Sessions ─────────────────────────────────────────────────────────
     async function loadSessions() {
+        if (sessionsLoading) return;
+        sessionsLoading = true;
         try {
-            const res = await api("/api/auth/sessions");
+            const res = await api("/api/auth/sessions", { cache: "no-store" });
             if (!res.ok) throw new Error("bad status");
             const data = await res.json();
             sessions = (data.sessions || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -392,6 +395,8 @@
         } catch (e) {
             sessionsFailed = true;
             renderSessions();
+        } finally {
+            sessionsLoading = false;
         }
     }
 
@@ -501,6 +506,11 @@
         const trigger = adminBtn || cashierBtn;
         if (trigger) trigger.addEventListener("click", () => openAccountModal("sessions"));
         loadSessions();
-        setInterval(loadSessions, 60000);
+        setInterval(() => {
+            if (!document.hidden) loadSessions();
+        }, 10000);
+        document.addEventListener("visibilitychange", () => {
+            if (!document.hidden) loadSessions();
+        });
     });
 })();
