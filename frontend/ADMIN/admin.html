@@ -329,6 +329,9 @@
                         <select id="menuTableCategoryFilter" class="inv-filter-select" aria-label="Filter menu items by category">
                             <option value="">All Categories</option>
                         </select>
+                        <button type="button" class="btn-main" id="openAddMenuModalBtn" style="margin-left: auto; display: inline-flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-plus"></i> Add Menu Item
+                        </button>
                     </div>
                     <div class="table-container">
                         <table>
@@ -360,80 +363,93 @@
                     </div>
                 </section>
 
-                <section class="menu-form-section">
-                    <div class="menu-form-grid">
-                        <div class="form-inputs">
-                            <div class="input-group">
-                                <label>Product Name:</label>
-                                <input type="text" id="productNameInput" placeholder="Enter name...">
-                            </div>
-                            <div class="input-group">
-                                <label>Price:</label>
-                                <input type="number" id="priceInput" step="0.01" placeholder="0.00">
-                            </div>
-                            <div class="input-group">
-                                <label>Stock:</label>
-                                <input type="number" id="stockInput" min="0" step="1" placeholder="999">
-                            </div>
-                            <div class="input-group">
-                                <label>Min Stock:</label>
-                                <input type="number" id="minStockInput" min="0" step="1" placeholder="10">
-                            </div>
-                            <div class="input-group">
-                                <label>Max Stock:</label>
-                                <input type="number" id="maxStockInput" min="0" step="1" placeholder="50">
-                            </div>
-                            <div class="input-group" style="grid-column: span 2;">
-                                <label>Low Stock Threshold:</label>
-                                <input type="number" id="lowStockInput" min="0" step="1" placeholder="10">
-                            </div>
-                            <div class="input-group" style="grid-column: span 2;">
-                                <label>Preparation Station:</label>
-                                <select id="preparationStationSelect">
-                                    <option value="Kitchen">Kitchen</option>
-                                    <option value="Barista">Barista</option>
-                                </select>
-                            </div>
-                            <div class="input-group" style="grid-column: span 2;">
-                                <label>Category:</label>
-                                <select id="categorySelect">
-                                    <option value="Coffee">Coffee</option>
-                                    <option value="Frappe">Frappe</option>
-                                    <option value="Rice Meals">Rice Meals</option>
-                                    <option value="Pasta">Pasta</option>
-                                    <option value="Snacks">Snacks</option>
-                                </select>
-                            </div>
-                            <div class="input-group" style="grid-column: span 2;">
-                                <label>Status Availability:</label>
-                                <select id="statusSelect">
-                                    <option value="Available">Available</option>
-                                    <option value="Out of Stock">Out of Stock</option>
-                                </select>
-                            </div>
-                            <div class="form-actions">
-                                <button type="button" class="action-btn action-btn-primary"
-                                    data-menu-action="add">Add</button>
-                                <button type="button" class="action-btn action-btn-secondary"
-                                    data-menu-action="update">Update</button>
-                                <button type="button" class="action-btn action-btn-danger"
-                                    data-menu-action="delete">Remove</button>
-                                <button type="button" class="action-btn action-btn-neutral"
-                                    data-menu-action="clear">Clear</button>
-                            </div>
-
+                <!-- Menu Item Pop-up Modal -->
+                <div class="admin-modal-overlay" id="menuModalOverlay" role="dialog" aria-modal="true" aria-labelledby="menuModalTitle">
+                    <div class="admin-modal-dialog admin-modal-lg">
+                        <div class="admin-modal-head">
+                            <h3 id="menuModalTitle"><i class="fas fa-utensils"></i> Add Menu Item</h3>
+                            <button type="button" class="admin-modal-close" id="closeMenuModalBtn" aria-label="Close modal">&times;</button>
                         </div>
+                        <div class="admin-modal-body">
+                            <section class="menu-form-section">
+                                <div class="menu-form-grid">
+                                    <div class="form-inputs">
+                                        <div class="input-group">
+                                            <label>Product Name:</label>
+                                            <input type="text" id="productNameInput" placeholder="Enter name...">
+                                        </div>
+                                        <div class="input-group">
+                                            <label>Price:</label>
+                                            <input type="number" id="priceInput" step="0.01" placeholder="0.00">
+                                        </div>
+                                        <div class="input-group">
+                                            <label>Stock:</label>
+                                            <input type="number" id="stockInput" min="0" step="1" placeholder="999">
+                                        </div>
+                                        <div class="input-group">
+                                            <label>Min Stock:</label>
+                                            <input type="number" id="minStockInput" min="0" step="1" placeholder="10">
+                                        </div>
+                                        <div class="input-group">
+                                            <label>Max Stock:</label>
+                                            <input type="number" id="maxStockInput" min="0" step="1" placeholder="50">
+                                        </div>
+                                        <div class="input-group" style="grid-column: span 2;">
+                                            <label>Low Stock Threshold:</label>
+                                            <input type="number" id="lowStockInput" min="0" step="1" placeholder="10">
+                                        </div>
+                                        <div class="input-group" style="grid-column: span 2;">
+                                            <label>Preparation Station:</label>
+                                            <select id="preparationStationSelect">
+                                                <option value="Kitchen">Kitchen</option>
+                                                <option value="Barista">Barista</option>
+                                            </select>
+                                        </div>
+                                        <div class="input-group" style="grid-column: span 2;">
+                                            <label>Category:</label>
+                                            <select id="categorySelect">
+                                                <option value="Coffee">Coffee</option>
+                                                <option value="Frappe">Frappe</option>
+                                                <option value="Rice Meals">Rice Meals</option>
+                                                <option value="Pasta">Pasta</option>
+                                                <option value="Snacks">Snacks</option>
+                                            </select>
+                                        </div>
+                                        <div class="input-group" style="grid-column: span 2;">
+                                            <label>Status Availability:</label>
+                                            <select id="statusSelect">
+                                                <option value="Available">Available</option>
+                                                <option value="Out of Stock">Out of Stock</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-actions">
+                                            <button type="button" class="action-btn action-btn-primary"
+                                                data-menu-action="add">Add</button>
+                                            <button type="button" class="action-btn action-btn-secondary"
+                                                data-menu-action="update">Update</button>
+                                            <button type="button" class="action-btn action-btn-danger"
+                                                data-menu-action="delete">Remove</button>
+                                            <button type="button" class="action-btn action-btn-neutral"
+                                                data-menu-action="clear">Clear</button>
+                                            <button type="button" class="action-btn action-btn-neutral"
+                                                id="cancelMenuModalBtn" style="margin-left: auto;">Cancel</button>
+                                        </div>
 
-                        <div class="form-image-uploader">
-                            <input type="file" id="menuImageInput" accept="image/*" style="display: none;">
-                            <div id="imagePreviewBox">
-                                <i id="previewIcon" class="fas fa-image"></i>
-                                <p id="previewText">No Image Uploaded</p>
-                            </div>
-                            <button type="button" id="importBtn" class="import-btn">Import</button>
+                                    </div>
+
+                                    <div class="form-image-uploader">
+                                        <input type="file" id="menuImageInput" accept="image/*" style="display: none;">
+                                        <div id="imagePreviewBox">
+                                            <i id="previewIcon" class="fas fa-image"></i>
+                                            <p id="previewText">No Image Uploaded</p>
+                                        </div>
+                                        <button type="button" id="importBtn" class="import-btn">Import</button>
+                                    </div>
+                                </div>
+                            </section>
                         </div>
                     </div>
-                </section>
+                </div>
             </div>
 
             <div id="inventory-view" class="admin-panel hidden">
@@ -472,6 +488,9 @@
                                 <option value="Available">Available</option>
                                 <option value="Sold Out">Sold Out</option>
                             </select>
+                            <button type="button" class="btn-pill btn-pill-primary" id="openAddInvModalBtn" style="margin-left: auto; display: inline-flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-plus"></i> Add Supply Item
+                            </button>
                         </div>
                         <div class="table-scroll">
                             <table class="design-table">
@@ -494,78 +513,90 @@
                         </div>
                     </section>
 
-                    <section class="inventory-form-card card">
-                        <div class="inventory-form-grid">
-                            <div class="form-row-group form-row-wide">
-                                <div class="inline-input">
-                                    <label>Linked Menu Items:</label>
-                                    <div class="inv-linked-tags" id="invLinkedTags" aria-label="Linked menu items"></div>
-                                    <input type="hidden" id="invLinkedProducts" value="">
-                                    <button type="button" class="inv-product-link-trigger" id="invLinkProductButton"
-                                        aria-haspopup="dialog" aria-expanded="false" aria-controls="invProductPickerDialog">
-                                        <i class="fas fa-plus-circle"></i> Add Linked Menu Item
-                                    </button>
-                                </div>
+                    <!-- Inventory Supply Item Pop-up Modal -->
+                    <div class="admin-modal-overlay" id="inventoryModalOverlay" role="dialog" aria-modal="true" aria-labelledby="invModalTitle">
+                        <div class="admin-modal-dialog admin-modal-lg">
+                            <div class="admin-modal-head">
+                                <h3 id="invModalTitle"><i class="fas fa-boxes-stacked"></i> Add Supply Item</h3>
+                                <button type="button" class="admin-modal-close" id="closeInvModalBtn" aria-label="Close modal">&times;</button>
                             </div>
-                            <div class="form-row-group">
-                                <div class="inline-input">
-                                    <label>Product Name:</label>
-                                    <input type="text" id="invProdName">
-                                </div>
-                                <div class="inline-input">
-                                    <label>Category:</label>
-                                    <div class="category-dropdown category-dropdown-editable" id="invCategoryDropdown">
-                                        <div class="category-input-wrap">
-                                            <input type="text" id="invCategory"
-                                                placeholder="Select or enter inventory category" autocomplete="off"
-                                                aria-haspopup="listbox" aria-expanded="false">
-                                            <button type="button" class="category-dropdown-arrow"
-                                                aria-label="Show category options">
-                                                <i class="fas fa-chevron-down" aria-hidden="true"></i>
-                                            </button>
+                            <div class="admin-modal-body">
+                                <section class="inventory-form-card card">
+                                    <div class="inventory-form-grid">
+                                        <div class="form-row-group form-row-wide">
+                                            <div class="inline-input">
+                                                <label>Linked Menu Items:</label>
+                                                <div class="inv-linked-tags" id="invLinkedTags" aria-label="Linked menu items"></div>
+                                                <input type="hidden" id="invLinkedProducts" value="">
+                                                <button type="button" class="inv-product-link-trigger" id="invLinkProductButton"
+                                                    aria-haspopup="dialog" aria-expanded="false" aria-controls="invProductPickerDialog">
+                                                    <i class="fas fa-plus-circle"></i> Add Linked Menu Item
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div class="category-dropdown-menu" role="listbox"></div>
+                                        <div class="form-row-group">
+                                            <div class="inline-input">
+                                                <label>Product Name:</label>
+                                                <input type="text" id="invProdName">
+                                            </div>
+                                            <div class="inline-input">
+                                                <label>Category:</label>
+                                                <div class="category-dropdown category-dropdown-editable" id="invCategoryDropdown">
+                                                    <div class="category-input-wrap">
+                                                        <input type="text" id="invCategory"
+                                                            placeholder="Select or enter inventory category" autocomplete="off"
+                                                            aria-haspopup="listbox" aria-expanded="false">
+                                                        <button type="button" class="category-dropdown-arrow"
+                                                            aria-label="Show category options">
+                                                            <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                                                        </button>
+                                                    </div>
+                                                    <div class="category-dropdown-menu" role="listbox"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="form-row-group">
+                                            <div class="inline-input">
+                                                <label>Price:</label>
+                                                <input type="number" step="0.01" id="invPrice">
+                                            </div>
+                                            <div class="inline-input">
+                                                <label>Stock:</label>
+                                                <input type="number" id="invStock">
+                                            </div>
+                                        </div>
+                                        <div class="form-row-group">
+                                            <div class="inline-input">
+                                                <label>Low Stock Threshold:</label>
+                                                <input type="number" id="invThreshold" min="0" step="1" placeholder="10">
+                                            </div>
+                                            <div class="inline-input">
+                                                <label>Units per Sale:</label>
+                                                <input type="number" id="invUnitsPerSale" min="0" step="0.5" placeholder="1">
+                                            </div>
+                                        </div>
+                                        <p class="inventory-hint"><i class="fas fa-circle-info"></i> "Units per Sale" is deducted from this supply every time the linked menu product is sold or wasted. 1 = one unit per sale, 2 = two units, 0 = tracked but never consumed. Restocks are always separate.</p>
+                                        <div class="form-row-group form-row-wide">
+                                            <div class="inline-input">
+                                                <label>Status:</label>
+                                                <select id="invStatus">
+                                                    <option value="Available">Available</option>
+                                                    <option value="Sold Out">Sold Out</option>
+                                                </select>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
-                            <div class="form-row-group">
-                                <div class="inline-input">
-                                    <label>Price:</label>
-                                    <input type="number" step="0.01" id="invPrice">
-                                </div>
-                                <div class="inline-input">
-                                    <label>Stock:</label>
-                                    <input type="number" id="invStock">
-                                </div>
-                            </div>
-                            <div class="form-row-group">
-                                <div class="inline-input">
-                                    <label>Low Stock Threshold:</label>
-                                    <input type="number" id="invThreshold" min="0" step="1" placeholder="10">
-                                </div>
-                                <div class="inline-input">
-                                    <label>Units per Sale:</label>
-                                    <input type="number" id="invUnitsPerSale" min="0" step="0.5" placeholder="1">
-                                </div>
-                            </div>
-                            <p class="inventory-hint"><i class="fas fa-circle-info"></i> "Units per Sale" is deducted from this supply every time the linked menu product is sold or wasted. 1 = one unit per sale, 2 = two units, 0 = tracked but never consumed. Restocks are always separate.</p>
-                            <div class="form-row-group form-row-wide">
-                                <div class="inline-input">
-                                    <label>Status:</label>
-                                    <select id="invStatus">
-                                        <option value="Available">Available</option>
-                                        <option value="Sold Out">Sold Out</option>
-                                    </select>
-                                </div>
+                                    <div class="inventory-actions">
+                                        <button type="button" class="btn-pill" id="addInvBtn">Add</button>
+                                        <button type="button" class="btn-pill" id="updateInvBtn">Update</button>
+                                        <button type="button" class="btn-pill" id="removeInvBtn">Remove</button>
+                                        <button type="button" class="btn-pill" id="clearInvBtn">Clear</button>
+                                        <button type="button" class="btn-pill btn-pill-neutral" id="cancelInvModalBtn" style="margin-left: auto;">Cancel</button>
+                                    </div>
+                                </section>
                             </div>
                         </div>
-                        <div class="inventory-actions">
-                            <button type="button" class="btn-pill" id="addInvBtn">Add</button>
-                            <button type="button" class="btn-pill" id="updateInvBtn">Update</button>
-                            <button type="button" class="btn-pill" id="removeInvBtn">Remove</button>
-                            <button type="button" class="btn-pill" id="clearInvBtn">Clear</button>
-                        </div>
-                    </section>
+                    </div>
                     <dialog class="inv-product-picker-dialog" id="invProductPickerDialog" aria-labelledby="invProductPickerTitle">
                         <div class="inv-product-picker-header">
                             <h2 id="invProductPickerTitle">Link Menu Items</h2>

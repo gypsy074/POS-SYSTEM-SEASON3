@@ -5,6 +5,22 @@
 
 // ── Setup ──────────────────────────────────────────────────────────────────
 
+function openMenuModal(title) {
+    const overlay = document.getElementById("menuModalOverlay");
+    if (!overlay) return;
+    if (title) {
+        const titleEl = document.getElementById("menuModalTitle");
+        if (titleEl) titleEl.innerHTML = title;
+    }
+    overlay.classList.add("open");
+}
+
+function closeMenuModal() {
+    const overlay = document.getElementById("menuModalOverlay");
+    if (overlay) overlay.classList.remove("open");
+    document.querySelectorAll(".menu-row-selected").forEach(row => row.classList.remove("menu-row-selected"));
+}
+
 function setupMenuTableSelection() {
     const menuTableBody = document.getElementById("menuItemsTableBody");
     if (!menuTableBody) return;
@@ -14,7 +30,10 @@ function setupMenuTableSelection() {
         if (!row) return;
 
         const product = allProducts.find(item => item._id === row.dataset.productId);
-        if (product) selectMenuRow(product);
+        if (product) {
+            selectMenuRow(product);
+            openMenuModal(`<i class="fas fa-edit"></i> Edit Menu Item: <em>${escapeHtml(product.name)}</em>`);
+        }
     });
 }
 
@@ -55,6 +74,34 @@ function setupMenuActionButtons() {
         input.addEventListener("keydown", event => {
             if (event.key === "Enter") addMenuItem();
         });
+    });
+
+    const openAddBtn = document.getElementById("openAddMenuModalBtn");
+    if (openAddBtn) {
+        openAddBtn.addEventListener("click", () => {
+            clearMenuForm();
+            openMenuModal('<i class="fas fa-utensils"></i> Add Menu Item');
+        });
+    }
+
+    const closeBtn = document.getElementById("closeMenuModalBtn");
+    if (closeBtn) closeBtn.addEventListener("click", closeMenuModal);
+
+    const cancelBtn = document.getElementById("cancelMenuModalBtn");
+    if (cancelBtn) cancelBtn.addEventListener("click", closeMenuModal);
+
+    const overlay = document.getElementById("menuModalOverlay");
+    if (overlay) {
+        overlay.addEventListener("click", event => {
+            if (event.target === overlay) closeMenuModal();
+        });
+    }
+
+    document.addEventListener("keydown", event => {
+        if (event.key === "Escape") {
+            const menuOverlay = document.getElementById("menuModalOverlay");
+            if (menuOverlay && menuOverlay.classList.contains("open")) closeMenuModal();
+        }
     });
 
     updateMenuButtonStates(false);
@@ -201,6 +248,9 @@ function clearMenuForm() {
 
     renderImagePreview("");
     updateMenuButtonStates(false); // ← re-enable Add
+
+    const titleEl = document.getElementById("menuModalTitle");
+    if (titleEl) titleEl.innerHTML = '<i class="fas fa-utensils"></i> Add Menu Item';
 
     document.querySelectorAll(".menu-row-selected").forEach(row => row.classList.remove("menu-row-selected"));
 }
@@ -445,6 +495,7 @@ async function addMenuItem() {
         if (response.ok) {
             showToast("New menu item uploaded to MongoDB!");
             clearMenuForm();
+            closeMenuModal();
             loadLiveMenuData();
             return;
         }
@@ -478,6 +529,7 @@ async function updateMenuItem() {
         if (response.ok) {
           showToast("Menu item configuration updated on MongoDB!");
           clearMenuForm();
+          closeMenuModal();
           await loadLiveMenuData();
           // Automatically reload the inventory table so stock reflects immediately
           if (typeof loadLiveInventoryData === "function") {
@@ -520,6 +572,7 @@ async function deleteMenuItem() {
         if (response.ok) {
             showToast("Menu item completely deleted from the system.");
             clearMenuForm();         // ← clears form AND re-enables Add
+            closeMenuModal();
             loadLiveMenuData();
             return;
         }

@@ -4757,3 +4757,201 @@ body.dark .low-stock-cell .inv-stock-pct {
     color: #fbbf24;
     border-color: #78350f;
 }
+
+/* ── Admin Form Modal Overlays (Menu & Inventory) ────────────────────────── */
+.admin-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 12, 20, 0.65);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    z-index: 1500;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    opacity: 0;
+    transition: opacity 0.22s ease;
+}
+
+.admin-modal-overlay.open {
+    display: flex;
+    opacity: 1;
+}
+
+.admin-modal-dialog {
+    background: #ffffff;
+    border-radius: 24px;
+    width: 100%;
+    max-width: 620px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
+    border: 1px solid #d8c4a8;
+    overflow: hidden;
+    transform: translateY(20px) scale(0.97);
+    transition: transform 0.25s cubic-bezier(0.21, 1.02, 0.73, 1);
+}
+
+.admin-modal-overlay.open .admin-modal-dialog {
+    transform: translateY(0) scale(1);
+}
+
+.admin-modal-dialog.admin-modal-lg {
+    max-width: 880px;
+}
+
+.admin-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 26px;
+    border-bottom: 1px solid #ebdccc;
+    background: #fcf7f1;
+}
+
+.admin-modal-head h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #3b2816;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.admin-modal-head h3 i {
+    color: #a67c52;
+}
+
+.admin-modal-close {
+    background: transparent;
+    border: none;
+    font-size: 1.8rem;
+    line-height: 1;
+    color: #8c7662;
+    cursor: pointer;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+
+.admin-modal-close:hover {
+    background: #f0e2d3;
+    color: #2b1d11;
+    transform: scale(1.08);
+}
+
+.admin-modal-close:active {
+    transform: scale(0.92);
+}
+
+.admin-modal-body {
+    padding: 24px 28px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* Remove outer card borders/paddings when inside the modal dialog */
+.admin-modal-body .menu-form-section,
+.admin-modal-body .inventory-form-card {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+}
+
+.admin-modal-body .menu-form-grid {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+}
+
+/* Button variants for toolbar and modal */
+.btn-pill-primary {
+    background: #a67c52;
+    border-color: #8a623a;
+    color: #ffffff;
+}
+
+.btn-pill-primary:hover {
+    background: #8a623a;
+    color: #ffffff;
+}
+
+.btn-pill-neutral {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #475569;
+}
+
+.btn-pill-neutral:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+
+.design-table tbody tr {
+    cursor: pointer;
+}
+
+.design-table tbody tr:hover td {
+    background-color: #fbf5ee;
+}
+
+/* Dark mode adjustments for admin modals */
+body.dark .admin-modal-dialog {
+    background: #271f16;
+    border-color: #4a3a2c;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65);
+}
+
+body.dark .admin-modal-head {
+    background: #201912;
+    border-bottom-color: #3d3023;
+}
+
+body.dark .admin-modal-head h3 {
+    color: #e8dccb;
+}
+
+body.dark .admin-modal-head h3 i {
+    color: #d8a26e;
+}
+
+body.dark .admin-modal-close {
+    color: #a8947f;
+}
+
+body.dark .admin-modal-close:hover {
+    background: #3a2e22;
+    color: #f5ebe0;
+}
+
+body.dark .btn-pill-primary {
+    background: #8a623a;
+    border-color: #a67c52;
+    color: #f5ebe0;
+}
+
+body.dark .btn-pill-neutral {
+    background: #3a2e22;
+    border-color: #4a3a2c;
+    color: #d8c4a8;
+}
+
+body.dark .btn-pill-neutral:hover {
+    background: #46372a;
+    color: #ffffff;
+}
+
+body.dark .design-table tbody tr:hover td {
+    background-color: #382c1f;
+}
+

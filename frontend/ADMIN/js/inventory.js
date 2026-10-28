@@ -13,16 +13,36 @@ let inventoryFilterStatus = "";
 
 // ── Setup ──────────────────────────────────────────────────────────────────
 
+function openInventoryModal(title) {
+    const overlay = document.getElementById("inventoryModalOverlay");
+    if (!overlay) return;
+    if (title) {
+        const titleEl = document.getElementById("invModalTitle");
+        if (titleEl) titleEl.innerHTML = title;
+    }
+    overlay.classList.add("open");
+}
+
+function closeInventoryModal() {
+    const overlay = document.getElementById("inventoryModalOverlay");
+    if (overlay) overlay.classList.remove("open");
+    document.querySelectorAll(".inv-row-selected").forEach(row => row.classList.remove("inv-row-selected"));
+}
+
 function setupInventoryTableSelection() {
     const inventoryTableBody = document.getElementById("inventoryTableBody");
     if (!inventoryTableBody) return;
 
     inventoryTableBody.addEventListener("click", event => {
+        if (event.target.closest(".restock-btn")) return;
         const row = event.target.closest("tr[data-inventory-id]");
         if (!row) return;
 
         const inventory = allInventory.find(item => item._id === row.dataset.inventoryId);
-        if (inventory) selectInventoryRow(inventory);
+        if (inventory) {
+            selectInventoryRow(inventory);
+            openInventoryModal(`<i class="fas fa-edit"></i> Edit Supply Item: <em>${escapeHtml(inventory.productName)}</em>`);
+        }
     });
 }
 
@@ -36,6 +56,34 @@ function setupInventoryActionButtons() {
     if (updateInvBtn) updateInvBtn.addEventListener("click", updateInventoryItem);
     if (removeInvBtn) removeInvBtn.addEventListener("click", deleteInventoryItem);
     if (clearInvBtn)  clearInvBtn.addEventListener("click", clearInventoryForm);
+
+    const openAddBtn = document.getElementById("openAddInvModalBtn");
+    if (openAddBtn) {
+        openAddBtn.addEventListener("click", () => {
+            clearInventoryForm();
+            openInventoryModal('<i class="fas fa-boxes-stacked"></i> Add Supply Item');
+        });
+    }
+
+    const closeBtn = document.getElementById("closeInvModalBtn");
+    if (closeBtn) closeBtn.addEventListener("click", closeInventoryModal);
+
+    const cancelBtn = document.getElementById("cancelInvModalBtn");
+    if (cancelBtn) cancelBtn.addEventListener("click", closeInventoryModal);
+
+    const overlay = document.getElementById("inventoryModalOverlay");
+    if (overlay) {
+        overlay.addEventListener("click", event => {
+            if (event.target === overlay) closeInventoryModal();
+        });
+    }
+
+    document.addEventListener("keydown", event => {
+        if (event.key === "Escape") {
+            const invOverlay = document.getElementById("inventoryModalOverlay");
+            if (invOverlay && invOverlay.classList.contains("open")) closeInventoryModal();
+        }
+    });
 
     updateInventoryButtonStates(false);
 }
@@ -371,6 +419,9 @@ function clearInventoryForm() {
 
     updateInventoryButtonStates(false);
 
+    const titleEl = document.getElementById("invModalTitle");
+    if (titleEl) titleEl.innerHTML = '<i class="fas fa-boxes-stacked"></i> Add Supply Item';
+
     document.querySelectorAll(".inv-row-selected").forEach(row => row.classList.remove("inv-row-selected"));
 }
 
@@ -431,6 +482,7 @@ async function addInventoryItem() {
         if (response.ok) {
             showToast("Inventory item added successfully!");
             clearInventoryForm();
+            closeInventoryModal();
             loadLiveInventoryData();
             if (typeof loadLiveMenuData === "function") loadLiveMenuData();
             return;
@@ -463,6 +515,7 @@ async function updateInventoryItem() {
         if (response.ok) {
             showToast("Inventory item updated successfully!");
             clearInventoryForm();
+            closeInventoryModal();
             loadLiveInventoryData();
             if (typeof loadLiveMenuData === "function") loadLiveMenuData();
             return;
@@ -501,6 +554,7 @@ async function deleteInventoryItem() {
         if (response.ok) {
             showToast("Inventory item deleted successfully.");
             clearInventoryForm();
+            closeInventoryModal();
             loadLiveInventoryData();
             if (typeof loadLiveMenuData === "function") loadLiveMenuData();
             return;
