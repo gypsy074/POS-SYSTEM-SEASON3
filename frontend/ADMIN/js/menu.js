@@ -124,14 +124,20 @@ function selectMenuRow(product) {
     const categorySelect   = document.getElementById("categorySelect");
     const statusSelect     = document.getElementById("statusSelect");
     const stockInput       = document.getElementById("stockInput");
+    const minStockInput    = document.getElementById("minStockInput");
+    const maxStockInput    = document.getElementById("maxStockInput");
     const lowStockInput    = document.getElementById("lowStockInput");
+    const prepSelect       = document.getElementById("preparationStationSelect");
 
     if (productNameInput) productNameInput.value = product.name || "";
     if (priceInput)       priceInput.value       = product.price ?? "";
     if (categorySelect)   categorySelect.value   = product.category || "Coffee";
     if (statusSelect)     statusSelect.value     = product.status   || "Available";
     if (stockInput)       stockInput.value       = product.stock ?? "";
+    if (minStockInput)    minStockInput.value    = product.minStock ?? "";
+    if (maxStockInput)    maxStockInput.value    = product.maxStock ?? "";
     if (lowStockInput)    lowStockInput.value    = product.lowStockThreshold ?? "";
+    if (prepSelect)       prepSelect.value       = product.preparationStation || "Kitchen";
 
     renderImagePreview(selectedImageData);
     updateMenuButtonStates(true); // ← grey out Add, enable Update/Remove
@@ -176,7 +182,10 @@ function clearMenuForm() {
     const categorySelect   = document.getElementById("categorySelect");
     const statusSelect     = document.getElementById("statusSelect");
     const stockInput       = document.getElementById("stockInput");
+    const minStockInput    = document.getElementById("minStockInput");
+    const maxStockInput    = document.getElementById("maxStockInput");
     const lowStockInput    = document.getElementById("lowStockInput");
+    const prepSelect       = document.getElementById("preparationStationSelect");
     const fileInput        = document.getElementById("menuImageInput");
 
     if (productNameInput) productNameInput.value = "";
@@ -184,7 +193,10 @@ function clearMenuForm() {
     if (categorySelect)   categorySelect.value   = "Coffee";
     if (statusSelect)     statusSelect.value     = "Available";
     if (stockInput)       stockInput.value       = "";
-    if (lowStockInput)    lowStockInput.value    = "";
+    if (minStockInput)    minStockInput.value    = "10";
+    if (maxStockInput)    maxStockInput.value    = "50";
+    if (lowStockInput)    lowStockInput.value    = "10";
+    if (prepSelect)       prepSelect.value       = "Kitchen";
     if (fileInput)        fileInput.value        = "";
 
     renderImagePreview("");
@@ -201,14 +213,20 @@ function getMenuPayload() {
     const categorySelect = document.getElementById("categorySelect");
     const statusSelect   = document.getElementById("statusSelect");
     const stockInput     = document.getElementById("stockInput");
+    const minStockInput  = document.getElementById("minStockInput");
+    const maxStockInput  = document.getElementById("maxStockInput");
     const lowStockInput  = document.getElementById("lowStockInput");
+    const prepSelect     = document.getElementById("preparationStationSelect");
 
     const name     = nameInput      ? nameInput.value.trim()  : "";
     const price    = priceInput     ? Number(priceInput.value) : NaN;
     const category = categorySelect ? categorySelect.value     : "";
     const status   = statusSelect   ? statusSelect.value       : "Available";
     const stock    = stockInput     ? Number(stockInput.value) : NaN;
+    const minStock = minStockInput ? Number(minStockInput.value) : NaN;
+    const maxStock = maxStockInput ? Number(maxStockInput.value) : NaN;
     const lowStockThreshold = lowStockInput ? Number(lowStockInput.value) : NaN;
+    const preparationStation = prepSelect ? prepSelect.value : "Kitchen";
 
     if (!name || !Number.isFinite(price) || price < 0) {
         showToast("Please complete the product name and a valid price before saving.", "warning");
@@ -216,6 +234,8 @@ function getMenuPayload() {
     }
 
     const stockNum = Number.isFinite(stock) ? Math.max(0, stock) : 999;
+    const safeMinStock = Number.isFinite(minStock) ? Math.max(0, minStock) : 10;
+    const safeMaxStock = Number.isFinite(maxStock) ? Math.max(safeMinStock, maxStock) : Math.max(safeMinStock, 50);
 
     return {
         name,
@@ -224,7 +244,10 @@ function getMenuPayload() {
         // Running out always marks the item sold out (mirrors the server).
         status: stockNum <= 0 ? "Out of Stock" : status,
         stock: stockNum,
+        minStock: safeMinStock,
+        maxStock: safeMaxStock,
         lowStockThreshold: Number.isFinite(lowStockThreshold) ? Math.max(0, lowStockThreshold) : 10,
+        preparationStation,
         image: selectedImageData ||
             (selectedProductId
                 ? (allProducts.find(p => p._id === selectedProductId)?.image || "")

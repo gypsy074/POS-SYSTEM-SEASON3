@@ -156,7 +156,8 @@ mongoose.connect(mongoUri, {
 const orderItemSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true },
     quantity: { type: Number, required: true, min: 1, default: 1 },
-    price: { type: Number, required: true, min: 0, default: 0 }
+    price: { type: Number, required: true, min: 0, default: 0 },
+    preparationStation: { type: String, enum: ['Kitchen', 'Barista', 'Counter'], default: 'Kitchen' }
 }, { _id: false });
 
 const orderSchema = new mongoose.Schema({
@@ -202,7 +203,10 @@ const productSchema = new mongoose.Schema({
     status: { type: String, default: "Available" },
     image: { type: String, default: "" },
     stock: { type: Number, default: 999, min: 0 },
+    minStock: { type: Number, default: 10, min: 0 },
+    maxStock: { type: Number, default: 50, min: 0 },
     lowStockThreshold: { type: Number, default: 10, min: 0 },
+    preparationStation: { type: String, enum: ['Kitchen', 'Barista', 'Counter'], default: 'Kitchen' },
     date: { type: String, default: () => new Date().toLocaleDateString() }
 });
 productSchema.index({ stock: 1 });
@@ -241,8 +245,11 @@ const inventorySchema = new mongoose.Schema({
     category: { type: String, required: true, trim: true },
     price: { type: Number, required: true, min: 0 },
     stock: { type: Number, required: true, min: 0 },
+    minStock: { type: Number, default: 10, min: 0 },
+    maxStock: { type: Number, default: 50, min: 0 },
     status: { type: String, default: 'Available' },
-   menuProductIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }],
+    preparationStation: { type: String, enum: ['Kitchen', 'Barista', 'Counter'], default: 'Kitchen' },
+    menuProductIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }],
     lowStockThreshold: { type: Number, default: 10, min: 0 },
     unitsPerSale: { type: Number, default: 1, min: 0 },
     date: { type: String, default: () => new Date().toLocaleDateString() }
@@ -343,6 +350,32 @@ function normalizeWastePayload(input) {
     };
 }
 
+function normalizeInventoryScore(stock, minStock, maxStock) {
+    const safeMin = Math.max(0, Number(minStock) || 0);
+    const safeMax = Math.max(safeMin, Number(maxStock) || safeMin);
+    const safeStock = Math.max(0, Number(stock) || 0);
+    if (safeMax <= safeMin) return 0;
+    return Math.min(1, Math.max(0, (safeStock - safeMin) / (safeMax - safeMin)));
+}
+
+function isDrinkCategoryName(raw) {
+    const value = String(raw || "").trim().toLowerCase();
+    return ["drink", "beverage", "juice", "coffee", "tea", "cold", "milk", "frappe"].some(token => value.includes(token));
+}
+
+function isFoodCategoryName(raw) {
+    const value = String(raw || "").trim().toLowerCase();
+    return ["food", "meal", "rice", "pasta", "snack", "burger", "sandwich", "side"].some(token => value.includes(token));
+}
+
+function inferPreparationStation(raw, fallbackCategory = "") {
+    const value = String(raw || "").trim();
+    if (value === 'Kitchen' || value === 'Barista' || value === 'Counter') return value;
+    const category = String(fallbackCategory || "").trim().toLowerCase();
+    if (isDrinkCategoryName(category) || category.includes('coffee') || category.includes('frappe')) return 'Barista';
+    return 'Kitchen';
+}
+
 // Inventory items may be linked to a menu product — the linked product's
 // data (name, category, price, stock, threshold) is inherited on save
 // unless the form explicitly overrides a field. `existing` backs up any
@@ -363,12 +396,17 @@ function inventoryFromPayload(input, product, existing) {
         if (Number.isFinite(Number(src[field]))) return Math.max(0, Number(src[field]));
         return undefined;
     };
+    const minStock = Number.isFinite(Number(input.minStock)) ? Math.max(0, Number(input.minStock)) : (Number.isFinite(Number(src.minStock)) ? Math.max(0, Number(src.minStock)) : 10);
+    const maxStock = Number.isFinite(Number(input.maxStock)) ? Math.max(minStock, Number(input.maxStock)) : (Number.isFinite(Number(src.maxStock)) ? Math.max(minStock, Number(src.maxStock)) : Math.max(minStock, 50));
     return {
         productName: String(input.productName || src.productName || src.name || "").trim() || "Unknown Item",
         category: String(input.category || src.category || "").trim() || "Uncategorized",
         price: pickNum("price"),
         stock: pickNum("stock"),
+        minStock,
+        maxStock,
         status: input.status || src.status || 'Available',
+        preparationStation: inferPreparationStation(input.preparationStation || src.preparationStation || src.prepStation || "", String(input.category || src.category || "").trim()),
         lowStockThreshold: pickNum("lowStockThreshold"),
         unitsPerSale: Number.isFinite(Number(input.unitsPerSale))
             ? Math.max(0, Number(input.unitsPerSale))
@@ -427,7 +465,8 @@ async function normalizeOrderPayload(input) {
         ? input.items.map(item => ({
             name: String(item.name || "Item").trim(),
             quantity: Math.max(1, Number(item.quantity) || 1),
-            price: Math.max(0, Number(item.price) || 0)
+            price: Math.max(0, Number(item.price) || 0),
+            preparationStation: inferPreparationStation(item.preparationStation || item.station, item.category || item.productCategory || "")
         }))
         : [];
 
@@ -441,18 +480,31 @@ async function normalizeOrderPayload(input) {
     const itemCategories = new Map();
     for (const item of items) {
         const product = productMap.get(item.name);
-        const category = String(product && product.category ? product.category : "").trim().toLowerCase();
+        const category = String(product && product.category ? product.category : "").trim();
         itemCategories.set(item.name, category);
+        const productStation = String(product && product.preparationStation ? product.preparationStation : "").trim();
+        if (productStation) {
+            item.preparationStation = inferPreparationStation(productStation, category);
+        } else {
+            item.preparationStation = inferPreparationStation(item.preparationStation, category);
+        }
     }
 
     const computedSubtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const detectedDrinkSubtotal = items.reduce((sum, item) => {
+    const eligibleDrinks = items.filter(item => {
         const category = itemCategories.get(item.name) || "";
-        const isDrink = category.includes("drink") || category.includes("beverage") || category.includes("juice") || category.includes("coffee") || category.includes("tea") || category.includes("cold") || category.includes("milk");
-        return sum + (isDrink ? item.price * item.quantity : 0);
-    }, 0);
+        return isDrinkCategoryName(category) || isDrinkCategoryName(item.name) || item.preparationStation === 'Barista';
+    });
+    const eligibleFoods = items.filter(item => {
+        const category = itemCategories.get(item.name) || "";
+        return isFoodCategoryName(category) || isFoodCategoryName(item.name) || item.preparationStation === 'Kitchen';
+    });
+    const topDrink = eligibleDrinks.sort((a, b) => (b.price * b.quantity) - (a.price * a.quantity))[0];
+    const topFood = eligibleFoods.sort((a, b) => (b.price * b.quantity) - (a.price * a.quantity))[0];
+    const discountableSubtotal = topDrink
+        ? (topDrink.price * topDrink.quantity) + (topFood ? topFood.price * topFood.quantity : 0)
+        : 0;
     const rawDiscountType = String(input.discountType || "").trim();
-    const discountableSubtotal = detectedDrinkSubtotal;
     if (rawDiscountType && rawDiscountType !== "Senior") {
         throw new Error('Unknown discount type. Supported: "Senior".');
     }
@@ -466,10 +518,6 @@ async function normalizeOrderPayload(input) {
         : computedSubtotal;
 
     if (discountType === "Senior") {
-        discountRate = 0.2;
-        subtotal = computedSubtotal;
-        discountAmount = round2(discountableSubtotal * discountRate);
-        total = round2(subtotal - discountAmount);
         const discountId = String(input.discountId || "").trim();
         const discountName = String(input.discountName || "").trim();
         if (!discountId || !discountName) {
@@ -480,6 +528,18 @@ async function normalizeOrderPayload(input) {
         }
         payloadExtra.discountId = discountId;
         payloadExtra.discountName = discountName;
+
+        if (!topDrink) {
+            discountRate = 0;
+            discountAmount = 0;
+            subtotal = computedSubtotal;
+            total = subtotal;
+        } else {
+            discountRate = 0.2;
+            subtotal = computedSubtotal;
+            discountAmount = round2(discountableSubtotal * discountRate);
+            total = round2(subtotal - discountAmount);
+        }
     }
 
     const paymentMethod = normalizePaymentMethod(input.paymentMethod);
@@ -1197,12 +1257,14 @@ app.delete('/api/categories/:name', authRequired(['Admin', 'Manager']), async (r
 
 app.post('/api/products', authRequired(['Admin', 'Manager']), async (req, res) => {
     try {
-        const { name, category, price, status, image, stock, lowStockThreshold } = req.body || {};
+        const { name, category, price, status, image, stock, minStock, maxStock, lowStockThreshold, preparationStation } = req.body || {};
         if (!name || !category || !Number.isFinite(Number(price))) {
             return res.status(400).json({ error: 'Product name, category, and a valid price are required.' });
         }
         const hasStatus = typeof status === "string" && String(status).trim().length > 0;
         const stockNum = Number.isFinite(Number(stock)) ? Math.max(0, Number(stock)) : 999;
+        const nextMinStock = Number.isFinite(Number(minStock)) ? Math.max(0, Number(minStock)) : 10;
+        const nextMaxStock = Number.isFinite(Number(maxStock)) ? Math.max(nextMinStock, Number(maxStock)) : 50;
         const newProduct = new Product({
             name: String(name).trim(),
             category: String(category).trim(),
@@ -1210,7 +1272,10 @@ app.post('/api/products', authRequired(['Admin', 'Manager']), async (req, res) =
             status: hasStatus ? status : (stockNum > 0 ? 'Available' : 'Out of Stock'),
             image: image || '',
             stock: stockNum,
-            lowStockThreshold: Number.isFinite(Number(lowStockThreshold)) ? Math.max(0, Number(lowStockThreshold)) : 10
+            minStock: nextMinStock,
+            maxStock: nextMaxStock,
+            lowStockThreshold: Number.isFinite(Number(lowStockThreshold)) ? Math.max(0, Number(lowStockThreshold)) : 10,
+            preparationStation: inferPreparationStation(preparationStation, category)
         });
         const savedProduct = await newProduct.save();
         writeLog('product.create', req.user.username, String(savedProduct._id),
@@ -1235,11 +1300,26 @@ app.put('/api/products/:id', authRequired(['Admin', 'Manager']), async (req, res
             }
             update.stock = Math.max(0, Number(update.stock));
         }
+        if (update.minStock !== undefined) {
+            if (!Number.isFinite(Number(update.minStock))) {
+                return res.status(400).json({ error: 'Minimum stock must be a valid number.' });
+            }
+            update.minStock = Math.max(0, Number(update.minStock));
+        }
+        if (update.maxStock !== undefined) {
+            if (!Number.isFinite(Number(update.maxStock))) {
+                return res.status(400).json({ error: 'Maximum stock must be a valid number.' });
+            }
+            update.maxStock = Math.max(Number(update.minStock ?? 0), Number(update.maxStock));
+        }
         if (update.lowStockThreshold !== undefined) {
             if (!Number.isFinite(Number(update.lowStockThreshold))) {
                 return res.status(400).json({ error: 'Low stock threshold must be a valid number.' });
             }
             update.lowStockThreshold = Math.max(0, Number(update.lowStockThreshold));
+        }
+        if (update.preparationStation !== undefined) {
+            update.preparationStation = inferPreparationStation(update.preparationStation, update.category || (await Product.findOne(idMatchFilter(req.params.id))?.category) || '');
         }
 
         const existing = await Product.findOne(idMatchFilter(req.params.id));

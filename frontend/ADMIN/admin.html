@@ -375,9 +375,24 @@
                                 <label>Stock:</label>
                                 <input type="number" id="stockInput" min="0" step="1" placeholder="999">
                             </div>
+                            <div class="input-group">
+                                <label>Min Stock:</label>
+                                <input type="number" id="minStockInput" min="0" step="1" placeholder="10">
+                            </div>
+                            <div class="input-group">
+                                <label>Max Stock:</label>
+                                <input type="number" id="maxStockInput" min="0" step="1" placeholder="50">
+                            </div>
                             <div class="input-group" style="grid-column: span 2;">
                                 <label>Low Stock Threshold:</label>
                                 <input type="number" id="lowStockInput" min="0" step="1" placeholder="10">
+                            </div>
+                            <div class="input-group" style="grid-column: span 2;">
+                                <label>Preparation Station:</label>
+                                <select id="preparationStationSelect">
+                                    <option value="Kitchen">Kitchen</option>
+                                    <option value="Barista">Barista</option>
+                                </select>
                             </div>
                             <div class="input-group" style="grid-column: span 2;">
                                 <label>Category:</label>

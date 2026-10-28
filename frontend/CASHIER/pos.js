@@ -28,7 +28,20 @@ const SENIOR_DISCOUNT_RATE = 0.2;
 
 function isDrinkItem(item) {
     const category = String(item && (item.category || item.productCategory || "")).trim().toLowerCase();
-    return category.includes("drink") || category.includes("beverage") || category.includes("juice") || category.includes("coffee") || category.includes("tea") || category.includes("cold") || category.includes("milk");
+    return category.includes("drink") || category.includes("beverage") || category.includes("juice") || category.includes("coffee") || category.includes("tea") || category.includes("cold") || category.includes("milk") || category.includes("frappe");
+}
+
+function isFoodItem(item) {
+    const category = String(item && (item.category || item.productCategory || "")).trim().toLowerCase();
+    return category.includes("food") || category.includes("meal") || category.includes("rice") || category.includes("pasta") || category.includes("snack") || category.includes("burger") || category.includes("sandwich");
+}
+
+function normalizeInventoryScore(stock, minStock, maxStock) {
+    const safeMin = Math.max(0, Number(minStock) || 0);
+    const safeMax = Math.max(safeMin, Number(maxStock) || safeMin);
+    const safeStock = Math.max(0, Number(stock) || 0);
+    if (safeMax <= safeMin) return 0;
+    return Math.min(1, Math.max(0, (safeStock - safeMin) / (safeMax - safeMin)));
 }
 
 function cartSubtotal() {
@@ -36,7 +49,14 @@ function cartSubtotal() {
 }
 
 function cartDiscountableSubtotal() {
-    return cart.reduce((sum, item) => sum + (isDrinkItem(item) ? (Number(item.price || 0) * item.quantity) : 0), 0);
+    const drinkItems = cart.filter(isDrinkItem);
+    const foodItems = cart.filter(isFoodItem);
+    const topDrink = drinkItems.sort((a, b) => (Number(b.price || 0) * Number(b.quantity || 0)) - (Number(a.price || 0) * Number(a.quantity || 0)))[0];
+    const topFood = foodItems.sort((a, b) => (Number(b.price || 0) * Number(b.quantity || 0)) - (Number(a.price || 0) * Number(a.quantity || 0)))[0];
+    if (!topDrink) return 0;
+    const drinkValue = Number(topDrink.price || 0) * Number(topDrink.quantity || 0);
+    const foodValue = topFood ? Number(topFood.price || 0) * Number(topFood.quantity || 0) : 0;
+    return drinkValue + foodValue;
 }
 
 function cartDiscountAmount() {
@@ -1332,6 +1352,7 @@ function displayCategoryItems(category, searchTerm = "", animate = true) {
             ? products.map((product, index) => {
                 const soldOut = productIsSoldOut(product);
                 const lowStock = productIsLowStock(product);
+                const minMaxRatio = normalizeInventoryScore(productStock(product), Number(product.minStock ?? product.lowStockThreshold ?? 0), Number(product.maxStock ?? Math.max(Number(product.minStock ?? product.lowStockThreshold ?? 0) + 1, productStock(product) + 10)));
                 const expandDelay = ` style="animation-delay: ${Math.min(index * 0.035, 0.25).toFixed(3)}s"`;
                 return `
                 <article class="food-card ${soldOut ? "sold-out-card" : ""}${animate ? " menu-card-expand" : ""}"${animate ? expandDelay : ""}>
@@ -1346,7 +1367,7 @@ function displayCategoryItems(category, searchTerm = "", animate = true) {
                         </div>
                         ${soldOut
                         ? '<div class="sold-out-overlay"><span>OUT OF STOCK</span></div>'
-                        : `<div class="stock-badge${lowStock ? " low-stock-badge" : ""}">Stock: ${productStock(product)}</div>`}
+                        : `<div class="stock-badge${lowStock ? " low-stock-badge" : ""}" title="Min-max stock index: ${(minMaxRatio * 100).toFixed(0)}%">Stock: ${productStock(product)} · ${(minMaxRatio * 100).toFixed(0)}%</div>`}
                     </div>
                 </article>
             `;
@@ -2128,10 +2149,39 @@ function printReceipt(order) {
 // the customer receipt, separated by a dashed CUT HERE line, so one roll
 // holds both tickets.
 
+function inferItemPreparationStation(item = {}) {
+    const raw = String(item.preparationStation || item.station || item.productStation || item.category || item.productCategory || item.name || "").trim().toLowerCase();
+    if (raw.includes("coffee") || raw.includes("frappe") || raw.includes("tea") || raw.includes("drink") || raw.includes("beverage") || raw.includes("juice") || raw.includes("milk")) return "Barista";
+    return "Kitchen";
+}
+
+function groupOrderItemsByStation(order) {
+    const allItems = Array.isArray(order && order.items) ? order.items : [];
+    const kitchen = [];
+    const barista = [];
+
+    for (const item of allItems) {
+        const station = String(item.preparationStation || item.station || item.productStation || "").trim();
+        const resolved = station === "Barista" || station === "Kitchen" || station === "Counter"
+            ? station
+            : inferItemPreparationStation(item);
+        if (resolved === "Barista") barista.push(item);
+        else kitchen.push(item);
+    }
+
+    return {
+        kitchen: kitchen.length ? kitchen : allItems,
+        barista
+    };
+}
+
 function buildKotHtml(order, settings) {
-    const items = (order.items || []).map(item => `
+    const { kitchen, barista } = groupOrderItemsByStation(order);
+    const renderItems = (items) => (items || []).map(item => `
         <div class="print-line kot-line"><span>${escapeHtml(item.name)}</span><strong>× ${item.quantity}</strong></div>
     `).join("");
+    const kitchenHtml = renderItems(kitchen);
+    const baristaHtml = renderItems(barista);
     return `
         <div class="print-cut-line">------ CUT HERE ------</div>
         <div class="print-receipt print-kot${settings.width === "58" ? " thermal-58" : ""}">
@@ -2142,13 +2192,18 @@ function buildKotHtml(order, settings) {
                 <div><span>Customer</span><strong>${escapeHtml(order.customer || "Walk-in Customer")}</strong></div>
                 <div><span>Time</span><strong>${new Date(order.date || Date.now()).toLocaleTimeString()}</strong></div>
             </div>
-            <div class="print-items kot-items">${items}</div>
+            <div class="print-items kot-items">${kitchenHtml || '<div class="print-line kot-line"><span>—</span><strong>× 0</strong></div>'}</div>
+            ${baristaHtml ? `
+                <div class="kot-title" style="margin-top: 10px;">*** BARISTA ORDER ***</div>
+                <div class="print-items kot-items">${baristaHtml}</div>
+            ` : ""}
             <div class="print-foot kot-foot">Make it fresh!</div>
         </div>`;
 }
 
 function buildKotText(order) {
     const line = "--------------------------------";
+    const { kitchen, barista } = groupOrderItemsByStation(order);
     const meta = [
         "*** KITCHEN ORDER ***",
         "Receipt: " + (order.receiptId || ""),
@@ -2156,7 +2211,15 @@ function buildKotText(order) {
         "Customer: " + (order.customer || "Walk-in Customer"),
         "Time: " + new Date(order.date || Date.now()).toLocaleTimeString()
     ];
-    const items = (order.items || []).map(it => {
+    const kitchenItems = (kitchen || []).map(it => {
+        const name = String(it.name || "");
+        const qty = Number(it.quantity || 0);
+        const left = name.length > 22 ? name.slice(0, 21) + "." : name;
+        const right = "x" + qty;
+        const pad = Math.max(2, 30 - left.length - right.length);
+        return left + " ".repeat(pad) + right;
+    });
+    const baristaItems = (barista || []).map(it => {
         const name = String(it.name || "");
         const qty = Number(it.quantity || 0);
         const left = name.length > 22 ? name.slice(0, 21) + "." : name;
@@ -2165,18 +2228,12 @@ function buildKotText(order) {
         return left + " ".repeat(pad) + right;
     });
 
-    // Add extra empty strings to feed paper past the cutter blade in raw text mode
-    const foot = [
-        "", 
-        line, 
-        "   MAKE IT FRESH!", 
-        "", 
-        "", 
-        "", 
-        ""
-    ];
-
-    return meta.concat(line, items, foot).join("\n");
+    const sections = [meta.concat(line, kitchenItems)];
+    if (baristaItems.length) {
+        sections.push(["", "*** BARISTA ORDER ***"].concat(baristaItems));
+    }
+    const foot = ["", line, "   MAKE IT FRESH!", "", "", "", ""];
+    return sections.flat().concat(foot).join("\n");
 }
 
 // ── Thermal bridge (silent printing via a Bluetooth-printer helper app) ──
