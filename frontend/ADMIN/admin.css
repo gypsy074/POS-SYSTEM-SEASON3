@@ -3720,6 +3720,7 @@ body.dark .ai-skeleton-line { background: #3a2d1f; }
         flex: 1 1 auto;
     }
 }
+
 /* ==========================================================================
    INVENTORY OVERHAUL — stat chips, filters, link badges, restock flow
    ========================================================================== */
@@ -4955,3 +4956,403 @@ body.dark .design-table tbody tr:hover td {
     background-color: #382c1f;
 }
 
+/* Keep menu and supply forms usable on narrow phone screens. */
+@media (max-width: 640px) {
+    .admin-modal-overlay {
+        align-items: flex-start;
+        overflow-y: auto;
+        padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .admin-modal-dialog,
+    .admin-modal-dialog.admin-modal-lg {
+        width: 100%;
+        max-height: calc(100vh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        max-height: calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        margin: auto 0;
+        border-radius: 18px;
+    }
+
+    .admin-modal-head {
+        gap: 10px;
+        padding: 14px 16px;
+    }
+
+    .admin-modal-head h3 {
+        min-width: 0;
+        font-size: 1rem;
+        line-height: 1.3;
+    }
+
+    .admin-modal-body {
+        min-height: 0;
+        padding: 14px;
+        overscroll-behavior: contain;
+    }
+
+    .admin-modal-body .menu-form-grid {
+        flex-direction: column;
+        gap: 14px;
+        width: 100%;
+    }
+
+    .admin-modal-body .form-inputs {
+        flex: none;
+        width: 100%;
+        min-width: 0;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+    }
+
+    .admin-modal-body .form-inputs > .input-group {
+        min-width: 0;
+        grid-column: 1 / -1 !important;
+    }
+
+    .admin-modal-body input,
+    .admin-modal-body select {
+        font-size: 16px;
+    }
+
+    .admin-modal-body .form-actions {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 4px;
+    }
+
+    .admin-modal-body .form-actions .action-btn {
+        width: 100%;
+        min-width: 0;
+        min-height: 44px;
+        padding: 9px 10px;
+    }
+
+    .admin-modal-body #cancelMenuModalBtn {
+        grid-column: 1 / -1;
+        margin-left: 0 !important;
+    }
+
+    .admin-modal-body .form-image-uploader {
+        flex: none;
+        width: 100%;
+        min-width: 0;
+        padding: 12px;
+        border-radius: 16px;
+    }
+
+    .admin-modal-body #imagePreviewBox {
+        min-height: 140px;
+    }
+
+    .admin-modal-body .import-btn {
+        width: 100%;
+        min-height: 44px;
+        margin-top: 10px;
+    }
+
+    .admin-modal-body .inventory-form-card {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .admin-modal-body .inventory-form-grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+    }
+
+    .admin-modal-body .form-row-group,
+    .admin-modal-body .form-row-wide {
+        grid-column: 1 / -1;
+        min-width: 0;
+    }
+
+    .admin-modal-body .inline-input {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .admin-modal-body .inline-input label {
+        width: auto;
+        text-align: left;
+    }
+
+    .admin-modal-body .inline-input input,
+    .admin-modal-body .inline-input select,
+    .admin-modal-body .inline-input .category-dropdown,
+    .admin-modal-body .category-input-wrap {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    .admin-modal-body .inv-product-link-trigger {
+        width: 100%;
+        min-height: 44px;
+        justify-content: center;
+        white-space: normal;
+    }
+
+    .admin-modal-body .inventory-hint {
+        grid-column: 1 / -1;
+        overflow-wrap: anywhere;
+    }
+
+    .admin-modal-body .inventory-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 16px;
+        padding-top: 14px;
+    }
+
+    .admin-modal-body .inventory-actions .btn-pill {
+        width: 100%;
+        min-width: 0;
+        min-height: 44px;
+        padding: 9px 10px;
+    }
+
+    .admin-modal-body #cancelInvModalBtn {
+        grid-column: 1 / -1;
+        margin-left: 0 !important;
+    }
+}
+
+@media (max-width: 380px) {
+    .admin-modal-overlay {
+        padding-right: 5px;
+        padding-left: 5px;
+    }
+
+    .admin-modal-body {
+        padding: 12px;
+    }
+
+    .admin-modal-body .form-actions,
+    .admin-modal-body .inventory-actions {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .admin-modal-body #cancelMenuModalBtn,
+    .admin-modal-body #cancelInvModalBtn {
+        grid-column: auto;
+    }
+}
+
+@media (max-width: 720px) {
+    #inventory-view .inventory-table-card,
+    #waste-view .transactions-section,
+    #audit-view .transactions-section {
+        min-width: 0;
+        margin-left: 0;
+        padding: 14px;
+    }
+
+    #inventory-view .inventory-stats {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+    }
+
+    #inventory-view .inv-stat-chip {
+        min-width: 0;
+        justify-content: center;
+        gap: 5px;
+        padding: 7px 8px;
+        font-size: 0.74rem;
+        text-align: center;
+        overflow-wrap: anywhere;
+    }
+
+    #inventory-view .inv-stat-chip:first-child {
+        grid-column: 1 / -1;
+    }
+
+    #inventory-view .inventory-filter-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    #inventory-view .inventory-filter-row > * {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    #inventory-view #invSearch,
+    #inventory-view #openAddInvModalBtn {
+        grid-column: 1 / -1;
+    }
+
+    #inventory-view #openAddInvModalBtn {
+        justify-content: center;
+        margin-left: 0 !important;
+        min-height: 44px;
+    }
+
+    #inventory-view .table-scroll,
+    #waste-view .table-container,
+    #audit-view .table-container {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+    }
+
+    #inventory-view .table-scroll::before,
+    #waste-view .table-container::before,
+    #audit-view .table-container::before {
+        content: "Swipe horizontally to see all columns";
+        display: block;
+        width: max-content;
+        margin: 0 0 6px;
+        color: var(--text-muted, #8a8a8a);
+        font-size: 0.72rem;
+    }
+
+    #inventory-view .design-table {
+        min-width: 760px;
+    }
+
+    #waste-view .table-container table {
+        min-width: 820px;
+    }
+
+    #audit-view .table-container table {
+        min-width: 560px;
+    }
+
+    #waste-view .section-header,
+    #audit-view .section-header {
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.95rem;
+    }
+
+    #waste-view .waste-total {
+        margin-left: auto;
+        font-size: 0.82rem;
+        white-space: normal;
+        text-align: right;
+    }
+
+    #waste-view .waste-filter-group,
+    #audit-view .audit-filter-group {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        flex: 1 0 100%;
+        gap: 8px !important;
+        margin-left: 0 !important;
+    }
+
+    #waste-view .waste-filter-group .audit-date-filter,
+    #audit-view .audit-filter-group .audit-date-filter {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+        padding: 8px;
+        font-size: 0.75rem;
+    }
+
+    #audit-view #exportAuditCsvBtn {
+        grid-column: 1 / -1;
+        justify-content: center;
+        min-height: 40px;
+    }
+
+    #waste-view .waste-top-items {
+        align-items: flex-start;
+        padding: 9px;
+        font-size: 0.78rem;
+    }
+
+    #waste-view .waste-top-label {
+        flex: 1 0 100%;
+    }
+
+    #waste-view .waste-top-chip {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+    }
+
+    #sales-view .sales-graph-card,
+    #sales-view .usage-card {
+        min-width: 0;
+        padding: 14px;
+    }
+
+    #sales-view .sales-graph-card .card-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    #sales-view .sales-graph-card .card-header h3 {
+        margin: 0;
+    }
+
+    #sales-view .sales-filter-controls {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        width: 100%;
+        min-width: 0;
+        gap: 6px;
+    }
+
+    #sales-view .sales-filter-controls .filter-dropdown,
+    #sales-view .sales-filter-controls .filter-dropdown-toggle,
+    #sales-view .sales-filter-controls .all-sales-filter {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+        text-align: center;
+    }
+
+    #sales-view .sales-filter-controls .csv-export-btn {
+        grid-column: span 2;
+        justify-content: center;
+        min-height: 36px;
+    }
+
+    #sales-view .sales-filter-controls .filter-dropdown-menu {
+        left: 0;
+        right: auto;
+        width: min(226px, calc(100vw - 32px));
+        min-width: 0;
+    }
+
+    #sales-view .sales-filter-controls .filter-dropdown[data-filter="month"] .filter-dropdown-menu {
+        left: auto;
+        right: 0;
+    }
+}
+
+@media (max-width: 380px) {
+    #inventory-view .inventory-table-card,
+    #waste-view .transactions-section,
+    #audit-view .transactions-section,
+    #sales-view .sales-graph-card,
+    #sales-view .usage-card {
+        padding: 11px;
+    }
+
+    #inventory-view .inv-stat-chip {
+        font-size: 0.68rem;
+    }
+
+    #sales-view .sales-filter-controls {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #sales-view .sales-filter-controls .csv-export-btn {
+        grid-column: 1 / -1;
+    }
+}
