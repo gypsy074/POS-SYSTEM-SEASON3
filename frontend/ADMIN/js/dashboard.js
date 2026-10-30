@@ -3,7 +3,7 @@
    Handles: order data fetch, transaction table render, sales charts.
    ========================================================================== */
 
-let activeSalesRange = "day";
+let activeSalesRange = "all";
 let activeRadarCategory = "";
 let builtPillCategories = null;
 let calendarViewDate = new Date();
@@ -14,7 +14,7 @@ let transactionPage = 1;
 const TRANSACTIONS_PER_PAGE = 25;
 const activeSalesFilters = { day: [], week: [], month: [] };
 let salesFilterOptionsBuilt = false;
-let salesFilterMode = "day";
+let salesFilterMode = "all";
 
 // Orders payload cache — view switches reuse it for 30s; the manual refresh
 // button passes force=true to bypass. Rendering always runs, so the row/card
@@ -1091,9 +1091,11 @@ function formatLocalWeek(date) {
 function setupSalesFilterOptions(orders) {
     if (salesFilterOptionsBuilt) return;
     const validOrders = (orders || []).filter(order => order.status !== "Voided" && order.status !== "Refunded" && !Number.isNaN(new Date(order.date).getTime()));
-    salesFilterMode = "day";
-    activeSalesRange = "day";
-    document.querySelector(".all-sales-filter")?.classList.remove("active");
+    salesFilterMode = "all";
+    activeSalesRange = "all";
+    const allButton = document.querySelector(".all-sales-filter");
+    allButton?.classList.add("active");
+    allButton?.setAttribute("aria-pressed", "true");
     const activeYear = new Date().getFullYear();
     const months = [];
     for (let month = 11; month >= 0; month -= 1) {
@@ -1150,7 +1152,9 @@ function setupSalesFilterOptions(orders) {
                     }
                 });
                 Object.keys(activeSalesFilters).forEach(key => updateSalesFilterLabel(key));
-                document.querySelector(".all-sales-filter")?.classList.remove("active");
+                const allButton = document.querySelector(".all-sales-filter");
+                allButton?.classList.remove("active");
+                allButton?.setAttribute("aria-pressed", "false");
                 renderSalesCharts(latestOrders, allProducts);
                 renderUsageChart(latestOrders);
             });
@@ -1181,19 +1185,17 @@ function setupSalesFilterOptions(orders) {
                     updateSalesFilterLabel(key);
                 });
                 allButton.classList.add("active");
+                allButton.setAttribute("aria-pressed", "true");
                 renderSalesCharts(latestOrders, allProducts, "all");
                 renderUsageChart(latestOrders, "all");
             });
         }
     });
-    if (dates.length) {
-        activeSalesFilters.day = [dates[0]];
-        const firstDay = document.querySelector('.filter-dropdown[data-filter="day"] input');
-        if (firstDay) firstDay.checked = true;
-        updateSalesFilterLabel("day");
-    }
     Object.keys(activeSalesFilters).forEach(key => {
-        if (key !== "day") activeSalesFilters[key] = [];
+        activeSalesFilters[key] = [];
+        document.querySelectorAll(`.filter-dropdown[data-filter="${key}"] input`)
+            .forEach(input => { input.checked = false; });
+        updateSalesFilterLabel(key);
     });
     salesFilterOptionsBuilt = true;
 }

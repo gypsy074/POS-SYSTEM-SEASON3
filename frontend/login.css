@@ -36,6 +36,13 @@ body {
   padding: 20px;
 }
 
+body > .pwa-install-button {
+  position: fixed;
+  top: calc(16px + env(safe-area-inset-top));
+  right: calc(16px + env(safe-area-inset-right));
+  z-index: 10000;
+}
+
 /* ==========================================================================
    2a. Cafe Wall — blurred product-photo backdrop behind the login card
    ========================================================================== */
@@ -1301,7 +1308,21 @@ body {
 }
 
 @media (max-width: 480px) {
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: calc(20px + env(safe-area-inset-top)) 16px
+      calc(20px + env(safe-area-inset-bottom));
+  }
+
   .login-page-container {
+    width: 100%;
+    max-width: 420px;
+    min-height: 0;
+    margin: auto;
     padding: 30px 20px;
   }
   .cafe-wall {

@@ -1347,7 +1347,7 @@ function productIsLowStock(product) {
     return !productIsSoldOut(product) && productStock(product) <= Number(product.lowStockThreshold ?? 10);
 }
 
-function displayCategoryItems(category, searchTerm = "", animate = true) {
+function displayCategoryItems(category, searchTerm = "", animate = true, preserveScroll = false) {
     activeCategory = category;
     renderCategoryTabs();
 
@@ -1355,6 +1355,7 @@ function displayCategoryItems(category, searchTerm = "", animate = true) {
     if (!grid) {
         return;
     }
+    const previousScrollTop = preserveScroll ? grid.scrollTop : 0;
 
     const normalizedSearch = searchTerm.trim().toLowerCase();
     const products = allProducts.filter(product => {
@@ -1381,7 +1382,9 @@ function displayCategoryItems(category, searchTerm = "", animate = true) {
     // Card-by-card transition: new cards unfold one by one immediately
     // (Android-style staggered list) — for category switches, search typing
     // and first load alike. No wait for old cards.
-    grid.scrollTop = 0;
+    if (!preserveScroll) {
+        grid.scrollTop = 0;
+    }
 
     function renderGrid() {
         grid.innerHTML = products.length
@@ -1418,11 +1421,14 @@ function displayCategoryItems(category, searchTerm = "", animate = true) {
     }
 
     renderGrid();
+    if (preserveScroll) {
+        grid.scrollTop = previousScrollTop;
+    }
 }
 
 function refreshCartStockDisplay() {
     const searchInput = document.getElementById("searchInput");
-    displayCategoryItems(activeCategory, searchInput ? searchInput.value : "", false);
+    displayCategoryItems(activeCategory, searchInput ? searchInput.value : "", false, true);
 }
 
 function createPlaceholderImage(label) {

@@ -39,10 +39,23 @@ function setupMenuTableSelection() {
 
 let menuTableSearch = "";
 let menuTableCategory = "";
+let menuTableAvailability = "";
+
+function getMenuAvailability(product) {
+    const stock = Number(product.stock ?? 0);
+    if (String(product.status || "").toLowerCase() === "out of stock" || stock <= 0) {
+        return "out-of-stock";
+    }
+    if (stock <= Number(product.lowStockThreshold ?? 10)) {
+        return "low-stock";
+    }
+    return "available";
+}
 
 function setupMenuTableFilters() {
     const search = document.getElementById("menuTableSearch");
     const category = document.getElementById("menuTableCategoryFilter");
+    const availability = document.getElementById("menuTableAvailabilityFilter");
     if (search) {
         search.addEventListener("input", () => {
             menuTableSearch = search.value.trim().toLowerCase();
@@ -52,6 +65,12 @@ function setupMenuTableFilters() {
     if (category) {
         category.addEventListener("change", () => {
             menuTableCategory = category.value;
+            renderMenuTable(allProducts);
+        });
+    }
+    if (availability) {
+        availability.addEventListener("change", () => {
+            menuTableAvailability = availability.value;
             renderMenuTable(allProducts);
         });
     }
@@ -633,6 +652,7 @@ function renderMenuTable(products) {
 
     const visibleProducts = products
         .filter(product => !menuTableCategory || product.category === menuTableCategory)
+        .filter(product => !menuTableAvailability || getMenuAvailability(product) === menuTableAvailability)
         .filter(product => !menuTableSearch || [
             product.name, product.category, product.status, product.date
         ].join(" ").toLowerCase().includes(menuTableSearch))
@@ -650,16 +670,21 @@ function renderMenuTable(products) {
         const linkedBadge = linkedInv.length
             ? `<span class="inv-link-badge" title="Linked to supplies: ${linkedInv.map(i => escapeHtml(i.productName)).join(', ')}" style="margin-left: 6px; font-size: 0.72rem; padding: 2px 6px;"><i class="fas fa-link"></i> Linked</span>`
             : "";
+        const availability = getMenuAvailability(product);
+        const stockLabel = availability === "out-of-stock" ? "Out of Stock"
+            : availability === "low-stock" ? "Low Stock"
+                : "Available";
+        const stock = Number(product.stock ?? 0);
 
         return `
         <tr data-product-id="${product._id}">
             <td>${escapeHtml(product.name)}${linkedBadge}</td>
             <td>${escapeHtml(product.category)}</td>
             <td>₱${Number(product.price).toFixed(2)}</td>
-            <td class="${Number(product.stock ?? 0) <= Number(product.lowStockThreshold ?? 10) ? "low-stock-cell" : ""}">
-                ${Number(product.stock ?? 0)}
+            <td class="menu-stock-cell menu-stock-${availability}">
+                ${stock}
             </td>
-            <td>${escapeHtml(product.status)}</td>
+            <td><span class="menu-availability-badge menu-availability-${availability}">${stockLabel}</span></td>
             <td>${escapeHtml(product.date)}</td>
         </tr>
     `;

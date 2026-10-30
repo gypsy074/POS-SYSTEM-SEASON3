@@ -11,7 +11,7 @@
     <meta name="apple-mobile-web-app-title" content="Season 3 POS">
     <link rel="apple-touch-icon" href="/assets/pwa-icon-180.png">
     <link rel="stylesheet" href="/js/pwa.css?v=5">
-    <link rel="stylesheet" href="admin.css?v=40">
+    <link rel="stylesheet" href="admin.css?v=41">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -206,7 +206,8 @@
                                         </button>
                                         <div class="filter-dropdown-menu" role="menu"></div>
                                     </div>
-                                    <button type="button" class="tab all-sales-filter" data-filter="all">All</button>
+                                    <button type="button" class="tab all-sales-filter active" data-filter="all"
+                                        aria-pressed="true">All</button>
                                     <button type="button" class="csv-export-btn" id="exportCsvBtn"
                                         title="Export sales as CSV"><i class="fas fa-download"></i> Export</button>
                                 </div>
@@ -328,6 +329,12 @@
                             placeholder="Filter menu items..." aria-label="Filter menu items">
                         <select id="menuTableCategoryFilter" class="inv-filter-select" aria-label="Filter menu items by category">
                             <option value="">All Categories</option>
+                        </select>
+                        <select id="menuTableAvailabilityFilter" class="inv-filter-select" aria-label="Filter menu items by availability">
+                            <option value="">All Availability</option>
+                            <option value="available">Available</option>
+                            <option value="low-stock">Low Stock</option>
+                            <option value="out-of-stock">Out of Stock</option>
                         </select>
                         <button type="button" class="btn-main" id="openAddMenuModalBtn" style="margin-left: auto; display: inline-flex; align-items: center; gap: 8px;">
                             <i class="fas fa-plus"></i> Add Menu Item
@@ -753,9 +760,9 @@
     <script src="js/header.js?v=40"></script>
 
     <!-- Feature Modules -->
-    <script src="js/dashboard.js?v=46"></script>
+    <script src="js/dashboard.js?v=47"></script>
     <script src="js/insights.js?v=42"></script>
-<script src="js/menu.js?v=43"></script>
+<script src="js/menu.js?v=44"></script>
     <script src="js/users.js?v=41"></script>
     <script src="js/inventory.js?v=44"></script>
     <script src="js/restock.js?v=3"></script>
