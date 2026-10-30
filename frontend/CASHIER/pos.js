@@ -1105,6 +1105,9 @@ function showCashierOrderDetail(orderId) {
             ${isVoided && order.voidedBy ? `<div class="row"><span>Voided by</span><strong>${escapeHtml(order.voidedBy)}</strong></div>` : ""}
             ${isVoided && order.voidedAt ? `<div class="row"><span>Voided at</span><strong>${new Date(order.voidedAt).toLocaleString()}</strong></div>` : ""}
             ${isVoided && order.voidReason ? `<div class="row"><span>Reason</span><strong>${escapeHtml(order.voidReason)}</strong></div>` : ""}
+            ${isRefunded && order.refundedBy ? `<div class="row"><span>Refunded by</span><strong>${escapeHtml(order.refundedBy)}</strong></div>` : ""}
+            ${isRefunded && order.refundedAt ? `<div class="row"><span>Refunded at</span><strong>${new Date(order.refundedAt).toLocaleString()}</strong></div>` : ""}
+            ${isRefunded && order.refundReason ? `<div class="row"><span>Reason</span><strong>${escapeHtml(order.refundReason)}</strong></div>` : ""}
             ${order.tableNo ? `<div class="row"><span>Table</span><strong>${escapeHtml(order.tableNo)}</strong></div>` : ""}
         </div>
         <div class="history-items">
@@ -1152,22 +1155,36 @@ function requestOrderRefund(orderId) {
         iconClass: "danger",
         primaryLabel: "Refund Order",
         bodyHtml: `<p class="pos-modal-note">Are you sure you want to refund this order?</p>
-            <p class="pos-modal-note"><strong>#${escapeHtml(order.receiptId)}</strong> · ₱${Number(order.total || 0).toFixed(2)}</p>`
+            <p class="pos-modal-note"><strong>#${escapeHtml(order.receiptId)}</strong> · ₱${Number(order.total || 0).toFixed(2)}</p>
+            <label class="pos-modal-field">
+                <span>Reason for refund</span>
+                <textarea id="refundReasonInput" rows="3" maxlength="300" placeholder="Explain why this order is being refunded"></textarea>
+            </label>`
     }).then(confirmed => {
         if (confirmed) {
+            const reason = String(document.getElementById("refundReasonInput")?.value || "").trim();
+            if (!reason) {
+                showPosAlert({
+                    title: "Reason required",
+                    icon: "fa-circle-exclamation",
+                    iconClass: "danger",
+                    bodyHtml: `<p class="pos-modal-note">Enter a reason for the refund so it can be recorded in the audit history.</p>`
+                });
+                return;
+            }
             requestManagerOverride("this refund").then(pin => {
-                if (pin !== null) fetchRefundOrder(orderId, pin);
+                if (pin !== null) fetchRefundOrder(orderId, pin, reason);
             });
         }
     });
 }
 
-async function fetchRefundOrder(orderId, managerOverridePin = "") {
+async function fetchRefundOrder(orderId, managerOverridePin = "", reason = "") {
     try {
         const response = await apiFetch(`/api/orders/${orderId}/refund`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ managerOverridePin })
+            body: JSON.stringify({ managerOverridePin, reason })
         });
         if (!response.ok) {
             const data = await response.json().catch(() => ({}));
@@ -2216,28 +2233,29 @@ function groupOrderItemsByStation(order) {
     }
 
     return {
-        kitchen: kitchen.length ? kitchen : allItems,
+        kitchen,
         barista
     };
 }
 
 function buildKotHtml(order, settings) {
-    const items = (order.items || []).map(item => `
-        <div class="print-line kot-line"><span>${escapeHtml(item.name)}</span><strong>× ${item.quantity}</strong></div>
+    const { kitchen, barista } = groupOrderItemsByStation(order);
+    const renderStationItems = items => items.map(item => `
+        <div class="print-line kot-line"><span>${escapeHtml(item.name)}</span><strong>× ${Number(item.quantity || 0)}</strong></div>
     `).join("");
-    const kitchenHtml = renderItems(kitchen);
-    const baristaHtml = renderItems(barista);
+    const kitchenHtml = renderStationItems(kitchen);
+    const baristaHtml = renderStationItems(barista);
     return `
         <div class="print-cut-line">------ CUT HERE ------</div>
         <div class="print-receipt print-kot${settings.width === "58" ? " thermal-58" : ""}">
-            <div class="kot-title">*** KITCHEN ORDER ***</div>
+            ${kitchen.length ? '<div class="kot-title">*** KITCHEN ORDER ***</div>' : ""}
             <div class="print-meta">
                 <div><span>Receipt</span><strong>${escapeHtml(order.receiptId || "")}</strong></div>
                 <div><span>${escapeHtml(order.mode || "Dine In")}</span><strong>${escapeHtml(order.tableNo || "")}</strong></div>
                 <div><span>Customer</span><strong>${escapeHtml(order.customer || "Walk-in Customer")}</strong></div>
                 <div><span>Time</span><strong>${new Date(order.date || Date.now()).toLocaleTimeString()}</strong></div>
             </div>
-            <div class="print-items kot-items">${kitchenHtml || '<div class="print-line kot-line"><span>—</span><strong>× 0</strong></div>'}</div>
+            ${kitchenHtml ? `<div class="print-items kot-items">${kitchenHtml}</div>` : ""}
             ${baristaHtml ? `
                 <div class="kot-title" style="margin-top: 10px;">*** BARISTA ORDER ***</div>
                 <div class="print-items kot-items">${baristaHtml}</div>
@@ -2250,13 +2268,12 @@ function buildKotText(order) {
     const line = "--------------------------------";
     const { kitchen, barista } = groupOrderItemsByStation(order);
     const meta = [
-        "*** KITCHEN ORDER ***",
         "Receipt: " + (order.receiptId || ""),
         (order.mode || "Dine In") + (order.tableNo ? "  Table: " + order.tableNo : ""),
         "Customer: " + (order.customer || "Walk-in Customer"),
         "Time: " + new Date(order.date || Date.now()).toLocaleTimeString()
     ];
-    const items = (order.items || []).map(it => {
+    const formatItems = items => items.map(it => {
         const name = String(it.name || "");
         const qty = Number(it.quantity || 0);
         const left = name.length > 22 ? name.slice(0, 21) + "." : name;
@@ -2265,10 +2282,9 @@ function buildKotText(order) {
         return left + " ".repeat(pad) + right;
     });
 
-    const sections = [meta.concat(line, kitchenItems)];
-    if (baristaItems.length) {
-        sections.push(["", "*** BARISTA ORDER ***"].concat(baristaItems));
-    }
+    const sections = [];
+    if (kitchen.length) sections.push(["*** KITCHEN ORDER ***"].concat(meta, line, formatItems(kitchen)));
+    if (barista.length) sections.push(["*** BARISTA ORDER ***"].concat(meta, line, formatItems(barista)));
     const foot = ["", line, "   MAKE IT FRESH!", "", "", "", ""];
     return sections.flat().concat(foot).join("\n");
 }

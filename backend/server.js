@@ -173,6 +173,7 @@ const orderSchema = new mongoose.Schema({
     voidReason: { type: String, default: "" },
     refundedBy: { type: String, default: "" },
     refundedAt: { type: Date, default: null },
+    refundReason: { type: String, default: "", trim: true },
     referenceNo: { type: String, default: "", trim: true },
     date: { type: Date, default: Date.now },
     receiptId: { type: String, default: () => String(Date.now()).slice(-8) },
@@ -595,7 +596,10 @@ function writeLog(action, actor = "", targetId = "", detail = "") {
         actor: String(actor || "").slice(0, 100),
         targetId: String(targetId || ""),
         detail: String(detail || "").slice(0, 500)
-    }).catch(() => { });
+    }).catch(err => {
+        console.error(`Audit log write failed (${action}):`, err.message);
+        return null;
+    });
 }
 
 // Throttled "last seen" tracker — at most one DB write per user per 60s,
@@ -984,68 +988,153 @@ app.post('/api/orders', authRequired(), async (req, res) => {
                 return res.json(existing);
             }
         }
-
-        // 1) Verify stock for every item before touching anything — menu
-        //    stock first, then the linked supply ledger (ingredients).
-        const shortages = [];
+        // Reserve stock with conditional atomic decrements. A read-then-write
+        // check allows two cashiers to both sell the same final unit.
+        const quantities = new Map();
         for (const item of payload.items) {
-            const product = await Product.findOne({ name: item.name }).select('stock status');
-            if (!product) continue; // item not tracked in the menu → allow
-            const supplies = await InventoryItem.find({
-                $or: [{ menuProductIds: product._id }, { menuProductId: product._id }]
-            });
-            if (!supplies.length && (Number(product.stock) || 0) < item.quantity) {
-                shortages.push({ name: item.name, available: Number(product.stock) || 0, requested: item.quantity });
-            }
-            for (const supply of supplies) {
-                const unitsPerSale = Number.isFinite(Number(supply.unitsPerSale))
-                    ? Math.max(0, Number(supply.unitsPerSale))
-                    : 1;
-                const needed = item.quantity * unitsPerSale;
-                if (needed > 0 && (Number(supply.stock) || 0) < needed) {
-                    shortages.push({
-                        name: `${item.name} (needs ${supply.productName})`,
-                        available: Number(supply.stock) || 0,
-                        requested: needed
-                    });
+            quantities.set(item.name, (quantities.get(item.name) || 0) + item.quantity);
+        }
+        const reservations = [];
+        const shortages = [];
+        const restoreReservations = async () => {
+            for (const reservation of reservations.reverse()) {
+                if (reservation.kind === 'product') {
+                    const restored = await Product.findOneAndUpdate(
+                        { _id: reservation.id },
+                        { $inc: { stock: reservation.quantity } },
+                        { returnDocument: 'after' }
+                    );
+                    if (restored && restored.stock > 0) {
+                        await Product.updateOne(
+                            { _id: reservation.id, stock: { $gt: 0 } },
+                            { $set: { status: 'Available' } }
+                        );
+                    }
+                } else {
+                    const restored = await InventoryItem.findOneAndUpdate(
+                        { _id: reservation.id },
+                        { $inc: { stock: reservation.quantity } },
+                        { returnDocument: 'after' }
+                    );
+                    if (restored && restored.stock > 0) {
+                        await InventoryItem.updateOne(
+                            { _id: reservation.id, stock: { $gt: 0 } },
+                            { $set: { status: 'Available' } }
+                        );
+                    }
                 }
             }
-        }
-        if (shortages.length) {
-            const detail = shortages
-                .map(s => `• ${s.name} — only ${s.available} left (needed ${s.requested})`)
-                .join('\n');
-            return res.status(409).json({ error: `Not enough stock to complete this order:\n${detail}` });
+        };
+
+        try {
+            for (const [name, quantity] of quantities) {
+                const product = await Product.findOne({ name }).select('_id stock status');
+                if (!product) continue;
+                if (['out of stock', 'sold out'].includes(String(product.status || '').toLowerCase())) {
+                    shortages.push({ name, available: Number(product.stock) || 0, requested: quantity });
+                    break;
+                }
+
+                const supplies = await InventoryItem.find({
+                    $or: [{ menuProductIds: product._id }, { menuProductId: product._id }]
+                });
+                if (!supplies.length) {
+                    const reserved = await Product.updateOne(
+                        {
+                            _id: product._id,
+                            stock: { $gte: quantity },
+                            status: { $nin: ['Out of Stock', 'Sold Out'] }
+                        },
+                        { $inc: { stock: -quantity } }
+                    );
+                    if (!reserved.modifiedCount) {
+                        const current = await Product.findById(product._id).select('stock');
+                        shortages.push({
+                            name,
+                            available: Number(current && current.stock) || 0,
+                            requested: quantity
+                        });
+                        break;
+                    }
+                    reservations.push({ kind: 'product', id: product._id, quantity });
+                    continue;
+                }
+
+                for (const supply of supplies) {
+                    const unitsPerSale = Number.isFinite(Number(supply.unitsPerSale))
+                        ? Math.max(0, Number(supply.unitsPerSale))
+                        : 1;
+                    const needed = quantity * unitsPerSale;
+                    if (needed <= 0) continue;
+                    if (['out of stock', 'sold out'].includes(String(supply.status || '').toLowerCase())) {
+                        shortages.push({
+                            name: `${name} (needs ${supply.productName})`,
+                            available: Number(supply.stock) || 0,
+                            requested: needed
+                        });
+                        break;
+                    }
+                    const reserved = await InventoryItem.updateOne(
+                        { _id: supply._id, stock: { $gte: needed } },
+                        { $inc: { stock: -needed } }
+                    );
+                    if (!reserved.modifiedCount) {
+                        const current = await InventoryItem.findById(supply._id).select('stock');
+                        shortages.push({
+                            name: `${name} (needs ${supply.productName})`,
+                            available: Number(current && current.stock) || 0,
+                            requested: needed
+                        });
+                        break;
+                    }
+                    reservations.push({ kind: 'inventory', id: supply._id, quantity: needed });
+                    await InventoryItem.updateOne(
+                        { _id: supply._id, stock: { $lte: 0 } },
+                        { $set: { status: 'Sold Out' } }
+                    );
+                }
+                if (shortages.length) break;
+            }
+
+            if (shortages.length) {
+                await restoreReservations();
+                reservations.length = 0;
+                const detail = shortages
+                    .map(s => `• ${s.name} — only ${s.available} left (needed ${s.requested})`)
+                    .join('\n');
+                return res.status(409).json({ error: `Not enough stock to complete this order:\n${detail}` });
+            }
+        } catch (err) {
+            await restoreReservations();
+            throw err;
         }
 
-        // 2) Save the order first. If a concurrent retry won the race, the
-        //    unique clientOrderId index rejects this insert before any stock
-        //    is touched — return the winner instead.
+        // Stock is reserved before the order insert. If an offline retry wins
+        // the unique-key race, release this request's reservation.
         let newOrder = new Order(payload);
         try {
             newOrder = await newOrder.save();
         } catch (err) {
             if (payload.clientOrderId && err.code === 11000) {
+                await restoreReservations();
+                reservations.length = 0;
                 const existing = await Order.findOne({ clientOrderId: payload.clientOrderId });
                 if (existing) {
                     return res.json(existing);
                 }
+            } else {
+                await restoreReservations();
             }
             throw err;
         }
 
-        // 3) Deduct stock, then auto-flag sold-out items.
-        for (const item of payload.items) {
-            await Product.updateOne(
-                { name: item.name },
-                { $inc: { stock: -item.quantity } }
-            );
-            // Ingredient tracking — the sale consumes the linked supplies too.
-            const shifted = await shiftLinkedSupplies(item.name, item.quantity, -1);
-            await syncProductsFromInventory(shifted.flatMap(supply =>
-                Array.isArray(supply.menuProductIds) ? supply.menuProductIds : [supply.menuProductId]
-            ));
+        // Synchronize menu availability after reserving any linked supplies.
+        const linkedProductIds = [];
+        for (const name of quantities.keys()) {
+            const product = await Product.findOne({ name }).select('_id');
+            if (product) linkedProductIds.push(product._id);
         }
+        await syncProductsFromInventory(linkedProductIds);
         await Product.updateMany(
             { name: { $in: payload.items.map(i => i.name) }, stock: { $lte: 0 } },
             { status: "Out of Stock" }
@@ -1090,12 +1179,21 @@ const voidOrderHandler = async (req, res) => {
         if (req.user.role === 'Cashier' && String(order.cashier || '').toLowerCase() !== String(req.user.username || '').toLowerCase()) {
             return res.status(403).json({ error: 'Cashiers can void only their own orders.' });
         }
-        if (order.status === "Voided" || order.status === "Refunded") {
-            return res.status(409).json({ error: 'Voided or refunded orders cannot be voided again.' });
+        if (order.status !== 'Completed') {
+            return res.status(409).json({ error: 'Only completed orders can be voided.' });
         }
+        const voidedAt = new Date();
+        const voidReason = String((req.body && req.body.reason) || "").trim().slice(0, 300);
+        const voidedOrder = await Order.findOneAndUpdate(
+            { $and: [idMatchFilter(order._id), { status: 'Completed' }] },
+            { $set: { status: 'Voided', voidedBy: req.user.username || '', voidedAt, voidReason } },
+            { returnDocument: 'after' }
+        );
+        if (!voidedOrder) return res.status(409).json({ error: 'Order was already changed by another request.' });
 
-        // Restore menu stock for every item, then clear sold-out flags.
-        for (const item of order.items || []) {
+        // Claim the state transition before restoring stock so concurrent
+        // void/refund requests cannot return the same inventory twice.
+        for (const item of voidedOrder.items || []) {
             await Product.updateOne(
                 { name: item.name },
                 { $inc: { stock: item.quantity } }
@@ -1106,25 +1204,12 @@ const voidOrderHandler = async (req, res) => {
                 Array.isArray(supply.menuProductIds) ? supply.menuProductIds : [supply.menuProductId]
             ));
         }
-
-        order.status = "Voided";
-        order.voidedBy = req.user.username || "";
-        order.voidedAt = new Date();
-        order.voidReason = String((req.body && req.body.reason) || "").trim().slice(0, 300);
-
-        // updateOne via the casting-proof filter instead of order.save() —
-        // save() rebuilds the filter from the doc's _id and mongoose casts it
-        // to ObjectId, which silently misses string _ids (older data).
-        await Order.updateOne(
-            idMatchFilter(order._id),
-            { $set: { status: order.status, voidedBy: order.voidedBy, voidedAt: order.voidedAt, voidReason: order.voidReason } }
-        );
-        writeLog('order.void', req.user.username, String(order._id),
-            `Order #${order.receiptId} voided by ${req.user.username}` +
+        await writeLog('order.void', req.user.username, String(voidedOrder._id),
+            `Order #${voidedOrder.receiptId} voided by ${req.user.username}` +
             `${override.authorizer ? ` - Authorized by ${override.authorizer.username}` : ''}` +
-            ` (₱${order.total.toFixed(2)})${order.voidReason ? ' — ' + order.voidReason : ''}`);
+            ` (₱${voidedOrder.total.toFixed(2)})${voidReason ? ' — ' + voidReason : ''}`);
 
-        res.json(order);
+        res.json(voidedOrder);
     } catch (err) { res.status(500).json({ error: err.message }); }
 };
 app.patch('/api/orders/:id/void', authRequired(), managerOverrideLimiter, voidOrderHandler);
@@ -1143,10 +1228,20 @@ app.post('/api/orders/:id/refund', authRequired(), managerOverrideLimiter, async
         if (req.user.role === 'Cashier' && String(order.cashier || '').toLowerCase() !== String(req.user.username || '').toLowerCase()) {
             return res.status(403).json({ error: 'Cashiers can refund only their own orders.' });
         }
-        if (order.status === 'Refunded') return res.status(409).json({ error: 'Order is already refunded.' });
-        if (order.status === 'Voided') return res.status(409).json({ error: 'Voided orders cannot be refunded.' });
+        if (order.status !== 'Completed') {
+            return res.status(409).json({ error: 'Only completed orders can be refunded.' });
+        }
 
-        for (const item of order.items || []) {
+        const refundedAt = new Date();
+        const refundReason = String(req.body && req.body.reason || '').trim().slice(0, 300) || 'Reason not provided';
+        const refundedOrder = await Order.findOneAndUpdate(
+            { $and: [idMatchFilter(order._id), { status: 'Completed' }] },
+            { $set: { status: 'Refunded', refundedBy: req.user.username || '', refundedAt, refundReason } },
+            { returnDocument: 'after' }
+        );
+        if (!refundedOrder) return res.status(409).json({ error: 'Order was already changed by another request.' });
+
+        for (const item of refundedOrder.items || []) {
             await Product.updateOne(
                 { name: item.name },
                 { $inc: { stock: item.quantity } }
@@ -1156,23 +1251,15 @@ app.post('/api/orders/:id/refund', authRequired(), managerOverrideLimiter, async
                 Array.isArray(supply.menuProductIds) ? supply.menuProductIds : [supply.menuProductId]
             ));
         }
-
-        order.status = 'Refunded';
-        order.refundedBy = req.user.username || '';
-        order.refundedAt = new Date();
-        await Order.updateOne(
-            idMatchFilter(order._id),
-            { $set: { status: order.status, refundedBy: order.refundedBy, refundedAt: order.refundedAt } }
-        );
         await writeLog(
             'order.refund',
             req.user.username,
-            String(order._id),
-            `Order #${order.receiptId} refunded by ${req.user.username}` +
-            `${override.authorizer ? ` - Authorized by ${override.authorizer.username}` : ''}`
+            String(refundedOrder._id),
+            `Order #${refundedOrder.receiptId} refunded by ${req.user.username} (₱${refundedOrder.total.toFixed(2)})` +
+            `${override.authorizer ? ` - Authorized by ${override.authorizer.username}` : ''} — ${refundReason}`
         );
 
-        res.json(order);
+        res.json(refundedOrder);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -1453,15 +1540,25 @@ app.put('/api/users/:id', authRequired(['Admin']), async (req, res) => {
         const accessChanged = Boolean(update.password)
             || (Object.prototype.hasOwnProperty.call(update, 'role') && update.role !== existing.role)
             || (Object.prototype.hasOwnProperty.call(update, 'status') && update.status !== existing.status);
+        const changes = [];
+        for (const field of ['username', 'role', 'status']) {
+            if (Object.prototype.hasOwnProperty.call(update, field) && update[field] !== existing[field]) {
+                changes.push(`${field} "${existing[field]}" → "${updated[field]}"`);
+            }
+        }
+        if (update.password) changes.push('password changed');
         if (accessChanged) {
             const revoked = await Session.updateMany(
                 { userId: updated._id, revoked: false },
                 { $set: { revoked: true } }
             );
             writeLog('user.update', req.user.username, String(updated._id),
-                `Access changed for "${updated.username}" — ${revoked.modifiedCount} session(s) revoked`);
+                `Access changed for "${updated.username}"` +
+                (changes.length ? ` — ${changes.join(', ')}` : '') +
+                ` — ${revoked.modifiedCount} session(s) revoked`);
         } else {
-            writeLog('user.update', req.user.username, String(updated._id), `Updated account "${updated.username}"`);
+            writeLog('user.update', req.user.username, String(updated._id),
+                `Updated account "${updated.username}"` + (changes.length ? ` — ${changes.join(', ')}` : ''));
         }
         res.json(sanitizeUser(updated));
     } catch (err) { res.status(400).json({ error: err.message }); }

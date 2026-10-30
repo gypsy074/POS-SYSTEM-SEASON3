@@ -85,7 +85,7 @@ Render builds and runs the backend from the `render.yaml` blueprint:
 - The first visit after sleep takes ~30–60 seconds to wake up (cold start)
 - **Fix: a keep-awake pinger** (see section 9) hits `/api/health` every 5 minutes,
   so the app is always warm before class starts
-- The Atlas database stays online 24/7 — **no data is ever lost**
+- Atlas is a separate cloud database; availability and recovery still depend on the configured Atlas plan and tested backups
 - Optional: upgrade to Render Starter ($7/month) for always-awake
 
 ### Troubleshooting fast check
@@ -107,7 +107,7 @@ Every release follows the same path: **edit → test → bump → commit → pus
 ### Step 1 — Edit & self-check
 
 ```bash
-cd backend && npm test      # 43 tests must pass (in-memory DB, no keys needed)
+cd backend && npm test      # 70 tests must pass (in-memory DB, no keys needed)
 node --check frontend/ADMIN/js/dashboard.js   # quick syntax check on changed JS
 ```
 
@@ -181,7 +181,7 @@ cd backend
 npm test
 ```
 
-Expect 43 passing tests: auth, order placement, stock deduction, overload (409),
+Expect 70 passing tests: auth, order placement, stock deduction, overload (409),
 waste logging, void + stock restore, offline-retry dedupe, password minimum
 length (3 routes), oversized-body rejection (413), CORS closed by default, AI
 report rate limiting (429), order-delete guard (paid orders 409, voided 200),
@@ -206,6 +206,7 @@ Manual smoke test (live site or local):
 5. If the menu product has linked inventory, confirm that supply stock decreased by `unitsPerSale × quantity` as well. The menu and supply stocks are separate counts.
 6. Void the order from My Orders → menu and linked supply stock return, and revenue excludes it
 7. Offline test: DevTools → Network → Offline → place an order → green "synced" banner when back online
+8. On an actual counter tablet, repeat checkout in portrait and landscape, including opening the on-screen keyboard, scrolling the menu, and recovering from a network interruption. The cashier page is intentionally unavailable on phone-sized screens.
 
 ---
 
@@ -218,8 +219,10 @@ cd backend
 npm run backup
 ```
 
-It dumps every collection (users, products, orders, waste, inventory, auditlogs) to
-`backend/backup/<timestamp>/` as JSON files.
+It dumps every collection to `backend/backup/<timestamp>/` in MongoDB Extended
+JSON, preserving BSON identifiers and dates, and writes a manifest with the
+source database name. The folder is git-ignored; keep a copy somewhere separate
+from the machine and database it protects.
 
 **Schedule it daily (Windows):**
 
@@ -227,7 +230,23 @@ It dumps every collection (users, products, orders, waste, inventory, auditlogs)
 2. Trigger: Daily at a quiet hour (e.g. 4:00 AM)
 3. Action: Start a program → `powershell.exe` → arguments:
    `-NoProfile -Command "cd D:\rawpos\POS-SYSTEM-SEASON3\backend; npm run backup"`
-4. Optionally back up the `backend/backup` folder to OneDrive/Google Drive for off-site safety
+4. Copy the `backend/backup` folder to a protected off-device location; use access controls and encryption provided by that storage service.
+
+### Restore and recovery test
+
+Restore replaces the contents of the collections in the selected backup. First
+restore to a separate staging database and verify sample users, orders, product
+stock, linked inventory, ObjectIds, and date fields. The target database name is
+required as an explicit confirmation and must match the database in `MONGO_URI`:
+
+```powershell
+cd backend
+npm run restore -- .\backup\2026-10-30T15-00-00 --confirm-database pos_season3cafe
+```
+
+To intentionally restore into another database, add
+`--allow-cross-database` and set `MONGO_URI` to that staging target. Do not use
+this option to test recovery against the live database.
 
 ### Lost admin password? Reset it
 

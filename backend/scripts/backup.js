@@ -16,23 +16,35 @@ const path = require('path');
         process.exit(1);
     }
 
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const outDir = path.join(__dirname, '..', 'backup', timestamp);
-    fs.mkdirSync(outDir, { recursive: true });
-
     try {
         await mongoose.connect(uri, { serverSelectionTimeoutMS: 20000 });
         const db = mongoose.connection.db;
-        const collections = await db.listCollections().toArray();
+        const collections = (await db.listCollections().toArray())
+            .filter(({ name }) => !name.startsWith('system.'));
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const outDir = path.join(__dirname, '..', 'backup', timestamp);
+        fs.mkdirSync(outDir, { recursive: true });
 
         let totalDocs = 0;
+        const manifest = {
+            formatVersion: 2,
+            database: db.databaseName,
+            createdAt: new Date().toISOString(),
+            collections: []
+        };
         for (const { name } of collections) {
             const docs = await db.collection(name).find({}).toArray();
-            fs.writeFileSync(path.join(outDir, `${name}.json`), JSON.stringify(docs, null, 2), 'utf8');
+            fs.writeFileSync(
+                path.join(outDir, `${name}.json`),
+                mongoose.mongo.BSON.EJSON.stringify(docs, null, 2, { relaxed: false }),
+                'utf8'
+            );
             totalDocs += docs.length;
+            manifest.collections.push({ name, documents: docs.length });
             console.log(`  ✓ ${name}: ${docs.length} documents`);
         }
 
+        fs.writeFileSync(path.join(outDir, 'backup-manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
         console.log(`\n✅ Backup complete → backend/backup/${timestamp}/ (${totalDocs} total documents)`);
     } catch (err) {
         console.error('❌ Backup failed:', err.message);

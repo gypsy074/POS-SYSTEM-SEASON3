@@ -7,13 +7,13 @@ A web-based Point-of-Sale system for Season 3 Cafe: menu management, cashier ord
 
 ## Features
 
-- **Login & roles** - Admin and Cashier accounts (JWT auth, bcrypt-hashed passwords, per-device sessions)
+- **Login & roles** - Admin, Manager, and Cashier accounts (JWT auth, bcrypt-hashed passwords, per-device sessions)
 - **Cashier page** - touch-friendly ordering, payment/change calculator, receipts, order history, live notifications, barcode-style search, waste logging
 - **Offline mode** - service worker caches the cashier app; orders placed offline are queued and auto-synced (idempotent via `clientOrderId`)
 - **Admin panel** - dashboard (revenue, performance, live transactions with search), sales analytics (line/radar/usage charts, calendar, Excel export), local insights (forecast, restock, waste, anomaly alerts), menu, users, inventory, waste, audit log
 - **Separate stock tracking** - menu stock counts sellable portions; Inventory tracks ingredients and supplies separately, and linked supplies are consumed by their configured units per sale
 - **Account & sessions** - see every device logged in, kill sessions, revoke others, change password, new-sign-in alerts
-- **Audit logging** - logins/logouts, password changes, session revokes, order voids/deletes, and user + waste actions are recorded with actor + detail
+- **Audit logging** - logins/logouts, password changes, session revokes, order voids/refunds (including refund reason), user + stock changes are recorded with actor + detail
 - **Security** - rate-limited login, helmet headers, CORS closed by default, required `JWT_SECRET`, request size limits, timing-equalized login, XSS-escaped output
 - **Performance** - gzip responses, MongoDB indexes, 30-second dashboard cache, in-flight request guards
 
@@ -97,7 +97,7 @@ phones.
 cd backend && npm test
 ```
 
-43 Jest tests against an in-memory MongoDB (no external DB or API keys needed).
+70 Jest tests against an in-memory MongoDB (no external DB or API keys needed).
 
 ## Deployment
 
@@ -117,12 +117,39 @@ warm **and** emails you on failure:
 
 ## Backups (free)
 
-```
-cd backend && npm run backup
+Create a database backup:
+
+```powershell
+cd backend
+npm run backup
 ```
 
-Dumps all collections to `backend/backup/<timestamp>/` as JSON. Schedule it daily
-with Windows Task Scheduler (see DEPLOYING.md section 8).
+Backups use MongoDB Extended JSON to preserve ObjectIds and dates, and include a
+manifest identifying the source database. The backup directory is ignored by git.
+Schedule the command daily and copy backups to a protected off-device location.
+Test a restore against a separate staging database before relying on a backup:
+
+```powershell
+npm run restore -- .\backup\2026-10-30T15-00-00 --confirm-database pos_season3cafe
+```
+
+Restore replaces the collections present in that backup folder. The explicit
+database-name confirmation must match `MONGO_URI`; restoring to a different
+database additionally requires `--allow-cross-database`. Never restore a backup
+over production as a test.
+
+## Device test checklist
+
+The cashier screen intentionally blocks phone-sized viewports; checkout is
+supported on tablets and desktops. After frontend changes, test on the actual
+tablet(s) and desktop browser used at the counter:
+
+1. Sign in, load menu categories, search, add/remove items, and verify scrolling stays usable.
+2. Complete a cash order and a G-Cash order; check totals, change, receipt and order history.
+3. Use a linked menu/supply item and verify stock updates; test the last available unit and an out-of-stock item.
+4. Test offline order queuing and automatic synchronization after reconnecting.
+5. In Admin, check sales filters, menu availability filters, and audit history in portrait and landscape where supported.
+6. Record device model, OS/browser version, viewport orientation, steps, and observed issue for any failure.
 
 ---
 

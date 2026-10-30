@@ -7,6 +7,7 @@ process.env.JWT_SECRET = 'test-secret';
 process.env.SEED_ADMIN_PASSWORD = 'admin123';
 
 const { spawnSync } = require('child_process');
+const fs = require('fs');
 const path = require('path');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const mongoose = require('mongoose');
@@ -115,6 +116,77 @@ describe('Auth', () => {
         expect(output).toContain('Do not pass passwords as command-line arguments');
         expect(output).not.toContain(sentinel);
     });
+
+    test('restore requires an explicit database confirmation before connecting', () => {
+        const scriptPath = path.join(__dirname, '..', 'scripts', 'restore.js');
+        const result = spawnSync(process.execPath, [scriptPath, path.join(__dirname, '..', 'scripts')], {
+            cwd: path.join(__dirname, '..'),
+            env: { ...process.env, MONGO_URI: '' },
+            encoding: 'utf8',
+            timeout: 10000
+        });
+        expect(result.status).toBe(1);
+        expect(`${result.stdout}\n${result.stderr}`).toContain('--confirm-database');
+    });
+
+    test('backup and restore preserve MongoDB ObjectIds and dates in a staging database', async () => {
+        const backendPath = path.join(__dirname, '..');
+        const backupScript = path.join(backendPath, 'scripts', 'backup.js');
+        const restoreScript = path.join(backendPath, 'scripts', 'restore.js');
+        const backupRoot = path.join(backendPath, 'backup');
+        const targetDatabase = 'pos_backup_restore_test';
+        const targetUri = mongod.getUri(targetDatabase);
+        const target = mongoose.connection.getClient().db(targetDatabase);
+        const collectionName = `backup_roundtrip_${Date.now()}`;
+        const id = new mongoose.Types.ObjectId();
+        const relatedId = new mongoose.Types.ObjectId();
+        const createdAt = new Date('2026-10-30T12:34:56.000Z');
+        let generatedBackupPath = null;
+        const existingBackups = new Set(fs.existsSync(backupRoot) ? fs.readdirSync(backupRoot) : []);
+
+        try {
+            await target.dropDatabase();
+            await target.collection(collectionName).insertOne({ _id: id, relatedId, createdAt });
+            const backup = spawnSync(process.execPath, [backupScript], {
+                cwd: backendPath,
+                env: { ...process.env, MONGO_URI: targetUri },
+                encoding: 'utf8',
+                timeout: 45000
+            });
+            const createdFolders = fs.existsSync(backupRoot)
+                ? fs.readdirSync(backupRoot).filter(name => !existingBackups.has(name))
+                : [];
+            if (createdFolders.length === 1) {
+                generatedBackupPath = path.join(backupRoot, createdFolders[0]);
+            }
+            expect(backup.status).toBe(0);
+            expect(createdFolders).toHaveLength(1);
+
+            await target.collection(collectionName).deleteMany({});
+            const restore = spawnSync(process.execPath, [
+                restoreScript,
+                generatedBackupPath,
+                '--confirm-database',
+                targetDatabase
+            ], {
+                cwd: backendPath,
+                env: { ...process.env, MONGO_URI: targetUri },
+                encoding: 'utf8',
+                timeout: 45000
+            });
+            expect(restore.status).toBe(0);
+            const restored = await target.collection(collectionName).findOne({ _id: id });
+            expect(restored._id.equals(id)).toBe(true);
+            expect(restored.relatedId.equals(relatedId)).toBe(true);
+            expect(restored.createdAt).toBeInstanceOf(Date);
+            expect(restored.createdAt.getTime()).toBe(createdAt.getTime());
+        } finally {
+            await target.dropDatabase();
+            if (generatedBackupPath && path.dirname(generatedBackupPath) === path.resolve(backupRoot)) {
+                fs.rmSync(generatedBackupPath, { recursive: true, force: true });
+            }
+        }
+    }, 90000);
 
     test('rejects invalid credentials', async () => {
         const res = await request(app).post('/api/login').send({ username: 'admin', password: 'wrong' });
@@ -325,6 +397,63 @@ describe('Orders & stock', () => {
         expect(orderRes.body.items[0].category).toBe('Rice Meals');
     });
 
+    test('concurrent orders cannot sell more than the final available unit', async () => {
+        await createProduct('TestLastUnitRace', 35, 1);
+        const createOrder = clientOrderId => request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                clientOrderId,
+                items: [{ name: 'TestLastUnitRace', quantity: 1, price: 35 }],
+                total: 35
+            });
+
+        const results = await Promise.all([
+            createOrder('last-unit-race-a'),
+            createOrder('last-unit-race-b')
+        ]);
+        expect(results.map(result => result.status).sort()).toEqual([201, 409]);
+        expect(Number((await getProduct('TestLastUnitRace')).stock)).toBe(0);
+    });
+
+    test('concurrent orders cannot oversell the last linked inventory unit', async () => {
+        await createProduct('TestLinkedLastUnit', 45, 1);
+        const product = await getProduct('TestLinkedLastUnit');
+        const linkedSupply = await request(app)
+            .post('/api/inventory')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({
+                productName: 'TestLinkedLastUnitSupply',
+                category: 'Test',
+                price: 1,
+                stock: 1,
+                menuProductId: product._id,
+                unitsPerSale: 1
+            });
+        expect(linkedSupply.status).toBe(201);
+
+        const createOrder = clientOrderId => request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                clientOrderId,
+                items: [{ name: 'TestLinkedLastUnit', quantity: 1, price: 45 }],
+                total: 45
+            });
+        const results = await Promise.all([
+            createOrder('linked-last-unit-race-a'),
+            createOrder('linked-last-unit-race-b')
+        ]);
+        expect(results.map(result => result.status).sort()).toEqual([201, 409]);
+        const inventory = await request(app)
+            .get('/api/inventory')
+            .set('Authorization', `Bearer ${adminToken}`);
+        const supply = inventory.body.find(item => item.productName === 'TestLinkedLastUnitSupply');
+        expect(Number(supply.stock)).toBe(0);
+        expect(supply.status).toBe('Sold Out');
+        expect(Number((await getProduct('TestLinkedLastUnit')).stock)).toBe(0);
+    });
+
     test('gcash orders persist a numeric reference number', async () => {
         await createProduct('TestGcashItem', 110, 4);
 
@@ -503,6 +632,23 @@ describe('Order void', () => {
             .send({ reason: 'no token' });
         expect(noAuth.status).toBe(401);
     });
+
+    test('simultaneous void requests restore a sale exactly once', async () => {
+        await createProduct('TestConcurrentVoid', 65, 3);
+        const created = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({ items: [{ name: 'TestConcurrentVoid', quantity: 1, price: 65 }], total: 65 });
+        expect(created.status).toBe(201);
+
+        const voidOrder = () => request(app)
+            .patch(`/api/orders/${created.body._id}/void`)
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({ reason: 'Concurrent test', managerOverridePin: 'admin123' });
+        const results = await Promise.all([voidOrder(), voidOrder()]);
+        expect(results.map(result => result.status).sort()).toEqual([200, 409]);
+        expect(Number((await getProduct('TestConcurrentVoid')).stock)).toBe(3);
+    });
 });
 
 describe('Order delete guard', () => {
@@ -576,9 +722,16 @@ describe('Order delete guard', () => {
 
         const refund = await request(app)
             .post(`/api/orders/${created.body._id}/refund`)
-            .set('Authorization', `Bearer ${adminToken}`);
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ reason: 'Duplicate payment' });
         expect(refund.status).toBe(200);
+        expect(refund.body.refundReason).toBe('Duplicate payment');
         expect(Number((await getProduct('TestRefundThenVoid')).stock)).toBe(3);
+
+        const refundAudit = await request(app)
+            .get('/api/audit?action=order.refund&limit=5')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(refundAudit.body.some(entry => entry.detail.includes('Duplicate payment'))).toBe(true);
 
         const voidRes = await request(app)
             .patch(`/api/orders/${created.body._id}/void`)
@@ -644,6 +797,27 @@ describe('Security hardening', () => {
             .set('Authorization', `Bearer ${adminToken}`)
             .send({ currentPassword: 'admin123', newPassword: 'short' });
         expect(res.status).toBe(400);
+    });
+
+    describe('Role boundaries', () => {
+        test('manager roles cannot manage users or audit logs', async () => {
+            const created = await request(app)
+                .post('/api/users')
+                .set('Authorization', `Bearer ${adminToken}`)
+                .send({ username: 'role-manager', password: 'manager123', role: 'Manager' });
+            expect(created.status).toBe(201);
+            const manager = await login('role-manager', 'manager123');
+            expect(manager.status).toBe(200);
+
+            const users = await request(app)
+                .get('/api/users')
+                .set('Authorization', `Bearer ${manager.token}`);
+            const audit = await request(app)
+                .get('/api/audit')
+                .set('Authorization', `Bearer ${manager.token}`);
+            expect(users.status).toBe(403);
+            expect(audit.status).toBe(403);
+        });
     });
 
     test('user create rejects <8 character passwords → 400', async () => {
