@@ -213,6 +213,10 @@ async function guardCashierPage() {
 const OFFLINE_QUEUE_KEY = "posOfflineOrders";
 const OFFLINE_WASTE_KEY = "posOfflineWaste";
 const PRODUCTS_CACHE_KEY = "posProductsCache";
+let offlineSyncPromise = null;
+let offlineSyncError = "";
+let offlineSyncErrorIsPermanent = false;
+let offlineSyncRetryTimer = null;
 
 function getOfflineQueue() {
     try {
@@ -268,19 +272,45 @@ function queueOfflineOrder(payload) {
     saveOfflineQueue(queue);
 }
 
-async function flushOfflineOrders() {
+function flushOfflineOrders(manualRetry = false) {
     if (!navigator.onLine) {
-        return;
+        updateOfflineBanner();
+        return Promise.resolve();
     }
+    if (offlineSyncPromise) return offlineSyncPromise;
+
+    if (manualRetry) {
+        offlineSyncError = "";
+        offlineSyncErrorIsPermanent = false;
+        clearTimeout(offlineSyncRetryTimer);
+        offlineSyncRetryTimer = null;
+    } else if (offlineSyncErrorIsPermanent) {
+        return Promise.resolve();
+    }
+
+    offlineSyncPromise = syncOfflineQueues().finally(() => {
+        offlineSyncPromise = null;
+        if (getOfflineQueueCount()) updateOfflineBanner();
+    });
+    updateOfflineBanner();
+    return offlineSyncPromise;
+}
+
+async function syncOfflineQueues() {
     const queue = getOfflineQueue();
     const wasteQueue = getOfflineWasteQueue();
     if (!queue.length && !wasteQueue.length) {
+        offlineSyncError = "";
+        offlineSyncErrorIsPermanent = false;
+        updateOfflineBanner();
         return;
     }
 
     let synced = 0;
     let syncedWaste = 0;
     const remaining = [];
+    let retryableFailure = false;
+    let permanentFailure = false;
 
     for (const payload of queue) {
         try {
@@ -293,10 +323,20 @@ async function flushOfflineOrders() {
                 synced += 1;
             } else {
                 remaining.push(payload);
+                const errorPayload = await response.json().catch(() => ({}));
+                if (!offlineSyncError) {
+                    offlineSyncError = errorPayload.error || `Order sync failed (HTTP ${response.status}).`;
+                }
+                if (response.status >= 500 || response.status === 408 || response.status === 429) {
+                    retryableFailure = true;
+                } else {
+                    permanentFailure = true;
+                }
             }
         } catch (err) {
-            // Still offline or the server is unreachable — retry next time.
             remaining.push(payload);
+            retryableFailure = true;
+            if (!offlineSyncError) offlineSyncError = err.message || "The server could not be reached.";
         }
     }
 
@@ -312,14 +352,35 @@ async function flushOfflineOrders() {
                 syncedWaste += 1;
             } else {
                 remainingWaste.push(payload);
+                const errorPayload = await response.json().catch(() => ({}));
+                if (!offlineSyncError) {
+                    offlineSyncError = errorPayload.error || `Waste sync failed (HTTP ${response.status}).`;
+                }
+                if (response.status >= 500 || response.status === 408 || response.status === 429) {
+                    retryableFailure = true;
+                } else {
+                    permanentFailure = true;
+                }
             }
         } catch (err) {
             remainingWaste.push(payload);
+            retryableFailure = true;
+            if (!offlineSyncError) offlineSyncError = err.message || "The server could not be reached.";
         }
     }
 
-    saveOfflineQueue(remaining);
-    saveOfflineWasteQueue(remainingWaste);
+    const queuedDuringSync = getOfflineQueue()
+        .filter(payload => !queue.some(original => original.clientOrderId === payload.clientOrderId));
+    const wasteQueuedDuringSync = getOfflineWasteQueue().slice(wasteQueue.length);
+    saveOfflineQueue([...remaining, ...queuedDuringSync]);
+    saveOfflineWasteQueue([...remainingWaste, ...wasteQueuedDuringSync]);
+
+    if (!getOfflineQueueCount()) {
+        offlineSyncError = "";
+        offlineSyncErrorIsPermanent = false;
+    } else if (permanentFailure) {
+        offlineSyncErrorIsPermanent = true;
+    }
     updateOfflineBanner();
 
     if (synced > 0 || syncedWaste > 0) {
@@ -328,7 +389,14 @@ async function flushOfflineOrders() {
         const parts = [];
         if (synced > 0) parts.push(`${synced} order${synced === 1 ? "" : "s"}`);
         if (syncedWaste > 0) parts.push(`${syncedWaste} waste ${syncedWaste === 1 ? "entry" : "entries"}`);
-        showSyncBanner(`${parts.join(" and ")} synced ✓`);
+        if (!getOfflineQueueCount()) {
+            showSyncBanner(`${parts.join(" and ")} synced ✓`);
+        }
+    }
+
+    if (retryableFailure && !permanentFailure && getOfflineQueueCount()) {
+        clearTimeout(offlineSyncRetryTimer);
+        offlineSyncRetryTimer = setTimeout(() => flushOfflineOrders(), 5000);
     }
 }
 
@@ -357,14 +425,21 @@ function updateOfflineBanner() {
     document.body.style.setProperty("--banner-h", banner.offsetHeight + "px");
     if (text) {
         if (queued > 0) {
-            const cause = navigator.onLine ? "Connection trouble" : "You're offline";
-            text.textContent = `${cause} — ${queued} item${queued === 1 ? "" : "s"} saved and waiting to sync.`;
+            if (offlineSyncPromise) {
+                text.textContent = `Syncing ${queued} saved item${queued === 1 ? "" : "s"}…`;
+            } else if (offlineSyncError) {
+                text.textContent = `Sync needs attention: ${offlineSyncError} ${queued} item${queued === 1 ? "" : "s"} still saved.`;
+            } else {
+                const cause = navigator.onLine ? "Connection trouble" : "You're offline";
+                text.textContent = `${cause} — ${queued} item${queued === 1 ? "" : "s"} saved and waiting to sync.`;
+            }
         } else {
             text.textContent = "You're offline — orders will be saved and synced automatically.";
         }
     }
     if (syncBtn) {
         syncBtn.style.display = queued > 0 ? "" : "none";
+        syncBtn.disabled = Boolean(offlineSyncPromise) || !navigator.onLine;
     }
 }
 
@@ -392,6 +467,8 @@ function showSyncBanner(message) {
 
 function setupOfflineSupport() {
     window.addEventListener("online", () => {
+        offlineSyncError = "";
+        offlineSyncErrorIsPermanent = false;
         updateOfflineBanner();
         flushOfflineOrders();
     });
@@ -403,19 +480,18 @@ function setupOfflineSupport() {
     const syncBtn = document.getElementById("offlineSyncBtn");
     if (syncBtn) {
         syncBtn.addEventListener("click", async () => {
-            syncBtn.disabled = true;
-            await flushOfflineOrders();
-            syncBtn.disabled = false;
+            await flushOfflineOrders(true);
+            updateOfflineBanner();
         });
     }
 
     // Server-down recovery: even while the device stays online, retry the
-    // queue every 30s so orders sync without waiting for a page reload.
+    // queue every 10s so orders sync without waiting for a page reload.
     setInterval(() => {
-        if (navigator.onLine && getOfflineQueueCount() > 0) {
+        if (navigator.onLine && getOfflineQueueCount() > 0 && !offlineSyncErrorIsPermanent) {
             flushOfflineOrders();
         }
-    }, 30000);
+    }, 10000);
 
     updateOfflineBanner();
     // Recovered orders from a previous session sync as soon as we're online.

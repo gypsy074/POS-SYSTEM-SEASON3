@@ -5,12 +5,12 @@
    connection returns.
    ========================================================================== */
 
-const CACHE_NAME = 'pos-shell-v14';
+const CACHE_NAME = 'pos-shell-v15';
 
 const APP_SHELL = [
     './pos.html',
     './pos.css?v=2',
-    './pos.js',
+    './pos.js?v=5',
     './sw.js',
     '../assets/logo.png',
     '../js/lottie-anim.js',
