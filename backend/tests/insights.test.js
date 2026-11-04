@@ -4,7 +4,7 @@
    ========================================================================== */
 
 process.env.JWT_SECRET = 'test-secret';
-process.env.SEED_ADMIN_PASSWORD = 'admin123';
+process.env.SEED_ADMIN_PASSWORD = 'Cafe!Demo Table 2026';
 
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const mongoose = require('mongoose');
@@ -50,17 +50,17 @@ beforeAll(async () => {
     await waitForMongo();
     await waitForSeed();
 
-    const adminLogin = await login('admin', 'admin123');
+    const adminLogin = await login('admin', 'Cafe!Demo Table 2026');
     adminToken = adminLogin.token;
     expect(adminLogin.status).toBe(200);
 
     const userRes = await request(app)
         .post('/api/users')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ username: 'tester', password: 'tester123', role: 'Cashier' });
+        .send({ username: 'tester', password: 'Cafe Crew!Table 27', role: 'Cashier' });
     expect([201, 409]).toContain(userRes.status);
 
-    const cashierLogin = await login('tester', 'tester123');
+    const cashierLogin = await login('tester', 'Cafe Crew!Table 27');
     cashierToken = cashierLogin.token;
     expect(cashierLogin.status).toBe(200);
 }, 120000);

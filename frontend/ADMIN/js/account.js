@@ -15,41 +15,75 @@
     // ── Styles ────────────────────────────────────────────────────────────
     const style = document.createElement("style");
     style.textContent = `
-#accountBanner{position:sticky;top:0;z-index:900;display:none;align-items:center;gap:10px;
-    background:#fff7e6;border-bottom:1px solid #f5c26b;color:#6b4a12;
-    padding:10px 16px;font-size:13px;font-weight:500;box-shadow:0 2px 8px rgba(0,0,0,.06)}
-#accountBanner i{color:#d97706;font-size:15px}
-#accountBanner strong{font-weight:700}
-#accountBanner .banner-actions{margin-left:auto;display:flex;gap:8px}
-#accountBanner button{background:#d97706;color:#fff;border:0;border-radius:6px;
-    padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;
-    transition:background .15s ease,transform .12s ease,opacity .15s ease}
-#accountBanner button:hover{background:#b45309}
+#accountBanner{position:sticky;top:0;z-index:900;display:none;align-items:center;gap:12px;
+    margin:8px 16px;padding:12px 48px 12px 14px;background:#fff9ef;
+    border:1px solid #ead3b1;border-left:4px solid #c47a32;border-radius:12px;
+    color:#594128;font-size:13px;font-weight:500;line-height:1.45;
+    box-shadow:0 5px 16px rgba(72,46,23,.09)}
+#accountBanner>i{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;
+    border-radius:10px;background:#f3e3ce;color:#a45f1e;font-size:15px}
+#accountBannerText{min-width:0;flex:1}
+#accountBanner strong{font-weight:700;color:#704611}
+#accountBanner .banner-actions{margin-left:auto;display:flex;align-items:center;gap:7px;flex:0 0 auto}
+#accountBanner button{background:#b96b20;color:#fff;border:1px solid #b96b20;border-radius:8px;
+    padding:7px 11px;font-size:12px;font-weight:650;white-space:nowrap;cursor:pointer;
+    transition:background .15s ease,border-color .15s ease,transform .12s ease,opacity .15s ease}
+#accountBanner button:hover{background:#995316;border-color:#995316}
 #accountBanner button:active{transform:scale(.95)}
-#accountBanner button.ghost{background:transparent;color:#6b4a12;border:1px solid #e0a74c;padding:5px 10px}
-#accountBanner button.ghost:hover{background:#fdf0da}
-#accountBanner button.plain{background:none;border:0;color:#999;cursor:pointer;font-size:16px;line-height:1;transition:color .15s ease}
-#accountBanner button.plain:hover{color:#555}
+#accountBanner button.ghost{background:#fffaf4;color:#795329;border:1px solid #dfc5a3}
+#accountBanner button.ghost:hover{background:#f7ead8;border-color:#c99b65}
+#accountBanner button.plain{position:absolute;top:8px;right:9px;display:grid;place-items:center;
+    width:28px;height:28px;padding:0;background:transparent;border:0;color:#8b7965;
+    cursor:pointer;font-size:17px;line-height:1}
+#accountBanner button.plain:hover{background:#f1e4d3;color:#4f3a24}
+body.dark #accountBanner{background:#34271c;border-color:#55402b;border-left-color:#d9934b;
+    color:#e7d8c5;box-shadow:0 5px 18px rgba(0,0,0,.2)}
+body.dark #accountBanner>i{background:#493521;color:#f0b879}
+body.dark #accountBanner strong{color:#f3c58f}
+body.dark #accountBanner button{background:#aa611f;border-color:#aa611f;color:#fff7ed}
+body.dark #accountBanner button:hover{background:#c47a32;border-color:#c47a32}
+body.dark #accountBanner button.ghost{background:#3d2e20;border-color:#6a5035;color:#f0d7b6}
+body.dark #accountBanner button.ghost:hover{background:#4b3826;border-color:#946a3b}
+body.dark #accountBanner button.plain{background:transparent;color:#c1ad95}
+body.dark #accountBanner button.plain:hover{background:#493521;color:#fff0dc}
+@media(max-width:720px){
+    #accountBanner{flex-wrap:wrap;align-items:flex-start;gap:8px 10px;margin:8px 10px;padding:11px 42px 11px 11px}
+    #accountBanner>i{flex-basis:30px;width:30px;height:30px}
+    #accountBannerText{flex:1 1 calc(100% - 44px);padding-top:2px}
+    #accountBanner .banner-actions{width:100%;margin-left:40px;gap:6px}
+    #accountBanner .banner-actions button:not(.plain){flex:1;padding:7px 8px;font-size:11.5px}
+}
+@media(max-width:380px){
+    #accountBanner{font-size:12px}
+    #accountBanner .banner-actions{margin-left:0}
+    #accountBanner .banner-actions button:not(.plain){white-space:normal;line-height:1.25}
+}
 .account-modal-overlay{position:fixed;inset:0;background:rgba(10,12,20,.55);z-index:1200;
     display:none;align-items:center;justify-content:center;padding:16px}
 .account-modal-overlay.open{display:flex}
-.account-modal{background:#fff;border-radius:14px;width:100%;max-width:520px;max-height:85vh;
-    display:flex;flex-direction:column;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.35)}
+.account-modal{box-sizing:border-box;background:#fffaf5;border:1px solid #eadfd3;border-radius:18px;
+    width:min(100%,520px);max-height:min(85vh,760px);display:flex;flex-direction:column;
+    overflow:hidden;box-shadow:0 22px 60px rgba(31,20,12,.32)}
 .account-modal-head{display:flex;align-items:center;justify-content:space-between;
-    padding:16px 20px;border-bottom:1px solid #eef0f4}
-.account-modal-head h3{margin:0;font-size:16px;color:#1a2233}
-.account-modal-close{background:none;border:0;font-size:20px;color:#8a93a5;cursor:pointer;line-height:1;
+    padding:17px 22px;background:linear-gradient(135deg,#fffaf5,#f8eee3);border-bottom:1px solid #eadfd3}
+.account-modal-head h3{display:flex;align-items:center;gap:10px;margin:0;font-size:16px;color:#38291e}
+.account-modal-head h3 i{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;
+    background:#f1dfca;color:#9a5c22;font-size:15px}
+.account-modal-close{display:grid;place-items:center;width:34px;height:34px;background:transparent;
+    border:0;border-radius:9px;font-size:20px;color:#8a7a6a;cursor:pointer;line-height:1;
     transition:color .15s ease,transform .12s ease}
-.account-modal-close:hover{color:#4b5563}
+.account-modal-close:hover{color:#6b4f3b;background:#f1e5d8}
 .account-modal-close:active{transform:scale(.9)}
-.account-tabs{display:flex;gap:4px;padding:10px 20px 0;border-bottom:1px solid #eef0f4}
-.account-tabs button{background:none;border:0;padding:9px 14px;font-size:13px;font-weight:600;
-    color:#8a93a5;cursor:pointer;border-bottom:2px solid transparent;
-    transition:color .15s ease,border-color .15s ease,transform .12s ease}
+.account-tabs{display:flex;gap:5px;margin:14px 22px 0;padding:5px;background:#f3e9de;
+    border:1px solid #eadfd3;border-radius:12px}
+.account-tabs button{flex:1;background:transparent;border:0;border-radius:8px;padding:9px 12px;
+    font-size:13px;font-weight:600;color:#766555;cursor:pointer;
+    transition:color .15s ease,background .15s ease,box-shadow .15s ease,transform .12s ease}
 .account-tabs button:hover{color:#d97706}
 .account-tabs button:active{transform:scale(.95)}
-.account-tabs button.active{color:#d97706;border-bottom-color:#d97706}
-.account-tab-body{padding:18px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+.account-tabs button.active{color:#98500e;background:#fffaf5;box-shadow:0 2px 6px rgba(87,58,31,.12)}
+.account-tabs button:focus-visible,.account-modal-close:focus-visible{outline:2px solid #c47a32;outline-offset:2px}
+.account-tab-body{padding:20px 22px 22px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
 .account-tab-body[hidden]{display:none}
 .account-danger{background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;border-radius:8px;
     padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;
@@ -99,22 +133,50 @@
 @keyframes accountModalPopOut{to{transform:translateY(12px) scale(.97);opacity:0}}
 .account-empty{font-size:12.5px;color:#8a93a5;text-align:center;padding:14px 0}
 .account-field{display:flex;flex-direction:column;gap:5px}
-.account-field label{font-size:12px;font-weight:600;color:#475569}
-.account-field input{border:1px solid #d7dce4;border-radius:8px;padding:9px 11px;font-size:13px;
-    outline:none}
+.account-field label{font-size:12px;font-weight:650;color:#5a493a}
+.account-field input{box-sizing:border-box;width:100%;min-height:44px;background:#fff;border:1px solid #dfd1c3;
+    border-radius:10px;padding:10px 12px;font-size:13px;color:#29231d;outline:none;
+    transition:border-color .15s ease,box-shadow .15s ease,background .15s ease}
 .account-field input:focus{border-color:#d97706;box-shadow:0 0 0 3px rgba(217,119,6,.15)}
+.account-policy-hint{padding:2px 1px 0;text-align:left;color:#806e5d;font-size:11.5px;line-height:1.45}
+.account-footnote{padding:1px 0 0;font-size:11.5px;color:#8a7a6a}
 .account-msg{font-size:12.5px;border-radius:8px;padding:9px 11px;display:none}
 .account-msg.ok{display:block;background:#dcfce7;color:#15803d}
 .account-msg.err{display:block;background:#fee2e2;color:#b91c1c}
-[data-theme="dark"] .account-modal{background:#1e2433}
-[data-theme="dark"] .account-modal-head{border-color:#2a3247}
-[data-theme="dark"] .account-modal-head h3{color:#e8ecf4}
-[data-theme="dark"] .account-tabs{border-color:#2a3247}
-[data-theme="dark"] .account-session-row{border-color:#2a3247}
-[data-theme="dark"] .account-session-row .acct-icon{background:#2a3247;color:#cbd5e1}
-[data-theme="dark"] .account-session-row .acct-device{color:#e8ecf4}
-[data-theme="dark"] .account-field input{background:#161b28;border-color:#2a3247;color:#e8ecf4}
-[data-theme="dark"] .account-close-x{color:#8a93a5}`;
+body.dark .account-modal{background:#2e2318;border-color:#4a3a2c}
+body.dark .account-modal-head{background:linear-gradient(135deg,#34271c,#2e2318);border-color:#4a3a2c}
+body.dark .account-modal-head h3{color:#f2e7d8}
+body.dark .account-modal-head h3 i{background:#4a3828;color:#e2a76b}
+body.dark .account-modal-close{color:#b8a895}
+body.dark .account-modal-close:hover{color:#f2e7d8;background:#403123}
+body.dark .account-tabs{background:#241b14;border-color:#4a3a2c}
+body.dark .account-tabs button{color:#bdad9a}
+body.dark .account-tabs button.active{color:#f2b36f;background:#403123;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+body.dark .account-tab-body{color:#e8dccb}
+body.dark .account-danger{background:#482323;border-color:#653333;color:#fecaca}
+body.dark .account-danger:hover{background:#5b2929}
+body.dark .account-session-row{border-color:#4a3a2c}
+body.dark .account-session-row .acct-icon{background:#403123;color:#e1cdb5}
+body.dark .account-session-row .acct-device{color:#f2e7d8}
+body.dark .account-session-row .acct-sub{color:#b8a895}
+body.dark .account-session-row .acct-badge{background:#183b2c;color:#bbf7d0}
+body.dark .acct-age.today{background:#183b2c;color:#bbf7d0}
+body.dark .acct-age.week{background:#49351e;color:#fcd34d}
+body.dark .acct-age.old{background:#403123;color:#d1c4b4}
+body.dark .account-field label{color:#e1d1be}
+body.dark .account-field input{background:#241c15;border-color:#514131;color:#f2e7d8}
+body.dark .account-field input:focus{border-color:#d9934b;box-shadow:0 0 0 3px rgba(217,147,75,.18)}
+body.dark .account-policy-hint,body.dark .account-footnote{color:#b8a895}
+body.dark .account-empty{color:#b8a895}
+body.dark .account-msg.ok{background:#183b2c;color:#bbf7d0}
+body.dark .account-msg.err{background:#482323;color:#fecaca}
+@media(max-width:480px){
+    .account-modal-overlay{padding:10px}
+    .account-modal{max-height:calc(100dvh - 20px);border-radius:15px}
+    .account-modal-head{padding:14px 16px}
+    .account-tabs{margin:12px 16px 0}
+    .account-tab-body{padding:16px;gap:12px}
+}`;
 
     document.head.appendChild(style);
 
@@ -206,6 +268,7 @@
     let sessionsFailed = false;
     let lastAlertedJti = null;
     let sessionsLoading = false;
+    let refreshAccountPasswordStrength = () => {};
 
     // ── Alert sound (browser-generated tones — no audio files needed) ────
     let alertAudioCtx = null;
@@ -256,13 +319,15 @@
     // ── Banner ───────────────────────────────────────────────────────────
     const banner = document.createElement("div");
     banner.id = "accountBanner";
+    banner.setAttribute("role", "status");
+    banner.setAttribute("aria-live", "polite");
     banner.innerHTML = `
         <i class="fa-solid fa-shield-halved"></i>
         <span id="accountBannerText">New sign-in detected</span>
         <span class="banner-actions">
             <button type="button" id="accountBannerKill">Log out other sessions</button>
             <button type="button" id="accountBannerView" class="ghost">View sessions</button>
-            <button type="button" id="accountBannerClose" class="plain" title="Dismiss">&times;</button>
+            <button type="button" id="accountBannerClose" class="plain" title="Dismiss" aria-label="Dismiss sign-in alert">&times;</button>
         </span>`;
     document.addEventListener("DOMContentLoaded", () => {
         const header = document.querySelector("header");
@@ -317,7 +382,15 @@
                 </div>
                 <div class="account-field">
                     <label for="acctNewPw">New password</label>
-                    <input type="password" id="acctNewPw" autocomplete="new-password">
+                    <input type="password" id="acctNewPw" autocomplete="new-password" minlength="8" aria-describedby="accountPasswordPolicyHint accountPasswordStrength">
+                    <small class="account-policy-hint" id="accountPasswordPolicyHint">At least 8 characters, up to 72 UTF-8 bytes. Spaces are allowed; avoid common passwords, your username, and the cafe name.</small>
+                    <div class="password-strength" id="accountPasswordStrength" aria-live="polite" aria-atomic="true" hidden>
+                        <div class="password-strength__summary">Strength <strong class="password-strength__label" data-strength-label></strong></div>
+                        <div class="password-strength__track" aria-hidden="true">
+                            <span data-strength-segment></span><span data-strength-segment></span><span data-strength-segment></span>
+                        </div>
+                        <small class="password-strength__message" data-strength-message></small>
+                    </div>
                 </div>
                 <div class="account-field">
                     <label for="acctConfirmPw">Confirm new password</label>
@@ -325,7 +398,7 @@
                 </div>
                 <div class="account-msg" id="accountPwMsg"></div>
                 <button type="button" class="account-primary" id="accountPwSave">Change password</button>
-                <span class="account-empty">Changing your password logs out every other device instantly.</span>
+                <span class="account-footnote">Changing your password logs out every other device instantly.</span>
             </div>
         </div>`;
     overlay.addEventListener("click", e => { if (e.target === overlay) closeAccountModal(); });
@@ -338,6 +411,15 @@
         overlay.querySelectorAll(".account-tabs button").forEach(btn =>
             btn.addEventListener("click", () => switchTab(btn.dataset.tab)));
         const pw = overlay.querySelector("#acctNewPw");
+        if (pw) {
+            const strengthIndicator = overlay.querySelector("#accountPasswordStrength");
+            const username = getSignedInUsername();
+            refreshAccountPasswordStrength = window.setupPosPasswordStrength(
+                pw,
+                strengthIndicator,
+                () => username
+            );
+        }
         if (pw) pw.addEventListener("keydown", e => { if (e.key === "Enter") changePassword(); });
     });
 
@@ -470,7 +552,9 @@
         const confirmPw = overlay.querySelector("#acctConfirmPw").value;
         showMsg("", false);
         if (!currentPw || !newPw) return showMsg("Fill in your current and new password.", true);
-        if (newPw.length < 4) return showMsg("New password must be at least 4 characters.", true);
+        const username = getSignedInUsername();
+        const passwordError = window.getPosPasswordPolicyError(newPw, username);
+        if (passwordError) return showMsg(passwordError, true);
         if (newPw !== confirmPw) return showMsg("Passwords do not match.", true);
         const btn = overlay.querySelector("#accountPwSave");
         btn.disabled = true;
@@ -489,6 +573,7 @@
             overlay.querySelector("#acctCurrentPw").value = "";
             overlay.querySelector("#acctNewPw").value = "";
             overlay.querySelector("#acctConfirmPw").value = "";
+            refreshAccountPasswordStrength();
             showMsg(`Password changed — ${data.revoked || 0} other session(s) logged out.`, false);
             loadSessions();
         } catch (e) {
@@ -496,6 +581,17 @@
             showMsg("Network error — try again.", true);
         } finally {
             btn.disabled = false;
+        }
+    }
+
+    function getSignedInUsername() {
+        const storedUser = localStorage.getItem(userKey) || sessionStorage.getItem(userKey);
+        if (!storedUser) return "";
+        try {
+            return JSON.parse(storedUser).username || "";
+        } catch (error) {
+            console.error("Could not read the signed-in username for password validation.", error);
+            return "";
         }
     }
 

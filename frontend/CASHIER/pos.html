@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-title" content="Season 3 POS">
     <link rel="apple-touch-icon" href="/assets/pwa-icon-180.png">
     <link rel="stylesheet" href="/js/pwa.css?v=5">
-    <link rel="stylesheet" href="pos.css" />
+    <link rel="stylesheet" href="pos.css?v=2" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
@@ -455,8 +455,12 @@
         <div class="pos-modal-body">
           <p class="pos-modal-note" id="managerOverrideMessage">A Manager or Admin must authorize this action.</p>
           <label class="pos-modal-field">
-            <span>Manager/Admin password or PIN</span>
-            <input type="password" id="managerOverridePin" autocomplete="off">
+            <span>Manager/Admin username</span>
+            <input type="text" id="managerOverrideUsername" autocomplete="username" autocapitalize="none">
+          </label>
+          <label class="pos-modal-field">
+            <span>Manager/Admin password</span>
+            <input type="password" id="managerOverridePassword" autocomplete="current-password">
           </label>
         </div>
         <div class="pos-modal-actions">
@@ -629,8 +633,9 @@
     </aside>
 
     <script src="../js/lottie-anim.js"></script>
-    <script src="pos.js?v=3"></script>
-    <script src="../ADMIN/js/account.js?v=40"></script>
+    <script src="../js/passwordPolicy.js?v=4"></script>
+    <script src="pos.js?v=4"></script>
+    <script src="../ADMIN/js/account.js?v=44"></script>
     <script src="../js/logoutTransition.js"></script>
     <script src="/js/pwa.js?v=2"></script>
   </body>

@@ -4,13 +4,14 @@
    ========================================================================== */
 
 process.env.JWT_SECRET = 'test-secret';
-process.env.SEED_ADMIN_PASSWORD = 'admin123';
+process.env.SEED_ADMIN_PASSWORD = 'Cafe!Demo Table 2026';
 
 const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 const request = require('supertest');
 
 let mongod;
@@ -46,9 +47,9 @@ beforeAll(async () => {
     await waitForMongo();
     await waitForSeed();
 
-    // The default admin (admin/admin123) is seeded automatically on connect;
+    // The default admin (admin/Cafe!Demo Table 2026) is seeded automatically on connect;
     // a 409 means it already exists — either way the account is available.
-    const adminLogin = await login('admin', 'admin123');
+    const adminLogin = await login('admin', 'Cafe!Demo Table 2026');
     adminToken = adminLogin.token;
     expect(adminLogin.status).toBe(200);
 
@@ -56,10 +57,10 @@ beforeAll(async () => {
     const userRes = await request(app)
         .post('/api/users')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ username: 'tester', password: 'tester123', role: 'Cashier' });
+        .send({ username: 'tester', password: 'Cafe Crew!Table 27', role: 'Cashier' });
     expect([201, 409]).toContain(userRes.status);
 
-    const cashierLogin = await login('tester', 'tester123');
+    const cashierLogin = await login('tester', 'Cafe Crew!Table 27');
     cashierToken = cashierLogin.token;
     expect(cashierLogin.status).toBe(200);
 }, 120000);
@@ -211,11 +212,11 @@ describe('Session authorization changes', () => {
         const created = await request(app)
             .post('/api/users')
             .set('Authorization', `Bearer ${adminToken}`)
-            .send({ username: 'multi-session-test', password: 'tester123', role: 'Cashier' });
+            .send({ username: 'multi-session-test', password: 'Cafe Crew!Table 27', role: 'Cashier' });
         expect(created.status).toBe(201);
 
-        const firstLogin = await login('multi-session-test', 'tester123');
-        const secondLogin = await login('multi-session-test', 'tester123');
+        const firstLogin = await login('multi-session-test', 'Cafe Crew!Table 27');
+        const secondLogin = await login('multi-session-test', 'Cafe Crew!Table 27');
         expect(firstLogin.status).toBe(200);
         expect(secondLogin.status).toBe(200);
 
@@ -233,10 +234,10 @@ describe('Session authorization changes', () => {
         const created = await request(app)
             .post('/api/users')
             .set('Authorization', `Bearer ${adminToken}`)
-            .send({ username: 'session-role-test', password: 'tester123', role: 'Cashier' });
+            .send({ username: 'session-role-test', password: 'Cafe Crew!Table 27', role: 'Cashier' });
         expect(created.status).toBe(201);
 
-        const userLogin = await login('session-role-test', 'tester123');
+        const userLogin = await login('session-role-test', 'Cafe Crew!Table 27');
         expect(userLogin.status).toBe(200);
 
         const updated = await request(app)
@@ -250,7 +251,7 @@ describe('Session authorization changes', () => {
             .set('Authorization', `Bearer ${userLogin.token}`);
         expect(oldSession.status).toBe(401);
 
-        const newLogin = await login('session-role-test', 'tester123');
+        const newLogin = await login('session-role-test', 'Cafe Crew!Table 27');
         expect(newLogin.status).toBe(200);
         expect(newLogin.role).toBe('Manager');
     });
@@ -259,10 +260,10 @@ describe('Session authorization changes', () => {
         const created = await request(app)
             .post('/api/users')
             .set('Authorization', `Bearer ${adminToken}`)
-            .send({ username: 'session-revoke-test', password: 'tester123', role: 'Cashier' });
+            .send({ username: 'session-revoke-test', password: 'Cafe Crew!Table 27', role: 'Cashier' });
         expect(created.status).toBe(201);
 
-        const userLogin = await login('session-revoke-test', 'tester123');
+        const userLogin = await login('session-revoke-test', 'Cafe Crew!Table 27');
         expect(userLogin.status).toBe(200);
         const beforeDelete = await request(app)
             .get('/api/auth/me')
@@ -294,14 +295,14 @@ describe('Session authorization changes', () => {
                 .patch(`/api/orders/${created.body._id}/void`)
                 .set('Authorization', `Bearer ${cashierToken}`)
                 .set('X-Forwarded-For', clientIp)
-                .send({ managerOverridePin: 'wrong-pin' });
+                .send({ managerOverrideUsername: 'admin', managerOverridePassword: 'wrong-pin' });
             expect(denied.status).toBe(403);
         }
         const limited = await request(app)
             .patch(`/api/orders/${created.body._id}/void`)
             .set('Authorization', `Bearer ${cashierToken}`)
             .set('X-Forwarded-For', clientIp)
-            .send({ managerOverridePin: 'wrong-pin' });
+            .send({ managerOverrideUsername: 'admin', managerOverridePassword: 'wrong-pin' });
         expect(limited.status).toBe(429);
     }, 30000);
 });
@@ -342,9 +343,9 @@ describe('Orders & stock', () => {
         const userRes = await request(app)
             .post('/api/users')
             .set('Authorization', `Bearer ${adminToken}`)
-            .send({ username: 'othercashier', password: 'tester123', role: 'Cashier' });
+            .send({ username: 'othercashier', password: 'Cafe Crew!Table 27', role: 'Cashier' });
         expect([201, 409]).toContain(userRes.status);
-        const otherLogin = await login('othercashier', 'tester123');
+        const otherLogin = await login('othercashier', 'Cafe Crew!Table 27');
         expect(otherLogin.status).toBe(200);
 
         await createProduct('TestIdentityDish', 75, 3);
@@ -543,7 +544,7 @@ describe('Orders & stock', () => {
 });
 
 describe('Waste & stock', () => {
-    test('cashier cannot log waste without manager override PIN', async () => {
+    test('cashier cannot log waste without manager username and password', async () => {
         await createProduct('TestKapeNoAuth', 90, 10);
         const res = await request(app)
             .post('/api/waste')
@@ -553,23 +554,54 @@ describe('Waste & stock', () => {
         expect(res.body.error).toBe('Manager or Admin authorization is required for this action.');
     });
 
-    test('logging waste decrements menu stock with manager override PIN', async () => {
+    test('cashier can log waste with matching manager username and password', async () => {
         await createProduct('TestKape', 90, 10);
 
         const res = await request(app)
             .post('/api/waste')
             .set('Authorization', `Bearer ${cashierToken}`)
-            .send({ productName: 'TestKape', quantity: 3, price: 90, reason: 'Unit Test', managerOverridePin: 'admin123' });
+            .send({
+                productName: 'TestKape',
+                quantity: 3,
+                price: 90,
+                reason: 'Unit Test',
+                managerOverrideUsername: 'admin',
+                managerOverridePassword: 'Cafe!Demo Table 2026'
+            });
         expect(res.status).toBe(201);
 
         const product = await getProduct('TestKape');
         expect(Number(product.stock)).toBe(7);
     });
+
+    test('waste authorization rejects cashier credentials even when password matches a manager', async () => {
+        await createProduct('TestKapeWrongManager', 90, 10);
+        const manager = await request(app)
+            .post('/api/users')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ username: 'waste-manager', password: 'Cafe!Demo Table 2026', role: 'Manager' });
+        expect([201, 409]).toContain(manager.status);
+
+        const res = await request(app)
+            .post('/api/waste')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                productName: 'TestKapeWrongManager',
+                quantity: 1,
+                price: 90,
+                reason: 'Unit Test',
+                managerOverrideUsername: 'tester',
+                managerOverridePassword: 'Cafe!Demo Table 2026'
+            });
+        expect(res.status).toBe(403);
+        expect(res.body.error).toBe('The Manager or Admin username/password is invalid.');
+        expect(Number((await getProduct('TestKapeWrongManager')).stock)).toBe(10);
+    });
 });
 
 describe('Order void', () => {
-    test('cashier cannot void another cashier order even with override PIN', async () => {
-        const otherLogin = await login('othercashier', 'tester123');
+    test('cashier cannot void another cashier order even with manager authorization', async () => {
+        const otherLogin = await login('othercashier', 'Cafe Crew!Table 27');
         expect(otherLogin.status).toBe(200);
         await createProduct('TestOwnershipDish', 85, 2);
 
@@ -582,13 +614,13 @@ describe('Order void', () => {
         const voidRes = await request(app)
             .patch(`/api/orders/${created.body._id}/void`)
             .set('Authorization', `Bearer ${otherLogin.token}`)
-            .send({ managerOverridePin: 'admin123' });
+            .send({ managerOverrideUsername: 'admin', managerOverridePassword: 'Cafe!Demo Table 2026' });
         expect(voidRes.status).toBe(403);
         expect(voidRes.body.error).toBe('Cashiers can void only their own orders.');
         expect((await getProduct('TestOwnershipDish')).stock).toBe(1);
     });
 
-    test('voiding restores stock, rejects double-void, needs auth and manager override for cashier', async () => {
+    test('voiding restores stock, rejects double-void, and requires manager credentials for cashier', async () => {
         await createProduct('TestHaloHalo', 95, 4);
 
         const created = await request(app)
@@ -604,7 +636,7 @@ describe('Order void', () => {
         const orderId = created.body._id;
         expect(Number((await getProduct('TestHaloHalo')).stock)).toBe(0);
 
-        // Without override PIN, cashier void is rejected
+        // Without manager credentials, cashier void is rejected.
         const noPinRes = await request(app)
             .patch(`/api/orders/${orderId}/void`)
             .set('Authorization', `Bearer ${cashierToken}`)
@@ -615,7 +647,11 @@ describe('Order void', () => {
         const voidRes = await request(app)
             .patch(`/api/orders/${orderId}/void`)
             .set('Authorization', `Bearer ${cashierToken}`)
-            .send({ reason: 'Customer changed mind', managerOverridePin: 'admin123' });
+            .send({
+                reason: 'Customer changed mind',
+                managerOverrideUsername: 'admin',
+                managerOverridePassword: 'Cafe!Demo Table 2026'
+            });
         expect(voidRes.status).toBe(200);
         expect(voidRes.body.status).toBe('Voided');
         expect(voidRes.body.voidReason).toBe('Customer changed mind');
@@ -624,7 +660,7 @@ describe('Order void', () => {
         const doubleVoid = await request(app)
             .patch(`/api/orders/${orderId}/void`)
             .set('Authorization', `Bearer ${cashierToken}`)
-            .send({ managerOverridePin: 'admin123' });
+            .send({ managerOverrideUsername: 'admin', managerOverridePassword: 'Cafe!Demo Table 2026' });
         expect(doubleVoid.status).toBe(409);
 
         const noAuth = await request(app)
@@ -644,10 +680,46 @@ describe('Order void', () => {
         const voidOrder = () => request(app)
             .patch(`/api/orders/${created.body._id}/void`)
             .set('Authorization', `Bearer ${cashierToken}`)
-            .send({ reason: 'Concurrent test', managerOverridePin: 'admin123' });
+            .send({
+                reason: 'Concurrent test',
+                managerOverrideUsername: 'admin',
+                managerOverridePassword: 'Cafe!Demo Table 2026'
+            });
         const results = await Promise.all([voidOrder(), voidOrder()]);
         expect(results.map(result => result.status).sort()).toEqual([200, 409]);
         expect(Number((await getProduct('TestConcurrentVoid')).stock)).toBe(3);
+    });
+
+    test('void audit records the selected manager when accounts share a password', async () => {
+        const manager = await request(app)
+            .post('/api/users')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ username: 'override-manager', password: 'Cafe!Demo Table 2026', role: 'Manager' });
+        expect([201, 409]).toContain(manager.status);
+
+        await createProduct('TestNamedAuthorizer', 65, 3);
+        const created = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({ items: [{ name: 'TestNamedAuthorizer', quantity: 1, price: 65 }], total: 65 });
+        expect(created.status).toBe(201);
+
+        const voided = await request(app)
+            .patch(`/api/orders/${created.body._id}/void`)
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                managerOverrideUsername: 'override-manager',
+                managerOverridePassword: 'Cafe!Demo Table 2026'
+            });
+        expect(voided.status).toBe(200);
+
+        const audit = await request(app)
+            .get('/api/audit?action=order.void&limit=20')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(audit.body.some(entry =>
+            entry.detail.includes(`Order #${voided.body.receiptId}`) &&
+            entry.detail.includes('Authorized by override-manager')
+        )).toBe(true);
     });
 });
 
@@ -692,7 +764,7 @@ describe('Order delete guard', () => {
         const voidRes = await request(app)
             .patch(`/api/orders/${created.body._id}/void`)
             .set('Authorization', `Bearer ${cashierToken}`)
-            .send({ managerOverridePin: 'admin123' });
+            .send({ managerOverrideUsername: 'admin', managerOverridePassword: 'Cafe!Demo Table 2026' });
         expect(voidRes.status).toBe(200);
 
         const del = await request(app)
@@ -723,7 +795,11 @@ describe('Order delete guard', () => {
         const refund = await request(app)
             .post(`/api/orders/${created.body._id}/refund`)
             .set('Authorization', `Bearer ${adminToken}`)
-            .send({ reason: 'Duplicate payment' });
+            .send({
+                reason: 'Duplicate payment',
+                managerOverrideUsername: 'admin',
+                managerOverridePassword: 'Cafe!Demo Table 2026'
+            });
         expect(refund.status).toBe(200);
         expect(refund.body.refundReason).toBe('Duplicate payment');
         expect(Number((await getProduct('TestRefundThenVoid')).stock)).toBe(3);
@@ -791,11 +867,11 @@ describe('Orders fetch bounds', () => {
 });
 
 describe('Security hardening', () => {
-    test('password change rejects <8 characters → 400', async () => {
+    test('password change rejects seven characters → 400', async () => {
         const res = await request(app)
             .put('/api/auth/password')
             .set('Authorization', `Bearer ${adminToken}`)
-            .send({ currentPassword: 'admin123', newPassword: 'short' });
+            .send({ currentPassword: 'Cafe!Demo Table 2026', newPassword: 'short!!' });
         expect(res.status).toBe(400);
     });
 
@@ -804,9 +880,9 @@ describe('Security hardening', () => {
             const created = await request(app)
                 .post('/api/users')
                 .set('Authorization', `Bearer ${adminToken}`)
-                .send({ username: 'role-manager', password: 'manager123', role: 'Manager' });
+                .send({ username: 'role-manager', password: 'Manager!Cafe Table 27', role: 'Manager' });
             expect(created.status).toBe(201);
-            const manager = await login('role-manager', 'manager123');
+            const manager = await login('role-manager', 'Manager!Cafe Table 27');
             expect(manager.status).toBe(200);
 
             const users = await request(app)
@@ -820,26 +896,95 @@ describe('Security hardening', () => {
         });
     });
 
-    test('user create rejects <8 character passwords → 400', async () => {
+    test('user create rejects seven-character passwords → 400', async () => {
         const res = await request(app)
             .post('/api/users')
             .set('Authorization', `Bearer ${adminToken}`)
-            .send({ username: 'weakuser', password: 'tiny', role: 'Cashier' });
+            .send({ username: 'weakuser', password: 'abcdefg', role: 'Cashier' });
         expect(res.status).toBe(400);
     });
 
-    test('user password reset rejects <8 characters → 400', async () => {
+    test('user password reset rejects seven characters → 400', async () => {
         const created = await request(app)
             .post('/api/users')
             .set('Authorization', `Bearer ${adminToken}`)
-            .send({ username: 'pwresetuser', password: 'strongpass1', role: 'Cashier' });
+            .send({ username: 'pwresetuser', password: 'Latte!Stock#2026', role: 'Cashier' });
         expect(created.status).toBe(201);
 
         const res = await request(app)
             .put(`/api/users/${created.body._id}`)
             .set('Authorization', `Bearer ${adminToken}`)
-            .send({ password: 'tiny' });
+            .send({ password: 'abcdefg' });
         expect(res.status).toBe(400);
+
+        const accepted = await request(app)
+            .put(`/api/users/${created.body._id}`)
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ password: 'new pass' });
+        expect(accepted.status).toBe(200);
+        expect((await login('pwresetuser', 'new pass')).status).toBe(200);
+    });
+
+    test('user creation accepts an eight-character passphrase with spaces', async () => {
+        const res = await request(app)
+            .post('/api/users')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ username: 'eight-char-user', password: 'ab cd ef', role: 'Cashier' });
+        expect(res.status).toBe(201);
+        expect((await login('eight-char-user', 'ab cd ef')).status).toBe(200);
+    });
+
+    test.each([
+        ['a common password', 'Password123!'],
+        ['the username', 'same-user'],
+        ['a password over bcrypt’s byte limit', '😀'.repeat(19)],
+        ['the cafe name', 'mySeason3CafePass']
+    ])('user creation rejects %s', async (_description, password) => {
+        const res = await request(app)
+            .post('/api/users')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ username: 'same-user', password, role: 'Cashier' });
+        expect(res.status).toBe(400);
+    });
+
+    test('self-service password change accepts an eight-character passphrase', async () => {
+        const created = await request(app)
+            .post('/api/users')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ username: 'password-change-user', password: 'Initial phrase 2026', role: 'Cashier' });
+        expect(created.status).toBe(201);
+
+        const userLogin = await login('password-change-user', 'Initial phrase 2026');
+        expect(userLogin.status).toBe(200);
+        const changed = await request(app)
+            .put('/api/auth/password')
+            .set('Authorization', `Bearer ${userLogin.token}`)
+            .send({ currentPassword: 'Initial phrase 2026', newPassword: 'new pass' });
+        expect(changed.status).toBe(200);
+        expect((await login('password-change-user', 'new pass')).status).toBe(200);
+    });
+
+    test('self-service password change supports legacy users with string IDs', async () => {
+        const userId = '6a7e9d3fe22cdf773b129de9';
+        await mongoose.connection.db.collection('users').insertOne({
+            _id: userId,
+            username: 'legacy-id-user',
+            password: await bcrypt.hash('Legacy pass 2026', 10),
+            role: 'Cashier',
+            status: 'Active',
+            date: new Date().toLocaleDateString()
+        });
+
+        const userLogin = await login('legacy-id-user', 'Legacy pass 2026');
+        expect(userLogin.status).toBe(200);
+        const changed = await request(app)
+            .put('/api/auth/password')
+            .set('Authorization', `Bearer ${userLogin.token}`)
+            .send({ currentPassword: 'Legacy pass 2026', newPassword: 'Legacy new 2026' });
+        expect(changed.status).toBe(200);
+        expect((await login('legacy-id-user', 'Legacy new 2026')).status).toBe(200);
+        expect((await mongoose.connection.db.collection('users').findOne({ _id: userId })).password)
+            .not.toBe('Legacy pass 2026');
     });
 
     test('oversized JSON body → 413', async () => {

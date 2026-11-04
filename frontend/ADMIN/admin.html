@@ -281,8 +281,16 @@
                             <div class="input-group">
                                 <label>Password</label>
                                 <div class="password-wrap">
-                                    <input type="password" id="passwordInput">
+                                    <input type="password" id="passwordInput" minlength="8" aria-describedby="passwordPolicyHint userPasswordStrength">
                                     <button type="button" class="password-toggle" aria-label="Show password"><i class="fa-solid fa-eye"></i></button>
+                                </div>
+                                <small id="passwordPolicyHint">At least 8 characters, up to 72 UTF-8 bytes. Spaces are allowed; avoid common passwords, your username, and the cafe name.</small>
+                                <div class="password-strength" id="userPasswordStrength" aria-live="polite" aria-atomic="true" hidden>
+                                    <div class="password-strength__summary">Strength <strong class="password-strength__label" data-strength-label></strong></div>
+                                    <div class="password-strength__track" aria-hidden="true">
+                                        <span data-strength-segment></span><span data-strength-segment></span><span data-strength-segment></span>
+                                    </div>
+                                    <small class="password-strength__message" data-strength-message></small>
                                 </div>
                             </div>
                             <div class="input-group">
@@ -763,7 +771,8 @@
     <script src="js/dashboard.js?v=47"></script>
     <script src="js/insights.js?v=42"></script>
 <script src="js/menu.js?v=44"></script>
-    <script src="js/users.js?v=41"></script>
+    <script src="../js/passwordPolicy.js?v=4"></script>
+    <script src="js/users.js?v=43"></script>
     <script src="js/inventory.js?v=44"></script>
     <script src="js/restock.js?v=3"></script>
     <script src="js/audit.js?v=43"></script>
@@ -773,7 +782,7 @@
     <script src="admin.js?v=45"></script>
 
     <!-- Shared account/session panel -->
-    <script src="js/account.js?v=40"></script>
+    <script src="js/account.js?v=44"></script>
     <script src="/js/pwa.js?v=2"></script>
 </body>
 

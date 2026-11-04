@@ -5,15 +5,17 @@
    connection returns.
    ========================================================================== */
 
-const CACHE_NAME = 'pos-shell-v8';
+const CACHE_NAME = 'pos-shell-v14';
 
 const APP_SHELL = [
     './pos.html',
-    './pos.css',
+    './pos.css?v=2',
     './pos.js',
     './sw.js',
     '../assets/logo.png',
     '../js/lottie-anim.js',
+    '../js/passwordPolicy.js',
+    '../ADMIN/js/account.js',
     '../vendor/lottie.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'
 ];

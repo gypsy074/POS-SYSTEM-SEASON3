@@ -5,6 +5,8 @@
 
 // ── Setup ──────────────────────────────────────────────────────────────────
 
+let refreshUserPasswordStrength = () => {};
+
 function setupUserTableSelection() {
     const userTableBody = document.getElementById("userTableBody");
     if (!userTableBody) return;
@@ -23,7 +25,18 @@ function setupUserActionButtons() {
     const updateUserBtn = document.getElementById("updateUserBtn");
     const removeUserBtn = document.getElementById("removeUserBtn");
     const clearUserBtn  = document.getElementById("clearUserBtn");
+    const passwordInput = document.getElementById("passwordInput");
+    const usernameInput = document.getElementById("usernameInput");
+    const strengthIndicator = document.getElementById("userPasswordStrength");
 
+    if (passwordInput && strengthIndicator) {
+        refreshUserPasswordStrength = window.setupPosPasswordStrength(
+            passwordInput,
+            strengthIndicator,
+            () => usernameInput ? usernameInput.value.trim() : ""
+        );
+        if (usernameInput) usernameInput.addEventListener("input", refreshUserPasswordStrength);
+    }
     if (addUserBtn)    addUserBtn.addEventListener("click", addUser);
     if (updateUserBtn) updateUserBtn.addEventListener("click", updateUser);
     if (removeUserBtn) removeUserBtn.addEventListener("click", deleteUser);
@@ -42,6 +55,7 @@ function selectUserRow(user) {
     if (usernameInput) usernameInput.value = user.username || "";
     if (passwordInput) passwordInput.value = user.password || "";
     if (roleSelect)    roleSelect.value    = user.role     || "Admin";
+    refreshUserPasswordStrength();
 }
 
 // ── Form Reset ─────────────────────────────────────────────────────────────
@@ -56,6 +70,7 @@ function clearUserForm() {
     if (usernameInput) usernameInput.value = "";
     if (passwordInput) passwordInput.value = "";
     if (roleSelect)    roleSelect.value    = "Admin";
+    refreshUserPasswordStrength();
 }
 
 // ── Payload Builder ────────────────────────────────────────────────────────
@@ -77,6 +92,13 @@ function getUserPayload(requirePassword) {
     if (requirePassword && !password) {
         showToast("Please enter a password before saving.", "warning");
         return null;
+    }
+    if (password) {
+        const passwordError = window.getPosPasswordPolicyError(password, username);
+        if (passwordError) {
+            showToast(passwordError, "warning");
+            return null;
+        }
     }
 
     const payload = {

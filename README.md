@@ -69,6 +69,12 @@ A default admin is seeded on first boot when `SEED_ADMIN_PASSWORD` is configured
 Production requires a unique password of at least 16 characters; passwords are
 never written to server logs.
 
+Passwords for user accounts must contain at least 8 characters and no more than
+72 UTF-8 bytes (bcrypt's input limit). Spaces and passphrases are allowed.
+Common passwords, the account username, and passwords containing `Season 3`
+are rejected during account creation, password changes, and password resets.
+Existing passwords remain valid for login until changed.
+
 ## Install as an app (free)
 
 The POS can be installed as a Progressive Web App (PWA) at no app-store cost.
@@ -97,7 +103,7 @@ phones.
 cd backend && npm test
 ```
 
-70 Jest tests against an in-memory MongoDB (no external DB or API keys needed).
+83 Jest tests against an in-memory MongoDB (no external DB or API keys needed).
 
 ## Deployment
 
@@ -196,7 +202,7 @@ organized by file. "What does X do?" → find the file, read the row.
 | `GET /api/auth/sessions` | auth: * | Lists every active login for the user (device, time, current one) |
 | `POST /api/auth/sessions/revoke-others` | auth: * | Kills all sessions except the current one |
 | `DELETE /api/auth/sessions/:jti` | auth: * | Kills one specific session (used by the "kill device" button) |
-| `PUT /api/auth/password` | auth: * | Changes the password (checks current password first, enforces min 8 chars) |
+| `PUT /api/auth/password` | auth: * | Changes the password after checking the current password and enforcing the shared password policy |
 | `GET /api/health` | public | Returns `{"ok":true,"mongo":"connected"}` — used by the keep-awake pinger |
 | `GET /api/orders` | auth: * | Returns orders (all for Admin, own for Cashier), optionally bounded by `?days=` (1–365) and `?limit=` (1–5000) so page loads stay fast as history grows |
 | `POST /api/orders` | auth: * | Places an order: deducts menu stock and linked inventory supplies (`unitsPerSale × quantity`); rejects shortages (409). Dedupes retries via `clientOrderId` |

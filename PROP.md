@@ -76,8 +76,8 @@ Four things it delivers from day one:
   remotely (great when a staff phone is lost or a staff member leaves)
 - **Audit log** — a dated record of logins, voids, password changes, and
   account changes
-- **Protected access** — logins are rate-limited and passwords are required
-  to be at least 8 characters
+- **Protected access** — logins are rate-limited; passwords require at least
+  8 characters and reject common or username-matching choices
 
 ---
 

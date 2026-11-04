@@ -1172,19 +1172,19 @@ function requestOrderRefund(orderId) {
                 });
                 return;
             }
-            requestManagerOverride("this refund").then(pin => {
-                if (pin !== null) fetchRefundOrder(orderId, pin, reason);
+            requestManagerOverride("this refund").then(override => {
+                if (override !== null) fetchRefundOrder(orderId, override, reason);
             });
         }
     });
 }
 
-async function fetchRefundOrder(orderId, managerOverridePin = "", reason = "") {
+async function fetchRefundOrder(orderId, managerOverride = {}, reason = "") {
     try {
         const response = await apiFetch(`/api/orders/${orderId}/refund`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ managerOverridePin, reason })
+            body: JSON.stringify({ ...managerOverride, reason })
         });
         if (!response.ok) {
             const data = await response.json().catch(() => ({}));
@@ -1233,20 +1233,20 @@ function requestOrderVoid(orderId) {
     }).then(confirmed => {
         if (!confirmed) return;
         const input = document.getElementById("voidReasonInput");
-        requestManagerOverride("this void").then(managerOverridePin => {
-            if (managerOverridePin !== null) {
-                fetchVoidOrder(orderId, input ? input.value : "", managerOverridePin);
+        requestManagerOverride("this void").then(managerOverride => {
+            if (managerOverride !== null) {
+                fetchVoidOrder(orderId, input ? input.value : "", managerOverride);
             }
         });
     });
 }
 
-async function fetchVoidOrder(orderId, reason, managerOverridePin = "") {
+async function fetchVoidOrder(orderId, reason, managerOverride = {}) {
     try {
         const response = await apiFetch(`/api/orders/${orderId}/void`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ reason, managerOverridePin })
+            body: JSON.stringify({ reason, ...managerOverride })
         });
         if (!response.ok) {
             const data = await response.json().catch(() => ({}));
@@ -2607,10 +2607,11 @@ function getPosRole() {
 
 function setupManagerOverrideModal() {
     const modal = document.getElementById("managerOverrideModal");
-    const pinInput = document.getElementById("managerOverridePin");
+    const usernameInput = document.getElementById("managerOverrideUsername");
+    const passwordInput = document.getElementById("managerOverridePassword");
     const cancelBtn = document.getElementById("managerOverrideCancelBtn");
     const submitBtn = document.getElementById("managerOverrideSubmitBtn");
-    if (!modal || !pinInput || !cancelBtn || !submitBtn) return;
+    if (!modal || !usernameInput || !passwordInput || !cancelBtn || !submitBtn) return;
 
     const close = () => {
         if (modal._resolve) {
@@ -2619,28 +2620,39 @@ function setupManagerOverrideModal() {
             resolve(null);
         }
         modal.classList.remove("show");
-        pinInput.value = "";
+        usernameInput.value = "";
+        passwordInput.value = "";
     };
     cancelBtn.addEventListener("click", close);
-    submitBtn.addEventListener("click", () => {
-        const pin = pinInput.value.trim();
-        if (!pin) return;
+    const submit = () => {
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value;
+        if (!username || !password) return;
         const resolve = modal._resolve;
         modal._resolve = null;
-        resolve(pin);
+        resolve({
+            managerOverrideUsername: username,
+            managerOverridePassword: password
+        });
         close();
-    });
+    };
+    submitBtn.addEventListener("click", submit);
+    [usernameInput, passwordInput].forEach(input =>
+        input.addEventListener("keydown", event => {
+            if (event.key === "Enter") submit();
+        })
+    );
 }
 
 function requestManagerOverride(action) {
-    if (["Admin", "Manager"].includes(getPosRole())) return Promise.resolve("");
+    if (["Admin", "Manager"].includes(getPosRole())) return Promise.resolve({});
     const modal = document.getElementById("managerOverrideModal");
     const message = document.getElementById("managerOverrideMessage");
-    const pinInput = document.getElementById("managerOverridePin");
-    if (!modal || !pinInput) return Promise.resolve(null);
+    const usernameInput = document.getElementById("managerOverrideUsername");
+    if (!modal || !usernameInput) return Promise.resolve(null);
     if (message) message.textContent = `A Manager or Admin must authorize ${action}.`;
     modal.classList.add("show");
-    pinInput.focus();
+    requestAnimationFrame(() => usernameInput.focus());
     return new Promise(resolve => {
         modal._resolve = resolve;
     });
@@ -2905,9 +2917,9 @@ function setupWasteLogForm() {
                 reason: reasonSelect ? reasonSelect.value : "Other"
             };
             try {
-                const managerOverridePin = await requestManagerOverride("logging food waste");
-                if (managerOverridePin === null) return;
-                payload.managerOverridePin = managerOverridePin;
+                const managerOverride = await requestManagerOverride("logging food waste");
+                if (managerOverride === null) return;
+                Object.assign(payload, managerOverride);
                 const response = await apiFetch("/api/waste", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -2933,7 +2945,8 @@ function setupWasteLogForm() {
                     });
                     return;
                 }
-                delete payload.managerOverridePin;
+                delete payload.managerOverrideUsername;
+                delete payload.managerOverridePassword;
                 queueOfflineWaste(payload);
                 updateOfflineBanner();
                 showPosAlert({

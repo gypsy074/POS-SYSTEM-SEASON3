@@ -14,6 +14,7 @@ const dns = require('dns');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+const { validatePassword } = require('./password-policy');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 // Prefer IPv4 — Atlas `mongodb+srv` lookups can hang on Windows Node when
@@ -689,20 +690,28 @@ function authRequired(roles) {
 async function verifyManagerOverride(req) {
     if (req.user.role !== 'Cashier') return { authorizer: null };
 
-    const pin = String(req.body && req.body.managerOverridePin || '');
-    if (!pin) {
+    const username = String(req.body && req.body.managerOverrideUsername || '').trim().toLowerCase();
+    const password = String(req.body && req.body.managerOverridePassword || '');
+    if (!username || !password) {
         return { status: 403, error: 'Manager or Admin authorization is required for this action.' };
     }
 
-    const authorizers = await User.find({ role: { $in: ['Admin', 'Manager'] }, status: 'Active' });
-    for (const user of authorizers) {
-        const matches = isBcryptHash(user.password)
-            ? await bcrypt.compare(pin, user.password)
-            : user.password === pin;
-        if (matches) return { authorizer: user };
+    const authorizer = await User.findOne({
+        username,
+        role: { $in: ['Admin', 'Manager'] },
+        status: 'Active'
+    });
+    if (!authorizer) {
+        await bcrypt.compare(password, DUMMY_BCRYPT_HASH);
+        return { status: 403, error: 'The Manager or Admin username/password is invalid.' };
     }
 
-    return { status: 403, error: 'The Manager or Admin password/PIN is invalid.' };
+    const matches = isBcryptHash(authorizer.password)
+        ? await bcrypt.compare(password, authorizer.password)
+        : authorizer.password === password;
+    if (matches) return { authorizer };
+
+    return { status: 403, error: 'The Manager or Admin username/password is invalid.' };
 }
 
 // One-time migration: strip legacy wrong-order fields from stored orders.
@@ -895,9 +904,8 @@ app.put('/api/auth/password', authRequired(), async (req, res) => {
         if (!currentPassword || !newPassword) {
             return res.status(400).json({ error: 'Current and new password are required.' });
         }
-        if (String(newPassword).length < 8) {
-            return res.status(400).json({ error: 'New password must be at least 8 characters.' });
-        }
+        const passwordError = validatePassword(newPassword, req.user.username);
+        if (passwordError) return res.status(400).json({ error: passwordError });
         const user = await User.findOne(idMatchFilter(req.user.id));
         if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -911,14 +919,23 @@ app.put('/api/auth/password', authRequired(), async (req, res) => {
             return res.status(401).json({ error: 'Current password is incorrect.' });
         }
 
-        user.password = await bcrypt.hash(String(newPassword), 10);
-        await user.save();
+        const updatedUser = await User.findOneAndUpdate(
+            { $and: [idMatchFilter(req.user.id), { password: user.password }] },
+            { $set: { password: await bcrypt.hash(String(newPassword), 10) } },
+            { new: true }
+        ).select('_id');
+        if (!updatedUser) {
+            const stillExists = await User.exists(idMatchFilter(req.user.id));
+            return stillExists
+                ? res.status(409).json({ error: 'Password changed before this request completed. Please try again.' })
+                : res.status(404).json({ error: 'Account no longer exists. Please contact an administrator.' });
+        }
 
         const revoked = await Session.updateMany(
-            { userId: user._id, jti: { $ne: req.session.jti }, revoked: false },
+            { userId: req.user.id, jti: { $ne: req.session.jti }, revoked: false },
             { $set: { revoked: true } }
         );
-        writeLog('user.password', req.user.username, String(user._id),
+        writeLog('user.password', req.user.username, String(req.user.id),
             `Password changed — ${revoked.modifiedCount} other session(s) logged out`);
         res.json({ success: true, revoked: revoked.modifiedCount });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1486,9 +1503,8 @@ app.post('/api/users', authRequired(['Admin']), async (req, res) => {
         if (!username || !password) {
             return res.status(400).json({ error: 'Username and password are required.' });
         }
-        if (String(password).length < 8) {
-            return res.status(400).json({ error: 'Password must be at least 8 characters.' });
-        }
+        const passwordError = validatePassword(password, username);
+        if (passwordError) return res.status(400).json({ error: passwordError });
         if (!['Admin', 'Manager', 'Cashier'].includes(role)) {
             return res.status(400).json({ error: 'Role must be Admin, Manager, or Cashier.' });
         }
@@ -1527,9 +1543,8 @@ app.put('/api/users/:id', authRequired(['Admin']), async (req, res) => {
 
         // Only re-hash when the password actually changed.
         if (update.password && update.password !== existing.password) {
-            if (String(update.password).length < 8) {
-                return res.status(400).json({ error: 'Password must be at least 8 characters.' });
-            }
+            const passwordError = validatePassword(update.password, update.username || existing.username);
+            if (passwordError) return res.status(400).json({ error: passwordError });
             update.password = await bcrypt.hash(String(update.password), 10);
         } else {
             delete update.password;
@@ -2049,7 +2064,9 @@ async function seedDefaultAdmin() {
             if (!password) {
                 throw new Error('SEED_ADMIN_PASSWORD is required before creating the first Admin account.');
             }
-            if (IS_PRODUCTION_CONFIG && password.length < 16) {
+            const passwordError = validatePassword(password, username);
+            if (passwordError) throw new Error(`SEED_ADMIN_PASSWORD is invalid: ${passwordError}`);
+            if (IS_PRODUCTION_CONFIG && Array.from(password).length < 16) {
                 throw new Error('SEED_ADMIN_PASSWORD must be at least 16 characters in production.');
             }
             const hashed = await bcrypt.hash(password, 10);

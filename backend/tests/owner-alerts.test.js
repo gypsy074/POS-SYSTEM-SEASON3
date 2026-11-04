@@ -5,7 +5,7 @@
    ========================================================================== */
 
 process.env.JWT_SECRET = 'test-secret';
-process.env.SEED_ADMIN_PASSWORD = 'admin123';
+process.env.SEED_ADMIN_PASSWORD = 'Cafe!Demo Table 2026';
 // Pretend SMTP is configured so the real pipeline (email.js) runs; the
 // transporter is replaced with a fake below.
 process.env.SMTP_HOST = 'smtp.test.local';
@@ -50,16 +50,16 @@ beforeAll(async () => {
     await waitForMongo();
     await waitForSeed();
 
-    const adminLogin = await login('admin', 'admin123');
+    const adminLogin = await login('admin', 'Cafe!Demo Table 2026');
     adminToken = adminLogin.token;
     expect(adminLogin.status).toBe(200);
 
     const userRes = await request(app)
         .post('/api/users')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ username: 'alertsCashier', password: 'tester123', role: 'Cashier' });
+        .send({ username: 'alertsCashier', password: 'Cafe Crew!Table 27', role: 'Cashier' });
     expect([201, 409]).toContain(userRes.status);
-    const cashierLogin = await login('alertsCashier', 'tester123');
+    const cashierLogin = await login('alertsCashier', 'Cafe Crew!Table 27');
     cashierToken = cashierLogin.token;
     expect(cashierLogin.status).toBe(200);
 

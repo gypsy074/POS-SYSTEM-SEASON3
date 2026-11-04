@@ -93,8 +93,8 @@ start-pos.bat
 
 Then in a browser:
 - `http://localhost:3000/api/health` → `{"ok":true,"mongo":"connected"}`
-- `http://localhost:3000` → log in as `admin` / `admin123456`
-  (the users were migrated, so the password is unchanged)
+- `http://localhost:3000` → log in using your local Admin credentials
+  (migrated accounts keep their existing passwords until changed)
 
 **Your PC is now behaving exactly like the café laptop will.** The Render
 live site is untouched — it has its own environment.

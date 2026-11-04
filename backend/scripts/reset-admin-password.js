@@ -11,6 +11,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const readline = require('readline');
+const { validatePassword } = require('../password-policy');
 
 function promptHidden(prompt) {
     if (!process.stdin.isTTY || typeof process.stdin.setRawMode !== 'function') {
@@ -85,9 +86,8 @@ function promptHidden(prompt) {
         }
 
         const newPassword = await promptHidden('New password: ');
-        if (newPassword.length < 8) {
-            throw new Error('New password must be at least 8 characters long.');
-        }
+        const passwordError = validatePassword(newPassword, username);
+        if (passwordError) throw new Error(passwordError);
         const confirmation = await promptHidden('Confirm new password: ');
         if (newPassword !== confirmation) {
             throw new Error('Passwords do not match.');

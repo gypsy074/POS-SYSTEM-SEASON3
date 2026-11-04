@@ -42,7 +42,7 @@ Then open:
 | `JWT_SECRET` | Secret that signs login sessions — **required in production**. The server refuses to boot without it (fail-fast), so there is never a weak built-in fallback |
 | `CORS_ORIGIN` | Comma-separated allowed origins. **Empty = CORS closed** (only same-origin requests work). Set it to `https://season3-pos.onrender.com` (plus your LAN IP during class demos, e.g. `http://192.168.1.50:3000`) |
 | `SEED_ADMIN_USERNAME` | Optional. Admin username created on first boot if no users exist (default `admin`) |
-| `SEED_ADMIN_PASSWORD` | Required only when initializing an empty database; in production it must be at least 16 characters and is never logged |
+| `SEED_ADMIN_PASSWORD` | Required only when initializing an empty database; follows the shared password policy and must be at least 16 characters in production. It is never logged. |
 | `JWT_EXPIRES_IN` | Optional. Session lifetime, default `8h` |
 
 A default **admin** account is created automatically on first boot if no users exist.
@@ -107,7 +107,7 @@ Every release follows the same path: **edit → test → bump → commit → pus
 ### Step 1 — Edit & self-check
 
 ```bash
-cd backend && npm test      # 70 tests must pass (in-memory DB, no keys needed)
+cd backend && npm test      # 83 tests must pass (in-memory DB, no keys needed)
 node --check frontend/ADMIN/js/dashboard.js   # quick syntax check on changed JS
 ```
 
@@ -181,7 +181,7 @@ cd backend
 npm test
 ```
 
-Expect 70 passing tests: auth, order placement, stock deduction, overload (409),
+Expect 83 passing tests: auth, order placement, stock deduction, overload (409),
 waste logging, void + stock restore, offline-retry dedupe, password minimum
 length (3 routes), oversized-body rejection (413), CORS closed by default, AI
 report rate limiting (429), order-delete guard (paid orders 409, voided 200),
@@ -255,12 +255,15 @@ lost, reset it from any machine with `backend/.env` (the Atlas URI):
 
 ```bash
 cd backend
-npm run reset-admin-password -- admin MyNewPass123
+npm run reset-admin-password -- admin
 ```
 
-It sets the new password (min 8 characters) and **revokes every active session**
-for that user, so any forgotten device is logged out immediately. Run it locally
-— it connects straight to Atlas; the Render service does not need to be touched.
+Enter the new password at the hidden prompt (do not put it in the command line).
+It must be at least 8 characters and no more than 72 UTF-8 bytes; common,
+username-matching, and cafe-name passwords are rejected. The reset **revokes
+every active session** for that user, so any forgotten device is logged out
+immediately. Run it locally — it connects straight to Atlas; the Render service
+does not need to be touched.
 
 ---
 
