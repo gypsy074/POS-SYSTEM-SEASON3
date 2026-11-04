@@ -155,6 +155,7 @@ mongoose.connect(mongoUri, {
 
 // --- Order System Schema Configuration ---
 const orderItemSchema = new mongoose.Schema({
+    productId: { type: String, default: "", trim: true },
     name: { type: String, required: true, trim: true },
     category: { type: String, default: "", trim: true },
     quantity: { type: Number, required: true, min: 1, default: 1 },
@@ -447,8 +448,12 @@ async function syncProductsFromInventory(productIds) {
 async function shiftLinkedSupplies(productName, quantity, sign) {
     const product = await Product.findOne({ name: productName }).select('_id');
     if (!product) return [];
+    return shiftLinkedSuppliesByProductId(product._id, quantity, sign);
+}
+
+async function shiftLinkedSuppliesByProductId(productId, quantity, sign) {
     const supplies = await InventoryItem.find({
-        $or: [{ menuProductIds: product._id }, { menuProductId: product._id }]
+        $or: [{ menuProductIds: productId }, { menuProductId: productId }]
     });
     if (!supplies.length) return [];
     await Promise.all(supplies.map(async item => {
@@ -463,9 +468,72 @@ async function shiftLinkedSupplies(productName, quantity, sign) {
     return supplies;
 }
 
+async function resolveOrderProducts(items) {
+    const productIds = [...new Set(items.map(item => String(item.productId || "").trim()).filter(Boolean))];
+    const productsById = new Map();
+    await Promise.all(productIds.map(async productId => {
+        const product = await Product.findOne(idMatchFilter(productId)).lean();
+        if (!product) {
+            const error = new Error(`The selected menu item "${items.find(item => String(item.productId).trim() === productId)?.name || "Item"}" no longer exists. Refresh the menu and try again.`);
+            error.statusCode = 409;
+            throw error;
+        }
+        productsById.set(productId, product);
+    }));
+
+    const legacyNames = [...new Set(items
+        .filter(item => !String(item.productId || "").trim())
+        .map(item => item.name)
+        .filter(Boolean))];
+    const legacyProducts = legacyNames.length
+        ? await Product.find({ name: { $in: legacyNames } }).lean()
+        : [];
+    const productsByName = new Map();
+    for (const product of legacyProducts) {
+        const matches = productsByName.get(product.name) || [];
+        matches.push(product);
+        productsByName.set(product.name, matches);
+    }
+
+    const itemProducts = [];
+    for (const item of items) {
+        let product = productsById.get(String(item.productId || "").trim()) || null;
+        if (!String(item.productId || "").trim()) {
+            let candidates = productsByName.get(item.name) || [];
+            if (candidates.length > 1 && item.category) {
+                const categoryMatches = candidates.filter(candidate =>
+                    String(candidate.category || "").toLowerCase() === String(item.category).toLowerCase()
+                );
+                if (categoryMatches.length) candidates = categoryMatches;
+            }
+            if (candidates.length > 1 && Number.isFinite(Number(item.price))) {
+                const priceMatches = candidates.filter(candidate =>
+                    Math.abs(Number(candidate.price) - Number(item.price)) < 0.005
+                );
+                if (priceMatches.length) candidates = priceMatches;
+            }
+            if (candidates.length > 1) {
+                const error = new Error(`More than one menu item is named "${item.name}". This saved order needs a product ID; remove it from the offline queue and place it again.`);
+                error.statusCode = 409;
+                throw error;
+            }
+            product = candidates[0] || null;
+        }
+
+        if (product) {
+            item.productId = String(product._id);
+            item.name = product.name;
+            item.category = String(product.category || item.category || "").trim();
+        }
+        itemProducts.push(product);
+    }
+    return itemProducts;
+}
+
 async function normalizeOrderPayload(input) {
     const items = Array.isArray(input.items)
         ? input.items.map(item => ({
+            productId: String(item.productId || "").trim(),
             name: String(item.name || "Item").trim(),
             category: String(item.category || "").trim(),
             quantity: Math.max(1, Number(item.quantity) || 1),
@@ -475,19 +543,15 @@ async function normalizeOrderPayload(input) {
         : [];
 
     const round2 = n => Math.round(n * 100) / 100;
-    const productNames = [...new Set(items.map(item => item.name).filter(Boolean))];
-    const menuItems = productNames.length
-        ? await Product.find({ name: { $in: productNames } }).lean()
-        : [];
-    const productMap = new Map(menuItems.map(product => [product.name, product]));
+    const itemProducts = await resolveOrderProducts(items);
 
     const itemCategories = new Map();
-    for (const item of items) {
-        const product = productMap.get(item.name);
+    for (const [index, item] of items.entries()) {
+        const product = itemProducts[index];
         const category = String(product && product.category ? product.category : item.category).trim();
         item.category = category;
         const normalizedCategory = category.toLowerCase();
-        itemCategories.set(item.name, normalizedCategory);
+        itemCategories.set(item, normalizedCategory);
         const productStation = String(product && product.preparationStation ? product.preparationStation : "").trim();
         if (productStation) {
             item.preparationStation = inferPreparationStation(productStation, category);
@@ -498,11 +562,11 @@ async function normalizeOrderPayload(input) {
 
     const computedSubtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const eligibleDrinks = items.filter(item => {
-        const category = itemCategories.get(item.name) || "";
+        const category = itemCategories.get(item) || "";
         return isDrinkCategoryName(category) || isDrinkCategoryName(item.name) || item.preparationStation === 'Barista';
     });
     const eligibleFoods = items.filter(item => {
-        const category = itemCategories.get(item.name) || "";
+        const category = itemCategories.get(item) || "";
         return isFoodCategoryName(category) || isFoodCategoryName(item.name) || item.preparationStation === 'Kitchen';
     });
     const topDrink = eligibleDrinks.sort((a, b) => (b.price * b.quantity) - (a.price * a.quantity))[0];
@@ -986,6 +1050,15 @@ app.get('/api/orders', authRequired(), async (req, res) => {
 // order instead of creating a duplicate (offline-queue retries).
 app.post('/api/orders', authRequired(), async (req, res) => {
     try {
+        // Return a saved order before resolving item names; a retry may be an
+        // older queued payload without IDs, or the menu may have changed.
+        const clientOrderId = String(req.body && req.body.clientOrderId || "").trim().slice(0, 100);
+        if (clientOrderId) {
+            const existing = await Order.findOne({ clientOrderId });
+            if (existing) {
+                return res.json(existing);
+            }
+        }
         const payload = await normalizeOrderPayload(req.body);
         if (!Array.isArray(payload.items) || !payload.items.length) {
             return res.status(400).json({ error: 'Order must include at least one item.' });
@@ -998,18 +1071,12 @@ app.post('/api/orders', authRequired(), async (req, res) => {
             payload.cashier = req.user.username;
         }
 
-        // 0) Idempotency guard — a retried offline order must not double-save.
-        if (payload.clientOrderId) {
-            const existing = await Order.findOne({ clientOrderId: payload.clientOrderId });
-            if (existing) {
-                return res.json(existing);
-            }
-        }
         // Reserve stock with conditional atomic decrements. A read-then-write
         // check allows two cashiers to both sell the same final unit.
         const quantities = new Map();
         for (const item of payload.items) {
-            quantities.set(item.name, (quantities.get(item.name) || 0) + item.quantity);
+            if (!item.productId) continue;
+            quantities.set(item.productId, (quantities.get(item.productId) || 0) + item.quantity);
         }
         const reservations = [];
         const shortages = [];
@@ -1017,13 +1084,13 @@ app.post('/api/orders', authRequired(), async (req, res) => {
             for (const reservation of reservations.reverse()) {
                 if (reservation.kind === 'product') {
                     const restored = await Product.findOneAndUpdate(
-                        { _id: reservation.id },
+                        idMatchFilter(reservation.id),
                         { $inc: { stock: reservation.quantity } },
                         { returnDocument: 'after' }
                     );
                     if (restored && restored.stock > 0) {
                         await Product.updateOne(
-                            { _id: reservation.id, stock: { $gt: 0 } },
+                            { $and: [idMatchFilter(reservation.id), { stock: { $gt: 0 } }] },
                             { $set: { status: 'Available' } }
                         );
                     }
@@ -1044,9 +1111,14 @@ app.post('/api/orders', authRequired(), async (req, res) => {
         };
 
         try {
-            for (const [name, quantity] of quantities) {
-                const product = await Product.findOne({ name }).select('_id stock status');
-                if (!product) continue;
+            for (const [productId, quantity] of quantities) {
+                const product = await Product.findOne(idMatchFilter(productId)).select('_id name stock status');
+                if (!product) {
+                    const error = new Error('A selected menu item no longer exists. Refresh the menu and try again.');
+                    error.statusCode = 409;
+                    throw error;
+                }
+                const name = product.name;
                 if (['out of stock', 'sold out'].includes(String(product.status || '').toLowerCase())) {
                     shortages.push({ name, available: Number(product.stock) || 0, requested: quantity });
                     break;
@@ -1057,15 +1129,15 @@ app.post('/api/orders', authRequired(), async (req, res) => {
                 });
                 if (!supplies.length) {
                     const reserved = await Product.updateOne(
-                        {
-                            _id: product._id,
-                            stock: { $gte: quantity },
-                            status: { $nin: ['Out of Stock', 'Sold Out'] }
-                        },
+                        { $and: [
+                            idMatchFilter(productId),
+                            { stock: { $gte: quantity } },
+                            { status: { $nin: ['Out of Stock', 'Sold Out'] } }
+                        ] },
                         { $inc: { stock: -quantity } }
                     );
                     if (!reserved.modifiedCount) {
-                        const current = await Product.findById(product._id).select('stock');
+                        const current = await Product.findOne(idMatchFilter(productId)).select('stock');
                         shortages.push({
                             name,
                             available: Number(current && current.stock) || 0,
@@ -1146,30 +1218,29 @@ app.post('/api/orders', authRequired(), async (req, res) => {
         }
 
         // Synchronize menu availability after reserving any linked supplies.
-        const linkedProductIds = [];
-        for (const name of quantities.keys()) {
-            const product = await Product.findOne({ name }).select('_id');
-            if (product) linkedProductIds.push(product._id);
-        }
+        const linkedProductIds = [...quantities.keys()];
         await syncProductsFromInventory(linkedProductIds);
-        await Product.updateMany(
-            { name: { $in: payload.items.map(i => i.name) }, stock: { $lte: 0 } },
-            { status: "Out of Stock" }
-        );
+        for (const productId of linkedProductIds) {
+            await Product.updateOne(
+                { $and: [idMatchFilter(productId), { stock: { $lte: 0 } }] },
+                { $set: { status: "Out of Stock" } }
+            );
+        }
 
         console.log(`Order persisted: receipt ${payload.receiptId}, id ${newOrder._id}, database ${mongoose.connection.db?.databaseName || 'unknown'}`);
 
         // 4) Fire-and-forget owner alert when an item drops below its
         //    threshold (deduped to one email per item per day).
         for (const item of payload.items) {
-            const product = await Product.findOne({ name: item.name }).select('name stock lowStockThreshold');
+            if (!item.productId) continue;
+            const product = await Product.findOne(idMatchFilter(item.productId)).select('name stock lowStockThreshold');
             if (product && Number(product.stock) < Number(product.lowStockThreshold)) {
                 trySendLowStockAlert(product).catch(err => console.error('Low-stock email failed:', err.message));
             }
         }
 
         res.status(201).json(newOrder);
-    } catch (err) { res.status(400).json({ error: err.message }); }
+    } catch (err) { res.status(err.statusCode || 400).json({ error: err.message }); }
 });
 
 app.delete('/api/orders/:id', authRequired(['Admin']), async (req, res) => {
@@ -1199,6 +1270,7 @@ const voidOrderHandler = async (req, res) => {
         if (order.status !== 'Completed') {
             return res.status(409).json({ error: 'Only completed orders can be voided.' });
         }
+        const itemProducts = await resolveOrderProducts(order.items || []);
         const voidedAt = new Date();
         const voidReason = String((req.body && req.body.reason) || "").trim().slice(0, 300);
         const voidedOrder = await Order.findOneAndUpdate(
@@ -1210,13 +1282,12 @@ const voidOrderHandler = async (req, res) => {
 
         // Claim the state transition before restoring stock so concurrent
         // void/refund requests cannot return the same inventory twice.
-        for (const item of voidedOrder.items || []) {
-            await Product.updateOne(
-                { name: item.name },
-                { $inc: { stock: item.quantity } }
-            );
+        for (const [index, item] of (voidedOrder.items || []).entries()) {
+            const product = itemProducts[index];
+            if (!product) continue;
+            await Product.updateOne(idMatchFilter(product._id), { $inc: { stock: item.quantity } });
             // Ingredient tracking — voiding returns the linked supplies too.
-            const shifted = await shiftLinkedSupplies(item.name, item.quantity, 1);
+            const shifted = await shiftLinkedSuppliesByProductId(product._id, item.quantity, 1);
             await syncProductsFromInventory(shifted.flatMap(supply =>
                 Array.isArray(supply.menuProductIds) ? supply.menuProductIds : [supply.menuProductId]
             ));
@@ -1227,7 +1298,7 @@ const voidOrderHandler = async (req, res) => {
             ` (₱${voidedOrder.total.toFixed(2)})${voidReason ? ' — ' + voidReason : ''}`);
 
         res.json(voidedOrder);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { res.status(err.statusCode || 500).json({ error: err.message }); }
 };
 app.patch('/api/orders/:id/void', authRequired(), managerOverrideLimiter, voidOrderHandler);
 // Accept POST as well for clients that model state-changing actions uniformly.
@@ -1248,6 +1319,7 @@ app.post('/api/orders/:id/refund', authRequired(), managerOverrideLimiter, async
         if (order.status !== 'Completed') {
             return res.status(409).json({ error: 'Only completed orders can be refunded.' });
         }
+        const itemProducts = await resolveOrderProducts(order.items || []);
 
         const refundedAt = new Date();
         const refundReason = String(req.body && req.body.reason || '').trim().slice(0, 300) || 'Reason not provided';
@@ -1258,12 +1330,11 @@ app.post('/api/orders/:id/refund', authRequired(), managerOverrideLimiter, async
         );
         if (!refundedOrder) return res.status(409).json({ error: 'Order was already changed by another request.' });
 
-        for (const item of refundedOrder.items || []) {
-            await Product.updateOne(
-                { name: item.name },
-                { $inc: { stock: item.quantity } }
-            );
-            const shifted = await shiftLinkedSupplies(item.name, item.quantity, 1);
+        for (const [index, item] of (refundedOrder.items || []).entries()) {
+            const product = itemProducts[index];
+            if (!product) continue;
+            await Product.updateOne(idMatchFilter(product._id), { $inc: { stock: item.quantity } });
+            const shifted = await shiftLinkedSuppliesByProductId(product._id, item.quantity, 1);
             await syncProductsFromInventory(shifted.flatMap(supply =>
                 Array.isArray(supply.menuProductIds) ? supply.menuProductIds : [supply.menuProductId]
             ));
@@ -1278,7 +1349,7 @@ app.post('/api/orders/:id/refund', authRequired(), managerOverrideLimiter, async
 
         res.json(refundedOrder);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(err.statusCode || 500).json({ error: err.message });
     }
 });
 

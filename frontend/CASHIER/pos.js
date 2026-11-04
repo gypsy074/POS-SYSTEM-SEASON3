@@ -237,6 +237,44 @@ function saveOfflineQueue(queue) {
     }
 }
 
+function addCachedProductIds(payload) {
+    if (!Array.isArray(payload.items)) return payload;
+    let products = allProducts;
+    if (!products.length) {
+        try {
+            const cached = JSON.parse(localStorage.getItem(PRODUCTS_CACHE_KEY) || "[]");
+            if (Array.isArray(cached)) products = cached;
+        } catch {
+            products = [];
+        }
+    }
+    if (!products.length) return payload;
+
+    let changed = false;
+    const items = payload.items.map(item => {
+        if (String(item.productId || "").trim()) return item;
+        let matches = products.filter(product =>
+            String(product.name || "").trim().toLowerCase() === String(item.name || "").trim().toLowerCase()
+        );
+        if (matches.length > 1 && item.category) {
+            const categoryMatches = matches.filter(product =>
+                String(product.category || "").trim().toLowerCase() === String(item.category).trim().toLowerCase()
+            );
+            if (categoryMatches.length) matches = categoryMatches;
+        }
+        if (matches.length > 1 && Number.isFinite(Number(item.price))) {
+            const priceMatches = matches.filter(product =>
+                Math.abs(Number(product.price) - Number(item.price)) < 0.005
+            );
+            if (priceMatches.length) matches = priceMatches;
+        }
+        if (matches.length !== 1 || !matches[0]._id) return item;
+        changed = true;
+        return { ...item, productId: String(matches[0]._id) };
+    });
+    return changed ? { ...payload, items } : payload;
+}
+
 function getOfflineWasteQueue() {
     try {
         const raw = localStorage.getItem(OFFLINE_WASTE_KEY);
@@ -313,16 +351,17 @@ async function syncOfflineQueues() {
     let permanentFailure = false;
 
     for (const payload of queue) {
+        const syncPayload = addCachedProductIds(payload);
         try {
             const response = await apiFetch("/api/orders", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(syncPayload)
             });
             if (response.ok) {
                 synced += 1;
             } else {
-                remaining.push(payload);
+                remaining.push(syncPayload);
                 const errorPayload = await response.json().catch(() => ({}));
                 if (!offlineSyncError) {
                     offlineSyncError = errorPayload.error || `Order sync failed (HTTP ${response.status}).`;
@@ -334,7 +373,7 @@ async function syncOfflineQueues() {
                 }
             }
         } catch (err) {
-            remaining.push(payload);
+            remaining.push(syncPayload);
             retryableFailure = true;
             if (!offlineSyncError) offlineSyncError = err.message || "The server could not be reached.";
         }
@@ -2074,6 +2113,7 @@ async function submitOrder() {
         clientOrderId,
         date: new Date().toISOString(),
         items: cart.map(item => ({
+            productId: String(item._id),
             name: item.name,
             category: item.category || "",
             quantity: item.quantity,

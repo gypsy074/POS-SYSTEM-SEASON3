@@ -1,4 +1,4 @@
-const CACHE_NAME = "season3-pwa-v10";
+const CACHE_NAME = "season3-pwa-v11";
 const APP_SHELL = [
     "/",
     "/login.html",
@@ -18,7 +18,7 @@ const APP_SHELL = [
     "/css/cup-transition.css",
     "/CASHIER/pos.html",
     "/CASHIER/pos.css",
-    "/CASHIER/pos.js?v=5",
+    "/CASHIER/pos.js?v=6",
     "/CASHIER/sw.js",
     "/ADMIN/admin.html",
     "/ADMIN/admin.css",

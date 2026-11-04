@@ -86,6 +86,13 @@ async function getProduct(name) {
     return (res.body || []).find(p => p.name === name);
 }
 
+async function getProductById(id) {
+    const res = await request(app)
+        .get('/api/products')
+        .set('Authorization', `Bearer ${adminToken}`);
+    return (res.body || []).find(product => String(product._id) === String(id));
+}
+
 describe('Auth', () => {
     test('production server refuses to start without an explicit JWT secret', () => {
         const env = { ...process.env, NODE_ENV: 'production', JWT_SECRET: ' ' };
@@ -396,6 +403,164 @@ describe('Orders & stock', () => {
         expect(orderRes.body.tendered).toBe(500);
         expect(orderRes.body.change).toBe(260);
         expect(orderRes.body.items[0].category).toBe('Rice Meals');
+    });
+
+    test('product ID selects the correct item when menu names are duplicated', async () => {
+        const soldOut = await createProduct('TestDuplicateChicken', 80, 0, 'Chicken');
+        const selected = await createProduct('TestDuplicateChicken', 80, 4, 'Rice Meals');
+
+        const orderRes = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                items: [{
+                    productId: selected._id,
+                    name: selected.name,
+                    category: selected.category,
+                    quantity: 1,
+                    price: selected.price
+                }],
+                total: 80
+            });
+
+        expect(orderRes.status).toBe(201);
+        expect(orderRes.body.items[0].productId).toBe(String(selected._id));
+        expect(Number((await getProductById(selected._id)).stock)).toBe(3);
+        expect(Number((await getProductById(soldOut._id)).stock)).toBe(0);
+
+        const voided = await request(app)
+            .patch(`/api/orders/${orderRes.body._id}/void`)
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ reason: 'Duplicate-name regression test' });
+        expect(voided.status).toBe(200);
+        expect(Number((await getProductById(selected._id)).stock)).toBe(4);
+        expect(Number((await getProductById(soldOut._id)).stock)).toBe(0);
+    });
+
+    test('product ID reserves and restores only its linked inventory', async () => {
+        const other = await createProduct('TestDuplicateLinkedMenu', 50, 20, 'Coffee');
+        const selected = await createProduct('TestDuplicateLinkedMenu', 50, 2, 'Frappe');
+        const supplyRes = await request(app)
+            .post('/api/inventory')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({
+                productName: 'TestDuplicateLinkedSupply',
+                category: 'Test',
+                price: 1,
+                stock: 2,
+                menuProductId: selected._id,
+                unitsPerSale: 1
+            });
+        expect(supplyRes.status).toBe(201);
+
+        const orderRes = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                items: [{
+                    productId: selected._id,
+                    name: selected.name,
+                    category: selected.category,
+                    quantity: 1,
+                    price: selected.price
+                }],
+                total: 50
+            });
+        expect(orderRes.status).toBe(201);
+
+        let inventoryRes = await request(app)
+            .get('/api/inventory')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(Number(inventoryRes.body.find(item => item.productName === 'TestDuplicateLinkedSupply').stock)).toBe(1);
+        expect(Number((await getProductById(selected._id)).stock)).toBe(1);
+        expect(Number((await getProductById(other._id)).stock)).toBe(20);
+
+        const voided = await request(app)
+            .patch(`/api/orders/${orderRes.body._id}/void`)
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ reason: 'Duplicate linked-item regression test' });
+        expect(voided.status).toBe(200);
+        inventoryRes = await request(app)
+            .get('/api/inventory')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(Number(inventoryRes.body.find(item => item.productName === 'TestDuplicateLinkedSupply').stock)).toBe(2);
+        expect(Number((await getProductById(selected._id)).stock)).toBe(2);
+        expect(Number((await getProductById(other._id)).stock)).toBe(20);
+    });
+
+    test('legacy queued orders resolve duplicate names by their category', async () => {
+        const other = await createProduct('TestLegacyDuplicate', 45, 5, 'Coffee');
+        const selected = await createProduct('TestLegacyDuplicate', 45, 3, 'Frappe');
+
+        const orderRes = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                items: [{
+                    name: selected.name,
+                    category: selected.category,
+                    quantity: 1,
+                    price: selected.price
+                }],
+                total: 45
+            });
+
+        expect(orderRes.status).toBe(201);
+        expect(orderRes.body.items[0].productId).toBe(String(selected._id));
+        expect(Number((await getProductById(selected._id)).stock)).toBe(2);
+        expect(Number((await getProductById(other._id)).stock)).toBe(5);
+    });
+
+    test('ambiguous legacy orders are rejected without changing stock', async () => {
+        const first = await createProduct('TestAmbiguousLegacyItem', 55, 4, 'Chicken');
+        const second = await createProduct('TestAmbiguousLegacyItem', 55, 6, 'Chicken');
+
+        const orderRes = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                items: [{ name: first.name, category: first.category, quantity: 1, price: first.price }],
+                total: 55
+            });
+
+        expect(orderRes.status).toBe(409);
+        expect(orderRes.body.error).toContain('More than one menu item');
+        expect(Number((await getProductById(first._id)).stock)).toBe(4);
+        expect(Number((await getProductById(second._id)).stock)).toBe(6);
+    });
+
+    test('an already-saved offline retry bypasses newly ambiguous product names', async () => {
+        const selected = await createProduct('TestAmbiguousRetryItem', 65, 4, 'Chicken');
+        const other = await createProduct('TestAmbiguousRetryItem', 65, 6, 'Chicken');
+        const first = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                clientOrderId: 'duplicate-product-retry-001',
+                items: [{
+                    productId: selected._id,
+                    name: selected.name,
+                    category: selected.category,
+                    quantity: 1,
+                    price: selected.price
+                }],
+                total: 65
+            });
+        expect(first.status).toBe(201);
+
+        const retry = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                clientOrderId: 'duplicate-product-retry-001',
+                items: [{ name: selected.name, category: selected.category, quantity: 1, price: selected.price }],
+                total: 65
+            });
+
+        expect(retry.status).toBe(200);
+        expect(String(retry.body._id)).toBe(String(first.body._id));
+        expect(Number((await getProductById(selected._id)).stock)).toBe(3);
+        expect(Number((await getProductById(other._id)).stock)).toBe(6);
     });
 
     test('concurrent orders cannot sell more than the final available unit', async () => {
