@@ -108,7 +108,7 @@ function setupSettingsForm() {
                 method: "POST"
             });
             if (response.ok) {
-                showToast("Test email sent — check your inbox!");
+                showToast("Sales summary preview sent — check your inbox!");
                 return;
             }
             const payload = await response.json().catch(() => null);

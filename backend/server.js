@@ -2113,10 +2113,11 @@ app.post('/api/settings/owner-alerts/test', testEmailLimiter, authRequired(['Adm
         if (!isEmailConfigured()) {
             return res.status(400).json({ error: 'Email sending is not configured. Add SMTP_HOST/SMTP_USER/SMTP_PASS (or RESEND_API_KEY + EMAIL_FROM) to the server environment.' });
         }
+        const summary = await buildDailySummaryEmail();
         const result = await sendAlertMail({
             to: s.recipients[0],
-            subject: 'Test email — Owner Alerts',
-            html: '<p>If you can read this, owner alert emails are working.</p>'
+            subject: `[TEST] ${summary.subject}`,
+            html: `<p style="font-family:Arial,sans-serif;color:#888">Test preview generated on demand. This does not send or change the scheduled daily summary.</p>${summary.html}`
         });
         if (result.ok) return res.json({ ok: true });
         res.status(502).json({ error: `Email failed: ${result.error}` });

@@ -148,14 +148,49 @@ describe('owner-alerts settings API', () => {
 });
 
 describe('test email endpoint', () => {
-    test('sends a test email to the first recipient', async () => {
+    test('sends a current sales summary preview to the first recipient without marking the scheduled email sent', async () => {
+        await putSettings({
+            recipients: ['owner@cafe.com', 'manager@cafe.com'],
+            lowStockEnabled: false,
+            dailySummaryEnabled: true,
+            dailySummaryHour: 20
+        });
+        const product = await request(app)
+            .post('/api/products')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({ name: 'TestSummaryPreviewItem', price: 125, stock: 20, category: 'Test', lowStockThreshold: 2 });
+        expect(product.status).toBe(201);
+        const order = await request(app)
+            .post('/api/orders')
+            .set('Authorization', `Bearer ${cashierToken}`)
+            .send({
+                items: [{
+                    productId: product.body._id,
+                    name: product.body.name,
+                    category: product.body.category,
+                    quantity: 2,
+                    price: 125
+                }],
+                total: 250
+            });
+        expect(order.status).toBe(201);
+
+        const { getOwnerAlertSettings } = app._ownerAlerts;
+        const lastSentBefore = (await getOwnerAlertSettings()).lastDailySentDate;
         fakeMailer.sendMail.mockClear();
         const res = await request(app)
             .post('/api/settings/owner-alerts/test')
             .set('Authorization', `Bearer ${adminToken}`);
         expect(res.status).toBe(200);
         expect(fakeMailer.sendMail).toHaveBeenCalledTimes(1);
-        expect(fakeMailer.sendMail.mock.calls[0][0].to).toBe('owner@cafe.com');
+        const email = fakeMailer.sendMail.mock.calls[0][0];
+        expect(email.to).toBe('owner@cafe.com');
+        expect(email.subject).toContain('[TEST] Daily Sales Summary');
+        expect(email.html).toContain('Test preview generated on demand');
+        expect(email.html).toContain('Orders today');
+        expect(email.html).toContain('Total revenue');
+        expect(email.html).toContain('TestSummaryPreviewItem');
+        expect((await getOwnerAlertSettings()).lastDailySentDate).toBe(lastSentBefore);
     });
 });
 
