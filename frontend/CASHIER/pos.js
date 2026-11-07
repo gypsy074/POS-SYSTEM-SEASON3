@@ -968,14 +968,51 @@ async function refreshBestSellingCounts() {
         (Array.isArray(orders) ? orders : []).forEach(order => {
             if (order.status === "Voided" || order.status === "Refunded") return;
             (order.items || []).forEach(item => {
-                const name = String(item.name || "").trim();
-                if (name) counts[name] = (counts[name] || 0) + Number(item.quantity || 0);
+                const key = bestSellingItemKey(item);
+                if (key) counts[key] = (counts[key] || 0) + Number(item.quantity || 0);
             });
         });
         bestSellingCounts = counts;
     } catch (err) {
         console.warn("Could not refresh best-selling item counts:", err);
     }
+}
+
+function bestSellingItemKey(item) {
+    const productId = String(item.productId || item._id || "").trim();
+    if (productId) return `id:${productId}`;
+
+    const name = String(item.name || "").trim().toLowerCase();
+    if (!name) return "";
+    const category = String(item.category || "").trim().toLowerCase();
+    return `legacy:${category}:${name}`;
+}
+
+function getBestSellingCount(product) {
+    const idKey = bestSellingItemKey({ productId: product._id });
+    const legacyKey = bestSellingItemKey({ name: product.name, category: product.category });
+    return (bestSellingCounts[idKey] || 0) + (bestSellingCounts[legacyKey] || 0);
+}
+
+function getTopSellingProducts(products) {
+    const winners = new Map();
+    products.forEach(product => {
+        const category = String(product.category || "").trim();
+        if (!category) return;
+        const categoryKey = category.toLowerCase();
+        const current = winners.get(categoryKey);
+        const soldCount = getBestSellingCount(product);
+        const currentSoldCount = current ? getBestSellingCount(current) : -1;
+        if (!current
+            || soldCount > currentSoldCount
+            || (soldCount === currentSoldCount && productIsSoldOut(current) && !productIsSoldOut(product))) {
+            winners.set(categoryKey, product);
+        }
+    });
+    return [...winners.values()].sort((a, b) =>
+        getBestSellingCount(b) - getBestSellingCount(a)
+        || String(a.category).localeCompare(String(b.category))
+    );
 }
 
 /* ==========================================================================
@@ -1410,7 +1447,7 @@ function renderCategoryTabs() {
     tabContainer.innerHTML = displayTabs.length
         ? displayTabs.map(category => {
             const count = category === "Best Selling Item"
-                ? allProducts.length
+                ? getTopSellingProducts(allProducts).length
                 : allProducts.filter(product => product.category === category).length;
             return `
                 <div class="tab-item ${category === activeCategory ? "active" : ""}" data-category="${escapeHtml(category)}">
@@ -1490,18 +1527,19 @@ function displayCategoryItems(category, searchTerm = "", animate = true, preserv
     const previousScrollTop = preserveScroll ? grid.scrollTop : 0;
 
     const normalizedSearch = searchTerm.trim().toLowerCase();
-    const products = allProducts.filter(product => {
-        const matchesCategory = category === "Best Selling Item" || category === "All" || !category || product.category === category;
-        const matchesSearch = !normalizedSearch
-            || product.name.toLowerCase().includes(normalizedSearch)
-            || (product.category || "").toLowerCase().includes(normalizedSearch)
-            || (product.status || "").toLowerCase().includes(normalizedSearch);
+    const categoryProducts = allProducts.filter(product =>
+        category === "Best Selling Item" || category === "All" || !category || product.category === category
+    );
+    let products = category === "Best Selling Item"
+        ? getTopSellingProducts(categoryProducts)
+        : categoryProducts;
+    products = products.filter(product => !normalizedSearch
+        || product.name.toLowerCase().includes(normalizedSearch)
+        || (product.category || "").toLowerCase().includes(normalizedSearch)
+        || (product.status || "").toLowerCase().includes(normalizedSearch));
 
-        return matchesCategory && matchesSearch;
-    });
-
-    if (category === "Best Selling Item" || category === "All") {
-        const soldRank = item => bestSellingCounts[item.name] || 0;
+    if (category === "All") {
+        const soldRank = item => getBestSellingCount(item);
         products.sort((a, b) => {
             const delta = soldRank(b) - soldRank(a);
             if (delta !== 0) return delta;
@@ -2210,7 +2248,8 @@ async function submitOrder() {
 
         const createdOrder = await response.json();
         (createdOrder.items || payload.items).forEach(item => {
-            bestSellingCounts[item.name] = (bestSellingCounts[item.name] || 0) + Number(item.quantity || 0);
+            const key = bestSellingItemKey(item);
+            if (key) bestSellingCounts[key] = (bestSellingCounts[key] || 0) + Number(item.quantity || 0);
         });
         playSound("success");
         printReceipt(createdOrder);
