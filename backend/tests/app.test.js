@@ -215,6 +215,26 @@ describe('Auth', () => {
 });
 
 describe('Session authorization changes', () => {
+    test('Admin cannot delete their own account', async () => {
+        const identity = await request(app)
+            .get('/api/auth/me')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(identity.status).toBe(200);
+        expect(identity.body.id).toBeTruthy();
+
+        const deleted = await request(app)
+            .delete(`/api/users/${identity.body.id}`)
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(deleted.status).toBe(409);
+        expect(deleted.body.error).toBe('You cannot delete your own Admin account.');
+
+        const stillAuthenticated = await request(app)
+            .get('/api/auth/me')
+            .set('Authorization', `Bearer ${adminToken}`);
+        expect(stillAuthenticated.status).toBe(200);
+        expect(stillAuthenticated.body.id).toBe(identity.body.id);
+    });
+
     test('same account can list both active sign-ins and identify its own session', async () => {
         const created = await request(app)
             .post('/api/users')

@@ -896,6 +896,7 @@ app.post('/api/login', loginLimiter, async (req, res) => {
 app.get('/api/auth/me', authRequired(), (req, res) => {
     res.json({
         success: true,
+        id: String(req.user.id),
         username: req.user.username,
         role: req.user.role,
         session: { jti: req.session.jti, createdAt: req.session.createdAt }
@@ -1653,7 +1654,19 @@ app.put('/api/users/:id', authRequired(['Admin']), async (req, res) => {
 app.delete('/api/users/:id', authRequired(['Admin']), async (req, res) => {
     try {
         if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid user id' });
-        const deleted = await User.findOneAndDelete(idMatchFilter(req.params.id));
+        const target = await User.findOne(idMatchFilter(req.params.id)).select('_id username');
+        if (!target) return res.status(404).json({ error: 'User account not found.' });
+        const deletingSelf = String(target._id) === String(req.user.id)
+            || String(target.username).trim().toLowerCase() === String(req.user.username).trim().toLowerCase();
+        if (deletingSelf) {
+            return res.status(409).json({ error: 'You cannot delete your own Admin account.' });
+        }
+        const deleted = await User.findOneAndDelete({
+            $and: [
+                idMatchFilter(req.params.id),
+                { username: target.username }
+            ]
+        });
         if (deleted) {
             await Session.updateMany(
                 { userId: deleted._id, revoked: false },

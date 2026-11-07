@@ -31,6 +31,8 @@ let itemsRadarChart = null;
 let usageBarChart  = null;
 let activePanelId  = "dashboard-view";
 let currentAdminRole = "Admin";
+let currentAdminId = "";
+let currentAdminUsername = "";
 
 // ── Profile Dropdown (animated open/close) ─────────────────────────────────
 
@@ -137,6 +139,8 @@ async function guardAdminPage() {
             return false;
         }
         currentAdminRole = data.role;
+        currentAdminId = String(data.id || "");
+        currentAdminUsername = String(data.username || "").trim().toLowerCase();
         if (data.role === "Manager") {
             document.querySelectorAll(".nav-btn[data-target='users-view'], .nav-btn[data-target='audit-view'], .nav-btn[data-target='settings-view']")
                 .forEach(button => {

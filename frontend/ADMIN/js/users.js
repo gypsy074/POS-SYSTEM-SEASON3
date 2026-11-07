@@ -56,6 +56,27 @@ function selectUserRow(user) {
     if (passwordInput) passwordInput.value = user.password || "";
     if (roleSelect)    roleSelect.value    = user.role     || "Admin";
     refreshUserPasswordStrength();
+    updateRemoveUserButton();
+}
+
+function isCurrentAdminUser(user) {
+    if (!user) return false;
+    if (currentAdminId && String(user._id) === String(currentAdminId)) return true;
+
+    let activeUsername = String(currentAdminUsername || "").trim().toLowerCase();
+    if (!activeUsername) {
+        try {
+            const storedUser = JSON.parse(
+                sessionStorage.getItem("posAdminUser")
+                || localStorage.getItem("posAdminUser")
+                || "null"
+            );
+            activeUsername = String(storedUser && storedUser.username || "").trim().toLowerCase();
+        } catch (err) {
+            console.warn("Unable to read the active Admin profile while checking account deletion.", err);
+        }
+    }
+    return Boolean(activeUsername && String(user.username || "").trim().toLowerCase() === activeUsername);
 }
 
 // ── Form Reset ─────────────────────────────────────────────────────────────
@@ -71,6 +92,16 @@ function clearUserForm() {
     if (passwordInput) passwordInput.value = "";
     if (roleSelect)    roleSelect.value    = "Admin";
     refreshUserPasswordStrength();
+    updateRemoveUserButton();
+}
+
+function updateRemoveUserButton() {
+    const removeUserBtn = document.getElementById("removeUserBtn");
+    if (!removeUserBtn) return;
+    const selectedUser = (allUsers || []).find(user => String(user._id) === String(selectedUserId));
+    const isSelf = isCurrentAdminUser(selectedUser);
+    removeUserBtn.disabled = isSelf;
+    removeUserBtn.title = isSelf ? "You cannot delete your own Admin account." : "";
 }
 
 // ── Payload Builder ────────────────────────────────────────────────────────
@@ -178,7 +209,11 @@ async function deleteUser() {
         return;
     }
 
-    const user = (allUsers || []).find(u => u._id === selectedUserId);
+    const user = (allUsers || []).find(u => String(u._id) === String(selectedUserId));
+    if (isCurrentAdminUser(user)) {
+        showToast("You cannot delete your own Admin account.", "warning");
+        return;
+    }
     const confirmed = await showConfirmModal({
         title: "Delete user?",
         message: user
@@ -205,7 +240,9 @@ async function deleteUser() {
         throw new Error(errorPayload?.error || "Failed to delete user.");
     } catch (err) {
         console.error("❌ User deletion pipeline error:", err);
-        showToast("Failed to delete user.", "error");
+        showToast(err.message.startsWith("You cannot delete your own Admin account.")
+            ? err.message
+            : "Failed to delete user: " + err.message, "error");
     }
 }
 
@@ -219,6 +256,7 @@ async function loadLiveUserData() {
         const users = await response.json();
         allUsers = users;
         renderUserTable(users);
+        updateRemoveUserButton();
     } catch (err) {
         console.error("❌ User data load error:", err);
     }
