@@ -1637,7 +1637,7 @@ function renderCart() {
                 </div>
                 <div class="qty-control-pill">
                     <button type="button" class="qty-btn" data-cart-action="decrease" data-cart-index="${cart.indexOf(item)}">-</button>
-                    <span class="qty-number">${item.quantity}</span>
+                    <input type="number" class="qty-number" min="1" step="1" inputmode="numeric" value="${item.quantity}" data-cart-quantity="${cart.indexOf(item)}" aria-label="Quantity for ${escapeHtml(item.name)}" title="Enter quantity">
                     <button type="button" class="qty-btn" data-cart-action="increase" data-cart-index="${cart.indexOf(item)}">+</button>
                 </div>
                 <button type="button" class="remove-item-btn" data-cart-action="remove" data-cart-index="${cart.indexOf(item)}" aria-label="Remove ${escapeHtml(item.name)}" title="Remove item">
@@ -1696,6 +1696,15 @@ function renderCart() {
                 if (action === "increase") changeQuantity(index, 1);
                 if (action === "decrease") changeQuantity(index, -1);
                 if (action === "remove") removeCartItem(index);
+            });
+        });
+        container.querySelectorAll("[data-cart-quantity]").forEach(input => {
+            input.addEventListener("change", () => setCartQuantity(Number(input.dataset.cartQuantity), input.value));
+            input.addEventListener("keydown", event => {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    input.blur();
+                }
             });
         });
     });
@@ -2020,6 +2029,36 @@ function changeQuantity(index, delta) {
         cart.splice(index, 1);
     }
 
+    playSound("qty");
+    renderCart();
+    refreshCartStockDisplay();
+}
+
+function setCartQuantity(index, rawQuantity) {
+    const item = cart[index];
+    if (!item) return;
+
+    const quantity = Number(rawQuantity);
+    if (!Number.isInteger(quantity) || quantity < 1) {
+        renderCart();
+        return;
+    }
+
+    const product = allProducts.find(p => String(p._id) === String(item._id));
+    const maxQuantity = product ? item.quantity + productStock(product) : Infinity;
+    if (quantity > maxQuantity) {
+        showPosAlert({
+            title: "Stock Limit Reached",
+            icon: "fa-circle-exclamation",
+            iconClass: "danger",
+            bodyHtml: `<p class="pos-modal-note">Only ${maxQuantity} ${maxQuantity === 1 ? "unit is" : "units are"} available for ${escapeHtml(item.name)}.</p>`
+        });
+        renderCart();
+        return;
+    }
+
+    if (quantity === item.quantity) return;
+    item.quantity = quantity;
     playSound("qty");
     renderCart();
     refreshCartStockDisplay();
